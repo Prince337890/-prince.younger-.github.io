@@ -315,6 +315,65 @@
         }
         .feature-card:hover { transform: translateY(-6px); box-shadow: 0 16px 30px rgba(11,25,44,0.12); }
         .feature-card h3 { color: var(--orange); margin-bottom: 15px; font-size: 1.3rem; }
+
+        /* ---------- VIP HOSPITALITY SUITE ---------- */
+        .vip {
+            background: var(--navy);
+            color: var(--white);
+            padding: 90px 5%;
+            text-align: center;
+        }
+        .vip .eyebrow {
+            font-family: 'Montserrat', sans-serif;
+            color: var(--orange);
+            font-size: 0.72rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+        .vip h2 { font-size: 2.2rem; font-weight: 800; max-width: 760px; margin: 0 auto 18px; line-height: 1.18; }
+        .vip-intro { color: var(--muted); max-width: 660px; margin: 0 auto 56px; }
+        .vip-grid { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; }
+        .vip-card {
+            background: var(--navy-2);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 10px;
+            padding: 38px 32px;
+            width: 330px;
+            text-align: left;
+            position: relative;
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+        .vip-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255,87,34,0.55);
+            box-shadow: 0 18px 40px rgba(0,0,0,0.4);
+        }
+        .vip-card .tag {
+            position: absolute;
+            top: 22px; right: 22px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.6rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--orange);
+            border: 1px solid rgba(255,87,34,0.45);
+            padding: 3px 9px;
+            border-radius: 20px;
+        }
+        .vip-icon {
+            width: 56px; height: 56px;
+            border-radius: 12px;
+            background: rgba(255,87,34,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+        .vip-icon svg { width: 30px; height: 30px; }
+        .vip-card h3 { color: var(--white); font-size: 1.15rem; margin-bottom: 10px; }
+        .vip-card p { color: #B9C6D4; font-size: 0.95rem; }
+
         footer {
             background-color: var(--navy);
             color: var(--white);
@@ -328,6 +387,8 @@
             .hero h1 { font-size: 2rem; }
             .hero p { font-size: 1.05rem; }
             .features { flex-direction: column; align-items: center; }
+            .vip-grid { flex-direction: column; align-items: center; }
+            .vip h2 { font-size: 1.7rem; }
             .rig { width: 200px; }
             .logo { font-size: 19px; }
         }
@@ -441,6 +502,51 @@
         <div class="feature-card">
             <h3>Total Back-Office</h3>
             <p>Check calls, Rate Cons, TONUs, and detention tracking. We handle the brokers so you can focus on the road and getting home.</p>
+        </div>
+    </section>
+
+    <section class="vip">
+        <div class="eyebrow">The Forward Motion VIP Hospitality Suite</div>
+        <h2>We Handle the Freight. We Watch Out for the Driver.</h2>
+        <p class="vip-intro">Most dispatchers stop caring the moment a load is covered. We don't. As a veteran-owned outfit, we know the hardest part of this job often happens after you park &mdash; eating right when every exit is fast food, finding safe parking before your clock runs out, holding it together on a 34-hour reset a thousand miles from home. These three services are free, because a driver who's looked after runs safer, stronger, and longer.</p>
+
+        <div class="vip-grid">
+            <div class="vip-card">
+                <span class="tag">Free</span>
+                <div class="vip-icon">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M5 12 h22 l-2.2 13.5 a2 2 0 0 1 -2 1.7 H9.2 a2 2 0 0 1 -2 -1.7 z"/>
+                        <path d="M11 12 l4.5 -7 M21 12 l-4.5 -7"/>
+                        <path d="M13 17 v5 M19 17 v5"/>
+                    </svg>
+                </div>
+                <h3>The "Provisions &amp; Wellness" Drop</h3>
+                <p>Living off the fuel desk wrecks your health and your wallet. We scan your route ahead of time for grocery stores and fresh markets that can actually fit a truck &mdash; real food, real parking, no circling a lot with 53 feet behind you. Stock the cooler and eat like the professional you are.</p>
+            </div>
+
+            <div class="vip-card">
+                <span class="tag">Free</span>
+                <div class="vip-icon">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="5" y="4" width="22" height="24" rx="4"/>
+                        <path d="M12.5 23 V9 h5.5 a4 4 0 0 1 0 8 H12.5"/>
+                    </svg>
+                </div>
+                <h3>The "Sunset Parking Scout"</h3>
+                <p>When your ELD says the clock is running down, the last thing you need is a white-knuckle hunt for a spot. We track your hours and scout safe, legal parking ahead of you &mdash; so you shut down on time, in a real space, never on a sketchy off-ramp gambling on a DOT fine. Park the truck. We already found the spot.</p>
+            </div>
+
+            <div class="vip-card">
+                <span class="tag">Free</span>
+                <div class="vip-icon">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M16 28 C16 28 25 19.5 25 12 a9 9 0 0 0 -18 0 c0 7.5 9 16 9 16 z"/>
+                        <circle cx="16" cy="12" r="3.4"/>
+                    </svg>
+                </div>
+                <h3>The "Layover Local Guide"</h3>
+                <p>A weekend reset in an unfamiliar lot doesn't have to mean 34 hours of staring at the sleeper wall. The moment you're down, we map what's within reach &mdash; highly-rated gyms, clean laundromats, and a solid meal &mdash; so your downtime actually feels like downtime. You earned the break. We'll make it count.</p>
+            </div>
         </div>
     </section>
 
