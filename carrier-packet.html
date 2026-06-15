@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request a Carrier Packet | Forward Motion Freight</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #0B192C;
+            --orange: #FF5722;
+            --orange-deep: #E64A19;
+            --light-gray: #F4F6F8;
+            --white: #FFFFFF;
+            --muted: #A0B3C6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--navy);
+            background-color: var(--light-gray);
+            line-height: 1.6;
+        }
+        h1, h2, h3, .logo { font-family: 'Montserrat', sans-serif; }
+        a { color: var(--orange); }
+
+        /* ---------- HEADER + ANIMATED LOGO (shared identity) ---------- */
+        header {
+            background-color: var(--navy);
+            padding: 18px 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            color: var(--white);
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-decoration: none;
+        }
+        .logo-mark { width: 46px; height: 46px; flex-shrink: 0; overflow: visible; }
+        .logo-hub { transform-box: fill-box; transform-origin: center; animation: hubSpin 6s linear infinite; }
+        @keyframes hubSpin { to { transform: rotate(360deg); } }
+        .chev { opacity: 0; animation: chevSweep 2.4s ease-in-out infinite; }
+        .chev.c1 { animation-delay: 0s; }
+        .chev.c2 { animation-delay: 0.18s; }
+        .chev.c3 { animation-delay: 0.36s; }
+        @keyframes chevSweep {
+            0%   { opacity: 0; transform: translateX(-4px); }
+            30%  { opacity: 1; transform: translateX(0); }
+            60%  { opacity: 1; transform: translateX(0); }
+            100% { opacity: 0; transform: translateX(5px); }
+        }
+        .logo-text span { color: var(--orange); }
+        .logo:hover .logo-mark { filter: drop-shadow(0 0 8px rgba(255,87,34,0.8)); }
+        .logo:hover .chev { animation-duration: 1.2s; }
+        .nav-home {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-family: 'Montserrat', sans-serif;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .nav-home:hover { color: var(--white); }
+
+        /* ---------- BANNER ---------- */
+        .banner {
+            background-color: var(--navy);
+            color: var(--white);
+            text-align: center;
+            padding: 64px 5% 90px;
+            position: relative;
+            overflow: hidden;
+        }
+        .banner .eyebrow {
+            font-size: 0.72rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--orange);
+            margin-bottom: 16px;
+        }
+        .banner h1 { font-size: 2.6rem; font-weight: 800; margin-bottom: 14px; }
+        .banner p { color: #C7D5E3; max-width: 580px; margin: 0 auto; }
+        .lane {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 5px;
+            background: repeating-linear-gradient(90deg, var(--orange) 0 34px, transparent 34px 78px);
+            opacity: 0.85;
+            animation: laneMove 0.85s linear infinite;
+        }
+        @keyframes laneMove { to { background-position: -78px 0; } }
+
+        /* ---------- PREP + CTA ---------- */
+        .panel-wrap { max-width: 760px; margin: -56px auto 0; padding: 0 5% 60px; position: relative; z-index: 5; }
+        .panel {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 24px 50px rgba(11,25,44,0.12);
+            padding: 46px;
+        }
+        .panel-label {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            color: var(--orange);
+            margin-bottom: 8px;
+        }
+        .panel h2 { font-size: 1.5rem; margin-bottom: 8px; }
+        .panel .sub { color: #44586C; margin-bottom: 26px; }
+        .checklist { list-style: none; display: grid; gap: 14px; margin-bottom: 34px; }
+        .checklist li {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--light-gray);
+        }
+        .checklist li:last-child { border-bottom: none; padding-bottom: 0; }
+        .checklist .tick {
+            flex-shrink: 0;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: rgba(255,87,34,0.12);
+            color: var(--orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+        .checklist strong { display: block; font-size: 1rem; }
+        .checklist span { font-size: 0.9rem; color: #6B7C8D; }
+        .cta-row { text-align: center; }
+        .btn {
+            background-color: var(--orange);
+            color: var(--white);
+            padding: 16px 38px;
+            text-decoration: none;
+            display: inline-block;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(255,87,34,0.3);
+            transition: background-color 0.25s ease, transform 0.2s ease;
+        }
+        .btn:hover { background-color: var(--orange-deep); transform: translateY(-2px); }
+        .btn .arrow { transition: transform 0.2s ease; display: inline-block; }
+        .btn:hover .arrow { transform: translateX(4px); }
+        .cta-note { font-size: 0.82rem; color: #7C8B9B; margin-top: 14px; }
+
+        /* ---------- WHAT HAPPENS NEXT ---------- */
+        .steps { max-width: 1040px; margin: 0 auto; padding: 20px 5% 80px; }
+        .steps h2 { text-align: center; font-size: 1.7rem; margin-bottom: 36px; }
+        .step-grid { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
+        .step {
+            background: var(--white);
+            border-radius: 8px;
+            padding: 32px 28px;
+            width: 290px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .step .num {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 800;
+            font-size: 2.2rem;
+            color: var(--orange);
+            line-height: 1;
+        }
+        .step h3 { font-size: 1.15rem; margin: 10px 0 8px; }
+        .step p { font-size: 0.95rem; color: #44586C; }
+
+        /* ---------- FOOTER ---------- */
+        footer {
+            background-color: var(--navy);
+            color: var(--white);
+            text-align: center;
+            padding: 46px 5%;
+        }
+        footer a { color: var(--orange); text-decoration: none; }
+        footer .fine { margin-top: 30px; font-size: 0.8rem; color: #556A82; }
+
+        @media (max-width: 720px) {
+            .banner h1 { font-size: 2rem; }
+            .panel { padding: 30px 22px; }
+            .logo { font-size: 19px; }
+            .nav-home { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .logo-hub, .chev, .lane { animation: none !important; }
+            .chev { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a class="logo" href="index.html" aria-label="Forward Motion Freight — home">
+            <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
+                <g class="logo-hub">
+                    <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+                    <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
+                        <line x1="16" y1="24" x2="16" y2="13"/>
+                        <line x1="16" y1="24" x2="25.5" y2="29.5"/>
+                        <line x1="16" y1="24" x2="6.5" y2="29.5"/>
+                    </g>
+                </g>
+                <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline class="chev c1" points="31,16 38,24 31,32"/>
+                    <polyline class="chev c2" points="37,16 44,24 37,32"/>
+                    <polyline class="chev c3" points="43,16 50,24 43,32"/>
+                </g>
+            </svg>
+            <span class="logo-text">Forward Motion <span>Freight</span></span>
+        </a>
+        <a class="nav-home" href="index.html">&larr; Back to home</a>
+    </header>
+
+    <section class="banner">
+        <div class="eyebrow">&#9733; Veteran-Owned Small Business &middot; MC &amp; DOT carriers welcome</div>
+        <h1>Request Your Carrier Packet</h1>
+        <p>Gather a few documents, then open the form. We'll review your authority and equipment and send your packet plus starting lanes within one business day.</p>
+        <div class="lane"></div>
+    </section>
+
+    <div class="panel-wrap">
+        <div class="panel">
+            <div class="panel-label">Before you start</div>
+            <h2>Have these ready to upload</h2>
+            <p class="sub">The form asks you to attach a few files. Having them on hand keeps it to a couple of minutes.</p>
+            <ul class="checklist">
+                <li>
+                    <span class="tick">&#10003;</span>
+                    <div><strong>Operating authority</strong><span>Your MC certificate / active DOT authority.</span></div>
+                </li>
+                <li>
+                    <span class="tick">&#10003;</span>
+                    <div><strong>Certificate of Insurance (COI)</strong><span>Current auto liability and cargo coverage.</span></div>
+                </li>
+                <li>
+                    <span class="tick">&#10003;</span>
+                    <div><strong>W-9</strong><span>So we can set up clean, on-time settlements.</span></div>
+                </li>
+                <li>
+                    <span class="tick">&#10003;</span>
+                    <div><strong>Voided check or factoring notice</strong><span>For payment routing &mdash; whichever you use.</span></div>
+                </li>
+                <li>
+                    <span class="tick">&#10003;</span>
+                    <div><strong>Driver's license / CDL</strong><span>For the driver who'll be running the loads.</span></div>
+                </li>
+            </ul>
+            <div class="cta-row">
+                <a class="btn" href="https://forms.gle/MWUqc1RvZZeLvSWA8" target="_blank" rel="noopener">
+                    Open the Carrier Packet Form <span class="arrow">&rarr;</span>
+                </a>
+                <p class="cta-note">Opens in a secure Google Form in a new tab. Don't have a file yet? You can still start &mdash; just send it to Prince afterward.</p>
+            </div>
+        </div>
+    </div>
+
+    <section class="steps">
+        <h2>What happens next</h2>
+        <div class="step-grid">
+            <div class="step">
+                <div class="num">1</div>
+                <h3>Submit the form</h3>
+                <p>Send your authority, equipment, and documents. It takes a couple of minutes once your files are ready.</p>
+            </div>
+            <div class="step">
+                <div class="num">2</div>
+                <h3>We verify &amp; review</h3>
+                <p>We check your MC and DOT authority, confirm your equipment, and map it to lanes that fit your numbers.</p>
+            </div>
+            <div class="step">
+                <div class="num">3</div>
+                <h3>You get your packet</h3>
+                <p>Within one business day you'll have the carrier packet and a few starting loads to look over. No obligation.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <h2>Questions before you sign on?</h2>
+        <p style="margin: 18px 0;">Talk to Prince directly &mdash; a disciplined, veteran-owned dispatch agency.</p>
+        <p>Email: <a href="mailto:prince@forwardmotionfreight.com">prince@forwardmotionfreight.com</a></p>
+        <p class="fine">&copy; 2026 Forward Motion Freight LLC. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>
