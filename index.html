@@ -109,47 +109,56 @@
             animation: skyCycle var(--cycle) linear infinite;
         }
         @keyframes skyCycle {
-            0%   { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); } /* noon */
-            22%  { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); }
-            32%  { background: linear-gradient(180deg, #C9582E, #F2A65A); } /* sunset */
-            42%  { background: linear-gradient(180deg, #2E2350, #7A4A6A); } /* twilight */
-            50%  { background: linear-gradient(180deg, #0B192C, #14253B); } /* night */
-            70%  { background: linear-gradient(180deg, #0B192C, #14253B); }
-            80%  { background: linear-gradient(180deg, #4A325E, #D98A5A); } /* dawn */
-            90%  { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); } /* morning */
-            100% { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); }
+            0%   { background: linear-gradient(180deg, #4A5C86, #E0936A); } /* dawn */
+            12%  { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); } /* morning */
+            38%  { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); } /* day */
+            50%  { background: linear-gradient(180deg, #C9582E, #F2A65A); } /* sunset */
+            58%  { background: linear-gradient(180deg, #2E2350, #7A4A6A); } /* twilight */
+            66%  { background: linear-gradient(180deg, #0B192C, #14253B); } /* night */
+            86%  { background: linear-gradient(180deg, #0B192C, #14253B); } /* night */
+            94%  { background: linear-gradient(180deg, #3A2F5A, #C97A55); } /* pre-dawn */
+            100% { background: linear-gradient(180deg, #4A5C86, #E0936A); } /* dawn */
         }
-        /* big rotating disc carries the sun (top) and moon (bottom) along an arc */
-        .celestial {
-            position: absolute;
-            left: 50%;
-            top: 88%;
-            width: 220vmax;
-            height: 220vmax;
-            margin-left: -110vmax;
-            margin-top: -110vmax;
-            z-index: 1;
-            transform-origin: 50% 50%;
-            animation: arc var(--cycle) linear infinite;
-        }
-        @keyframes arc { to { transform: rotate(360deg); } }
+        /* Sun + moon arc across the hero using hero-relative %, so they appear on any screen size */
         .sun, .moon {
             position: absolute;
-            left: 50%;
-            width: 84px;
-            height: 84px;
+            z-index: 1;
+            width: 76px;
+            height: 76px;
             border-radius: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%);
+            will-change: left, top, opacity;
         }
         .sun {
-            top: 7%;
             background: radial-gradient(circle at 50% 50%, #FFD27A 0%, #FF8A3D 55%, var(--orange) 100%);
             box-shadow: 0 0 60px 18px rgba(255,138,61,0.55), 0 0 120px 50px rgba(255,87,34,0.25);
+            animation: sunPath var(--cycle) linear infinite;
         }
         .moon {
-            bottom: 7%;
             background: radial-gradient(circle at 38% 35%, #FFFFFF 0%, #DCE6F2 60%, #AEBFD2 100%);
             box-shadow: 0 0 40px 8px rgba(220,230,242,0.45);
+            animation: moonPath var(--cycle) linear infinite;
+        }
+        /* daytime: sun rises left, peaks center, sets right (0%-50%) */
+        @keyframes sunPath {
+            0%   { left: 8%;  top: 80%; opacity: 0; }
+            6%   { opacity: 1; }
+            12%  { left: 22%; top: 42%; }
+            25%  { left: 50%; top: 16%; }
+            38%  { left: 78%; top: 42%; }
+            44%  { opacity: 1; }
+            50%  { left: 92%; top: 80%; opacity: 0; }
+            51%, 100% { left: 8%; top: 80%; opacity: 0; }
+        }
+        /* nighttime: moon rises left, peaks center, sets right (50%-100%) */
+        @keyframes moonPath {
+            0%, 50% { left: 8%;  top: 80%; opacity: 0; }
+            56%  { opacity: 1; }
+            62%  { left: 22%; top: 42%; }
+            75%  { left: 50%; top: 16%; }
+            88%  { left: 78%; top: 42%; }
+            94%  { opacity: 1; }
+            100% { left: 92%; top: 80%; opacity: 0; }
         }
         .moon::after { /* crater shading */
             content: "";
@@ -167,9 +176,9 @@
             animation: starFade var(--cycle) linear infinite;
         }
         @keyframes starFade {
-            0%, 38% { opacity: 0; }
-            48%, 72% { opacity: 1; }
-            82%, 100% { opacity: 0; }
+            0%, 52% { opacity: 0; }
+            60%, 90% { opacity: 1; }
+            96%, 100% { opacity: 0; }
         }
         .stars span {
             position: absolute;
@@ -205,7 +214,7 @@
             position: absolute;
             left: 50%;
             bottom: 10%;
-            width: 260px;
+            width: 290px;
             z-index: 3;
             transform: translateX(-50%);
             animation: bob 2.2s ease-in-out infinite;
@@ -219,9 +228,9 @@
             animation: beamGlow var(--cycle) linear infinite;
         }
         @keyframes beamGlow {
-            0%, 32% { opacity: 0.1; }
-            46%, 74% { opacity: 0.9; }
-            88%, 100% { opacity: 0.1; }
+            0%, 46% { opacity: 0.12; }
+            60%, 90% { opacity: 0.9; }
+            96%, 100% { opacity: 0.12; }
         }
 
         .hero-content {
@@ -384,23 +393,31 @@
         footer a { color: var(--orange); text-decoration: none; }
 
         @media (max-width: 768px) {
+            .hero { min-height: 560px; }
             .hero h1 { font-size: 2rem; }
             .hero p { font-size: 1.05rem; }
+            .hero-content { padding: 30px 5% 96px; }
+            .sun, .moon { width: 54px; height: 54px; }
             .features { flex-direction: column; align-items: center; }
             .vip-grid { flex-direction: column; align-items: center; }
             .vip h2 { font-size: 1.7rem; }
-            .rig { width: 200px; }
-            .logo { font-size: 19px; }
+            .vip-card { width: 100%; max-width: 360px; }
+            .rig { width: 210px; }
+            .logo { font-size: 18px; gap: 10px; }
+            .logo-mark { width: 40px; height: 40px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .sky, .celestial, .stars, .stars span, .lane, .rig, .wheel,
-            .beam, .logo-hub, .chev, .logo-text::after, .clock::before {
+            .sky, .stars, .stars span, .lane, .rig, .wheel,
+            .beam, .logo-hub, .chev, .logo-text::after, .clock::before,
+            .sun, .moon {
                 animation: none !important;
             }
-            /* hold a calm late-afternoon frame */
+            /* hold a calm daytime frame with the sun up */
             .sky { background: linear-gradient(180deg, #3E7CB1, #A7CDEA); }
-            .celestial { transform: rotate(-18deg); }
+            .sun { left: 72%; top: 24%; opacity: 1; }
+            .moon { opacity: 0; }
+            .beam { opacity: 0.12; }
             .chev { opacity: 1; }
         }
     </style>
@@ -437,49 +454,74 @@
 
     <section class="hero">
         <div class="sky"></div>
-        <div class="celestial">
-            <div class="sun"></div>
-            <div class="moon"></div>
-        </div>
+        <div class="sun"></div>
+        <div class="moon"></div>
         <div class="stars" id="stars"></div>
 
         <div class="ground"></div>
         <div class="lane"></div>
 
-        <svg class="rig" viewBox="0 0 260 110" aria-hidden="true">
-            <!-- headlight beam -->
-            <polygon class="beam" points="14,72 -40,58 -40,96" fill="#FFE7A8"/>
+        <svg class="rig" viewBox="0 0 320 120" aria-hidden="true">
+            <defs>
+                <linearGradient id="trailerGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#F2F5F9"/><stop offset="1" stop-color="#BCC7D3"/>
+                </linearGradient>
+                <linearGradient id="cabGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#3A4E6B"/><stop offset="1" stop-color="#1A2A3F"/>
+                </linearGradient>
+                <linearGradient id="hoodGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#314460"/><stop offset="1" stop-color="#1E2E44"/>
+                </linearGradient>
+                <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#D4E5F4"/><stop offset="1" stop-color="#5E84A6"/>
+                </linearGradient>
+                <radialGradient id="rim" cx="0.5" cy="0.5" r="0.5">
+                    <stop offset="0" stop-color="#EEF2F6"/><stop offset="1" stop-color="#8A96A4"/>
+                </radialGradient>
+                <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#EAEFF4"/><stop offset="0.5" stop-color="#AEB8C4"/><stop offset="1" stop-color="#D2DAE2"/>
+                </linearGradient>
+            </defs>
+
+            <!-- headlight beam (front faces left; glows at night) -->
+            <polygon class="beam" points="50,78 2,64 2,100" fill="#FFE7A8"/>
+
             <!-- trailer -->
-            <rect x="86" y="22" width="160" height="58" rx="4" fill="#16273B" stroke="#22384F" stroke-width="2"/>
-            <rect x="86" y="70" width="160" height="10" fill="#0E1D2E"/>
+            <rect x="150" y="22" width="162" height="68" rx="6" fill="url(#trailerGrad)" stroke="#A9B4C0" stroke-width="1.5"/>
+            <line x1="150" y1="40" x2="312" y2="40" stroke="#C2CCD6" stroke-width="1.4"/>
+            <rect x="150" y="74" width="162" height="6" fill="#FF5722"/>
+            <!-- subtle FM chevron badge on the trailer -->
+            <g fill="none" stroke="#FF5722" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+                <polyline points="222,46 230,54 222,62"/>
+                <polyline points="232,46 240,54 232,62"/>
+            </g>
+            <!-- aero side skirt -->
+            <path d="M180 90 H300 V98 H184 Z" fill="#33404F"/>
+
+            <!-- aero roof fairing bridging cab to trailer height -->
+            <path d="M108 38 Q150 16 150 24 L150 40 Q132 40 120 44 L110 46 Q104 46 108 38 Z" fill="url(#cabGrad)"/>
             <!-- cab -->
-            <path d="M86 80 V40 H54 L34 56 V80 Z" fill="#1D3047"/>
-            <path d="M86 40 H54 L40 52 H86 Z" fill="#0F2032"/>
-            <!-- windshield (lit at night) -->
-            <path d="M58 53 H78 V64 H50 Z" fill="#5C7B96"/>
-            <!-- orange accent stripe -->
-            <rect x="86" y="58" width="160" height="6" fill="#FF5722"/>
+            <path d="M100 92 V44 Q100 38 107 38 H146 Q150 38 150 42 V92 Z" fill="url(#cabGrad)"/>
+            <!-- raked windshield -->
+            <path d="M108 44 H140 L137 58 H110 Z" fill="url(#glassGrad)"/>
+            <!-- hood / nose -->
+            <path d="M58 92 V66 Q58 60 64 58 L100 50 V92 Z" fill="url(#hoodGrad)"/>
+            <!-- chrome grille + bumper -->
+            <path d="M58 64 V90 Q53 90 53 84 V70 Q53 64 58 64 Z" fill="url(#chrome)"/>
+            <rect x="51" y="86" width="9" height="6" rx="2" fill="url(#chrome)"/>
+            <!-- headlight -->
+            <ellipse cx="60" cy="70" rx="4" ry="5" fill="#FFE3A0"/>
+            <!-- chrome fuel tank -->
+            <rect x="92" y="78" width="28" height="13" rx="6.5" fill="url(#chrome)"/>
             <!-- taillight -->
-            <rect x="243" y="40" width="4" height="9" fill="#FF3B30"/>
-            <!-- wheels -->
-            <g class="wheel">
-                <circle cx="74" cy="92" r="13" fill="#0A0F16"/>
-                <circle cx="74" cy="92" r="5" fill="#3A4B5E"/>
-                <rect x="72.5" y="80" width="3" height="24" fill="#1c2a3a"/>
-                <rect x="62" y="90.5" width="24" height="3" fill="#1c2a3a"/>
-            </g>
-            <g class="wheel">
-                <circle cx="178" cy="92" r="13" fill="#0A0F16"/>
-                <circle cx="178" cy="92" r="5" fill="#3A4B5E"/>
-                <rect x="176.5" y="80" width="3" height="24" fill="#1c2a3a"/>
-                <rect x="166" y="90.5" width="24" height="3" fill="#1c2a3a"/>
-            </g>
-            <g class="wheel">
-                <circle cx="212" cy="92" r="13" fill="#0A0F16"/>
-                <circle cx="212" cy="92" r="5" fill="#3A4B5E"/>
-                <rect x="210.5" y="80" width="3" height="24" fill="#1c2a3a"/>
-                <rect x="200" y="90.5" width="24" height="3" fill="#1c2a3a"/>
-            </g>
+            <rect x="309" y="44" width="4" height="10" rx="1" fill="#FF3B30"/>
+
+            <!-- wheels: steer + drive tandem + trailer tandem -->
+            <g class="wheel"><circle cx="74" cy="100" r="13" fill="#0A0F16"/><circle cx="74" cy="100" r="8" fill="url(#rim)"/><circle cx="74" cy="100" r="2.6" fill="#39485A"/><g stroke="#39485A" stroke-width="1.6" stroke-linecap="round"><line x1="74" y1="100" x2="74" y2="92"/><line x1="74" y1="100" x2="81" y2="104.5"/><line x1="74" y1="100" x2="67" y2="104.5"/></g></g>
+            <g class="wheel"><circle cx="126" cy="100" r="13" fill="#0A0F16"/><circle cx="126" cy="100" r="8" fill="url(#rim)"/><circle cx="126" cy="100" r="2.6" fill="#39485A"/><g stroke="#39485A" stroke-width="1.6" stroke-linecap="round"><line x1="126" y1="100" x2="126" y2="92"/><line x1="126" y1="100" x2="133" y2="104.5"/><line x1="126" y1="100" x2="119" y2="104.5"/></g></g>
+            <g class="wheel"><circle cx="150" cy="100" r="13" fill="#0A0F16"/><circle cx="150" cy="100" r="8" fill="url(#rim)"/><circle cx="150" cy="100" r="2.6" fill="#39485A"/><g stroke="#39485A" stroke-width="1.6" stroke-linecap="round"><line x1="150" y1="100" x2="150" y2="92"/><line x1="150" y1="100" x2="157" y2="104.5"/><line x1="150" y1="100" x2="143" y2="104.5"/></g></g>
+            <g class="wheel"><circle cx="256" cy="100" r="13" fill="#0A0F16"/><circle cx="256" cy="100" r="8" fill="url(#rim)"/><circle cx="256" cy="100" r="2.6" fill="#39485A"/><g stroke="#39485A" stroke-width="1.6" stroke-linecap="round"><line x1="256" y1="100" x2="256" y2="92"/><line x1="256" y1="100" x2="263" y2="104.5"/><line x1="256" y1="100" x2="249" y2="104.5"/></g></g>
+            <g class="wheel"><circle cx="280" cy="100" r="13" fill="#0A0F16"/><circle cx="280" cy="100" r="8" fill="url(#rim)"/><circle cx="280" cy="100" r="2.6" fill="#39485A"/><g stroke="#39485A" stroke-width="1.6" stroke-linecap="round"><line x1="280" y1="100" x2="280" y2="92"/><line x1="280" y1="100" x2="287" y2="104.5"/><line x1="280" y1="100" x2="273" y2="104.5"/></g></g>
         </svg>
 
         <div class="hero-content">
