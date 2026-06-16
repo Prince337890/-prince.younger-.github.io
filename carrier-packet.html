@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Request a Carrier Packet | Forward Motion Freight</title>
+    <meta name="description" content="Request your Forward Motion Freight carrier packet. Have your MC/DOT authority, COI, W-9, and payment details ready — we review and send your packet plus starting lanes within one business day.">
+    <meta name="theme-color" content="#0B192C">
+    <meta name="color-scheme" content="light">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -23,6 +26,30 @@
         }
         h1, h2, h3, .logo { font-family: 'Montserrat', sans-serif; }
         a { color: var(--orange); }
+
+        /* ---------- ACCESSIBILITY: focus + skip link ---------- */
+        a:focus-visible, button:focus-visible {
+            outline: 3px solid #FFB48A;
+            outline-offset: 3px;
+            border-radius: 4px;
+        }
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: -48px;
+            z-index: 1000;
+            background: var(--orange);
+            color: var(--white);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            padding: 10px 18px;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: top 0.2s ease;
+        }
+        .skip-link:focus { top: 12px; }
 
         /* ---------- HEADER + ANIMATED LOGO (shared identity) ---------- */
         header {
@@ -205,6 +232,8 @@
 </head>
 <body>
 
+    <a class="skip-link" href="#main">Skip to main content</a>
+
     <header>
         <a class="logo" href="index.html" aria-label="Forward Motion Freight — home">
             <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
@@ -228,6 +257,8 @@
         <a class="nav-home" href="index.html">&larr; Back to home</a>
     </header>
 
+    <main id="main">
+
     <section class="banner">
         <div class="eyebrow">&#9733; Veteran-Owned Small Business &middot; MC &amp; DOT carriers welcome</div>
         <h1>Request Your Carrier Packet</h1>
@@ -242,23 +273,23 @@
             <p class="sub">The form asks you to attach a few files. Having them on hand keeps it to a couple of minutes.</p>
             <ul class="checklist">
                 <li>
-                    <span class="tick">&#10003;</span>
+                    <span class="tick" aria-hidden="true">&#10003;</span>
                     <div><strong>Operating authority</strong><span>Your MC certificate / active DOT authority.</span></div>
                 </li>
                 <li>
-                    <span class="tick">&#10003;</span>
+                    <span class="tick" aria-hidden="true">&#10003;</span>
                     <div><strong>Certificate of Insurance (COI)</strong><span>Current auto liability and cargo coverage.</span></div>
                 </li>
                 <li>
-                    <span class="tick">&#10003;</span>
+                    <span class="tick" aria-hidden="true">&#10003;</span>
                     <div><strong>W-9</strong><span>So we can set up clean, on-time settlements.</span></div>
                 </li>
                 <li>
-                    <span class="tick">&#10003;</span>
+                    <span class="tick" aria-hidden="true">&#10003;</span>
                     <div><strong>Voided check or factoring notice</strong><span>For payment routing &mdash; whichever you use.</span></div>
                 </li>
                 <li>
-                    <span class="tick">&#10003;</span>
+                    <span class="tick" aria-hidden="true">&#10003;</span>
                     <div><strong>Driver's license / CDL</strong><span>For the driver who'll be running the loads.</span></div>
                 </li>
             </ul>
@@ -291,6 +322,8 @@
             </div>
         </div>
     </section>
+
+    </main>
 
     <footer>
         <h2>Questions before you sign on?</h2>

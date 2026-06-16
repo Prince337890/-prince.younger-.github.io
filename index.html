@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forward Motion Freight | Premium Dispatch Services</title>
+    <meta name="description" content="Veteran-owned truck dispatch for owner-operators: aggressive rate negotiation, strategic routing, and full back-office support — so you keep the wheels turning and we handle the rest.">
+    <meta name="theme-color" content="#0B192C">
+    <meta property="og:title" content="Forward Motion Freight | Premium Dispatch Services">
+    <meta property="og:description" content="Veteran-owned dispatch for owner-operators — higher rates, fewer deadhead miles, zero paperwork headaches.">
+    <meta property="og:type" content="website">
+    <meta name="color-scheme" content="light">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -24,6 +30,41 @@
             line-height: 1.6;
         }
         h1, h2, h3, .logo { font-family: 'Montserrat', sans-serif; }
+
+        /* ---------- ACCESSIBILITY: focus + skip link ---------- */
+        /* Visible keyboard focus ring on every interactive element (WCAG 2.4.7) */
+        a:focus-visible, button:focus-visible {
+            outline: 3px solid #FFB48A;
+            outline-offset: 3px;
+            border-radius: 4px;
+        }
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: -48px;
+            z-index: 1000;
+            background: var(--orange);
+            color: var(--white);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            padding: 10px 18px;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: top 0.2s ease;
+        }
+        .skip-link:focus { top: 12px; }
+        /* visually-hidden but available to screen readers */
+        .visually-hidden {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+            border: 0;
+        }
 
         /* ---------- HEADER + ANIMATED LOGO ---------- */
         header {
@@ -427,6 +468,8 @@
 </head>
 <body>
 
+    <a class="skip-link" href="#main">Skip to main content</a>
+
     <header>
         <div class="logo">
             <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
@@ -454,6 +497,8 @@
     <div class="vosb-banner">
         ★ VETERAN-OWNED SMALL BUSINESS (VOSB) ★
     </div>
+
+    <main id="main">
 
     <section class="hero">
         <div class="sky"></div>
@@ -535,7 +580,8 @@
         </div>
     </section>
 
-    <section class="features">
+    <section class="features" aria-labelledby="features-heading">
+        <h2 id="features-heading" class="visually-hidden">Why owner-operators choose Forward Motion Freight</h2>
         <div class="feature-card">
             <h3>Aggressive Negotiation</h3>
             <p>We don't settle for the broker's first offer. We calculate your break-even RPM and fight for every cent your truck deserves.</p>
@@ -594,6 +640,8 @@
             </div>
         </div>
     </section>
+
+    </main>
 
     <footer>
         <h2>Ready to upgrade your freight?</h2>
