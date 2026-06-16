@@ -1,0 +1,3 @@
+# Python caches from the vendored UI/UX skill scripts
+__pycache__/
+*.pyc
