@@ -1,94 +1,192 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Map,
-  FileText,
-  Wallet,
-  HeartPulse,
-  Dog,
-  LayoutDashboard,
-  Bell,
-  Settings,
-  Upload,
-  CheckCircle2,
-  Navigation,
-  Activity,
-  ShieldCheck,
-  CreditCard,
-  Building
+  Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
+  Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
+  MapPin, User, Calendar, Wrench, Plus
 } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import {
+  getFirestore, doc, getDoc, getDocs, collection, setDoc, addDoc,
+  query, where, serverTimestamp, updateDoc, deleteDoc
+} from 'firebase/firestore';
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signOut, onAuthStateChanged
+} from 'firebase/auth';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
+  authDomain: "forward-motion-freight.firebaseapp.com",
+  projectId: "forward-motion-freight",
+  storageBucket: "forward-motion-freight.firebasestorage.app",
+  messagingSenderId: "131232028664",
+  appId: "1:131232028664:web:18131f2ebf4359ecafe80d",
+  measurementId: "G-VCQDBFZNQ8"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+
+// Anyone whose login email is in this list sees the Admin tools.
+const ADMIN_EMAILS = [
+  'prince.younger3@gmail.com',
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [paymentMethod, setPaymentMethod] = useState('factoring');
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      setAuthLoading(false);
+      if (u) {
+        try {
+          await setDoc(
+            doc(db, 'users', u.uid),
+            { email: u.email, lastLogin: serverTimestamp() },
+            { merge: true }
+          );
+        } catch (e) {
+          console.error('users upsert failed', e);
+        }
+      }
+    });
+  }, []);
+
+  const isAdmin = !!user && ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((user.email || '').toLowerCase());
+
+  const go = (tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  };
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <DashboardView />;
-      case 'lanes':
-        return <LaneManagementView />;
-      case 'vault':
-        return <DigitalVaultView />;
-      case 'financials':
-        return <FinancialsView paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
-      case 'wellness':
-        return <WellnessView />;
-      case 'pets':
-        return <PetLogisticsView />;
-      default:
-        return <DashboardView />;
+      case 'dashboard': return <DashboardView />;
+      case 'profile': return <ProfileView />;
+      case 'schedule': return <ScheduleView />;
+      case 'lanes': return <LaneManagementView />;
+      case 'parking': return <SafeParkingView />;
+      case 'compliance': return <ComplianceView />;
+      case 'vault': return <DigitalVaultView />;
+      case 'financials': return <FinancialsView paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
+      case 'wellness': return <WellnessView />;
+      case 'pets': return <PetLogisticsView />;
+      case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
+      case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
+      default: return <DashboardView />;
     }
   };
 
+  if (authLoading) {
+    return <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400 font-sans">Loading…</div>;
+  }
+  if (!user) {
+    return <LoginView />;
+  }
+
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* Sidebar Navigation */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="p-6">
-          <h1 className="text-xl font-bold tracking-wider text-white">FORWARD MOTION</h1>
-          <p className="text-xs text-amber-500 tracking-widest font-semibold mt-1">VIP FREIGHT</p>
+    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transform transition-transform duration-200 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } md:translate-x-0`}
+      >
+        <div className="p-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-wider text-white">FORWARD MOTION</h1>
+            <p className="text-xs text-amber-500 tracking-widest font-semibold mt-1">VIP FREIGHT</p>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white text-3xl leading-none -mt-1"
+            aria-label="Close menu"
+          >
+            ×
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4">
+          {isAdmin && (
+            <>
+              <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">ADMIN</div>
+              <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
+              <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
+              <div className="mt-6" />
+            </>
+          )}
+
           <div className="px-4 mb-2 text-xs font-semibold text-slate-500 tracking-wider">OVERVIEW</div>
-          <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
+          <NavItem icon={<User size={18} />} label="My Profile" isActive={activeTab === 'profile'} onClick={() => go('profile')} />
+          <NavItem icon={<Calendar size={18} />} label="Schedule & Calendar" isActive={activeTab === 'schedule'} onClick={() => go('schedule')} />
 
           <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">LOGISTICS CORE</div>
-          <NavItem icon={<Map size={18} />} label="Lane Management" isActive={activeTab === 'lanes'} onClick={() => setActiveTab('lanes')} />
-          <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => setActiveTab('vault')} />
-          <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => setActiveTab('financials')} />
+          <NavItem icon={<Map size={18} />} label="Lane Management" isActive={activeTab === 'lanes'} onClick={() => go('lanes')} />
+          <NavItem icon={<MapPin size={18} />} label="Safe Parking" isActive={activeTab === 'parking'} onClick={() => go('parking')} />
+          <NavItem icon={<ShieldCheck size={18} />} label="Compliance" isActive={activeTab === 'compliance'} onClick={() => go('compliance')} />
+          <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
+          <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
 
           <div className="px-4 mt-6 mb-2 text-xs font-semibold text-amber-500/80 tracking-wider">VIP CONCIERGE</div>
-          <NavItem icon={<HeartPulse size={18} />} label="Wellness & Diet" isActive={activeTab === 'wellness'} onClick={() => setActiveTab('wellness')} />
-          <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => setActiveTab('pets')} />
+          <NavItem icon={<HeartPulse size={18} />} label="Wellness & Diet" isActive={activeTab === 'wellness'} onClick={() => go('wellness')} />
+          <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => go('pets')} />
         </nav>
 
         <div className="p-4 border-t border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold">JD</div>
-            <div>
-              <div className="text-sm font-semibold">John Doe</div>
-              <div className="text-xs text-emerald-400">● On Route</div>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold uppercase shrink-0">
+              {user.email ? user.email[0] : 'D'}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold truncate">{user.email}</div>
+              <div className="text-xs text-emerald-400">{isAdmin ? '● Admin' : '● On Route'}</div>
             </div>
           </div>
+          <button
+            onClick={() => signOut(auth)}
+            className="w-full text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-lg transition-colors"
+          >
+            Sign Out
+          </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <header className="h-16 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between px-8">
-          <h2 className="text-lg font-medium capitalize text-slate-200">
-            {activeTab.replace('-', ' ')}
-          </h2>
-          <div className="flex items-center gap-4 text-slate-400">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="h-16 bg-slate-900/50 border-b border-slate-800 flex items-center justify-between px-4 md:px-8">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-1 -ml-1 text-slate-300 hover:text-white shrink-0"
+              aria-label="Open menu"
+            >
+              <span className="block w-5 h-0.5 bg-current mb-1.5"></span>
+              <span className="block w-5 h-0.5 bg-current mb-1.5"></span>
+              <span className="block w-5 h-0.5 bg-current"></span>
+            </button>
+            <h2 className="text-lg font-medium capitalize text-slate-200 truncate">{activeTab.replace('-', ' ')}</h2>
+          </div>
+          <div className="flex items-center gap-3 md:gap-5 text-slate-400 shrink-0">
+            <a href="https://forwardmotionfreight.com" target="_blank" rel="noopener noreferrer"
+              className="text-sm flex items-center gap-1.5 hover:text-white transition-colors">
+              ← <span className="hidden sm:inline">Back to Website</span>
+            </a>
             <button className="hover:text-white transition-colors"><Bell size={20} /></button>
             <button className="hover:text-white transition-colors"><Settings size={20} /></button>
           </div>
         </header>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
           {renderContent()}
         </div>
       </main>
@@ -96,20 +194,77 @@ export default function App() {
   );
 }
 
-// --- SUB-VIEWS ---
-
+// ---------- DASHBOARD ----------
 function DashboardView() {
+  const u = auth.currentUser;
+  const [earnings, setEarnings] = useState(0);
+  const [active, setActive] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const prettyName = (handle) =>
+    handle.replace(/[0-9]/g, '')
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  const name = u?.displayName || (u?.email ? prettyName(u.email.split('@')[0]) : 'Driver');
+
+  // Monday 00:00 of the current week
+  const startOfWeek = () => {
+    const d = new Date();
+    const diff = d.getDay() === 0 ? 6 : d.getDay() - 1;
+    d.setDate(d.getDate() - diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', u.uid)));
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // Active load = first non-delivered load by delivery date
+        const pending = rows
+          .filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared')
+          .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
+        setActive(pending[0] || null);
+
+        // Earnings = loads delivered/cleared this week
+        const sow = startOfWeek();
+        const total = rows.reduce((sum, l) => {
+          const delivered = l.status === 'Delivered' || l.status === 'Cleared';
+          const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
+          return delivered && inWeek ? sum + (Number(l.gross_pay) || 0) : sum;
+        }, 0);
+        setEarnings(total);
+      } catch (e) {
+        console.error('Error loading dashboard:', e);
+      } finally {
+        setLoaded(true);
+      }
+    };
+    if (u) fetchData();
+  }, [u]);
+
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+  const statusBadge = (s) => {
+    if (s === 'In Transit') return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+    if (s === 'Delivered' || s === 'Cleared') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+  };
+
   return (
     <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/50 shadow-xl flex justify-between items-center">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/50 shadow-xl flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-1">Safe travels, John.</h2>
+          <h2 className="text-2xl font-bold text-white mb-1">Safe travels, {name}.</h2>
           <p className="text-slate-400">Your next mandatory rest stop is in 3 hours. We've got everything handled.</p>
         </div>
-        <div className="text-right">
-          <div className="text-sm text-slate-400 mb-1">Gross Weekly Earnings</div>
-          <div className="text-3xl font-bold text-emerald-400">$8,450.00</div>
+        <div className="md:text-right">
+          <div className="text-sm text-slate-400 mb-1">Gross Earnings (This Week)</div>
+          <div className="text-3xl font-bold text-emerald-400">{money(earnings)}</div>
         </div>
       </div>
 
@@ -117,48 +272,53 @@ function DashboardView() {
       <QuoteOfTheDay />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Logistics Snapshot */}
         <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><Map className="text-blue-400" size={20}/> Active Load</h3>
-            <span className="bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full border border-blue-500/30">In Transit</span>
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Map className="text-blue-400" size={20} /> Active Load</h3>
+            {active && (
+              <span className={`text-xs px-3 py-1 rounded-full border ${statusBadge(active.status)}`}>{active.status}</span>
+            )}
           </div>
-          <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-700 before:to-transparent">
-            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              <div className="flex items-center justify-center w-5 h-5 rounded-full border-4 border-slate-900 bg-blue-500 text-slate-900 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow" />
-              <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-lg border border-slate-700 bg-slate-800">
+
+          {!loaded ? (
+            <div className="text-slate-500 text-sm">Loading…</div>
+          ) : !active ? (
+            <div className="text-slate-500 text-sm py-4">No active load right now. Your dispatcher will assign one shortly.</div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-amber-500 font-bold text-sm">{active.loadId || '—'}</span>
+                <span className="text-sm font-bold text-emerald-400">{money(active.gross_pay)}</span>
+              </div>
+              <div className="p-3 rounded-lg border border-slate-700 bg-slate-800">
                 <div className="text-xs text-slate-400">Origin</div>
-                <div className="font-semibold">Atlanta, GA</div>
+                <div className="font-semibold">{active.origin || '—'}</div>
+              </div>
+              <div className="p-3 rounded-lg border border-slate-700 bg-slate-800/50">
+                <div className="text-xs text-slate-400">
+                  Destination{active.delivery_time ? ` (ETA: ${active.delivery_time})` : active.delivery_date ? ` (by ${active.delivery_date})` : ''}
+                </div>
+                <div className="font-semibold text-slate-300">{active.destination || '—'}</div>
               </div>
             </div>
-            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              <div className="flex items-center justify-center w-5 h-5 rounded-full border-4 border-slate-900 bg-slate-600 text-slate-900 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow" />
-              <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-lg border border-slate-700 bg-slate-800/50">
-                <div className="text-xs text-slate-400">Destination (ETA: 4:00 PM)</div>
-                <div className="font-semibold text-slate-300">Dallas, TX</div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* VIP Concierge Snapshot */}
         <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-6"><HeartPulse className="text-amber-500" size={20}/> VIP Concierge Updates</h3>
-
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-6"><HeartPulse className="text-amber-500" size={20} /> VIP Concierge Updates</h3>
           <div className="space-y-3">
             <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700">
               <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><Dog size={20} /></div>
               <div>
                 <div className="font-semibold text-sm">Fresh Pet Food Delivery Scheduled</div>
-                <div className="text-xs text-slate-400 mt-1">Lady's fresh meals have been successfully rerouted to your Dallas drop-off terminal tomorrow morning.</div>
+                <div className="text-xs text-slate-400 mt-1">Lady's fresh meals have been rerouted to your Dallas drop-off terminal tomorrow morning.</div>
               </div>
             </div>
-
             <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700">
               <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg"><Activity size={20} /></div>
               <div>
                 <div className="font-semibold text-sm">Gym Access Authorized</div>
-                <div className="text-xs text-slate-400 mt-1">Found a rig-friendly parking spot 0.2mi from 'Power House Gym' along your I-20 route. Added to your GPS.</div>
+                <div className="text-xs text-slate-400 mt-1">Found a rig-friendly spot 0.2mi from 'Power House Gym' on your I-20 route. Added to your GPS.</div>
               </div>
             </div>
           </div>
@@ -168,193 +328,7 @@ function DashboardView() {
   );
 }
 
-function FinancialsView({ paymentMethod, setPaymentMethod }) {
-  return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Financial Routing</h2>
-        <p className="text-slate-400">Manage how you get paid and how your Forward Motion dispatch fees are settled.</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        <div
-          onClick={() => setPaymentMethod('factoring')}
-          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === 'factoring' ? 'border-amber-500 bg-amber-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div className={`p-3 rounded-xl ${paymentMethod === 'factoring' ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-800 text-slate-400'}`}>
-              <Building size={24} />
-            </div>
-            {paymentMethod === 'factoring' && <CheckCircle2 className="text-amber-500" size={24} />}
-          </div>
-          <h3 className="text-xl font-bold mb-2">The Factoring Split</h3>
-          <p className="text-sm text-slate-400">Automated, invisible settlement. We submit your BOL to your factoring company with a Notice of Assignment. They send you 90% and us our 10% fee directly.</p>
-        </div>
-
-        <div
-          onClick={() => setPaymentMethod('ach')}
-          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === 'ach' ? 'border-amber-500 bg-amber-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <div className={`p-3 rounded-xl ${paymentMethod === 'ach' ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-800 text-slate-400'}`}>
-              <CreditCard size={24} />
-            </div>
-            {paymentMethod === 'ach' && <CheckCircle2 className="text-amber-500" size={24} />}
-          </div>
-          <h3 className="text-xl font-bold mb-2">Smart ACH Auto-Pay</h3>
-          <p className="text-sm text-slate-400">Keep your freight payouts whole. You get paid 100% directly from the broker. We run a weekly auto-draft for our percentage every Friday.</p>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <h3 className="text-lg font-bold mb-4">Recent Settlements Ledger</h3>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-800 text-slate-400 text-sm">
-              <th className="pb-3 font-medium">Load Number</th>
-              <th className="pb-3 font-medium">Delivery Date</th>
-              <th className="pb-3 font-medium">Gross Pay</th>
-              <th className="pb-3 font-medium">Dispatch Fee (10%)</th>
-              <th className="pb-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody className="text-sm">
-            <tr className="border-b border-slate-800/50">
-              <td className="py-4 font-mono text-slate-300">#FM-8829</td>
-              <td className="py-4">Oct 24, 2024</td>
-              <td className="py-4 font-semibold text-white">$2,450.00</td>
-              <td className="py-4 text-slate-400">$245.00</td>
-              <td className="py-4"><span className="text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded text-xs">Cleared</span></td>
-            </tr>
-            <tr className="border-b border-slate-800/50">
-              <td className="py-4 font-mono text-slate-300">#FM-8830</td>
-              <td className="py-4">Oct 26, 2024</td>
-              <td className="py-4 font-semibold text-white">$3,100.00</td>
-              <td className="py-4 text-slate-400">$310.00</td>
-              <td className="py-4"><span className="text-amber-400 bg-amber-400/10 px-2 py-1 rounded text-xs">Processing Factoring</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function PetLogisticsView() {
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Pet Logistics Dashboard</h2>
-          <p className="text-slate-400">Managing Lady's road life so you don't have to worry about a thing.</p>
-        </div>
-        <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
-          <ShieldCheck size={18} />
-          Emergency Vet Connect
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-6">
-        {/* Profile Card */}
-        <div className="col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col items-center text-center">
-          <div className="w-24 h-24 bg-slate-800 rounded-full border-4 border-amber-500/30 flex items-center justify-center mb-4 overflow-hidden">
-             {/* Fallback avatar icon since we don't have images */}
-             <Dog size={48} className="text-amber-500/80" />
-          </div>
-          <h3 className="text-xl font-bold">Lady</h3>
-          <p className="text-sm text-slate-400 mb-4">Golden Retriever • 4 yrs</p>
-          <div className="w-full bg-slate-800 rounded-lg p-3 text-left space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Vaccines</span>
-              <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 size={14}/> Up to date</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Diet</span>
-              <span className="text-slate-200">Fresh Sub (Farmer's Dog)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Nutrition Logistics */}
-        <div className="col-span-2 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Activity className="text-amber-500" size={20}/> Predictive Nutrition Engine</h3>
-            <div className="flex items-center gap-6">
-              <div className="flex-1 bg-slate-800 rounded-xl p-4">
-                <div className="text-sm text-slate-400 mb-1">Current Cab Supply</div>
-                <div className="text-2xl font-bold">3 Days <span className="text-sm text-slate-500 font-normal">Remaining</span></div>
-                <div className="w-full bg-slate-700 h-2 mt-3 rounded-full overflow-hidden">
-                  <div className="bg-amber-500 w-1/4 h-full rounded-full"></div>
-                </div>
-              </div>
-              <div className="flex-1 bg-slate-800 rounded-xl p-4">
-                <div className="text-sm text-slate-400 mb-1">Next Automated Delivery</div>
-                <div className="text-lg font-bold text-emerald-400">Oct 28th Intercept</div>
-                <div className="text-sm text-slate-300 mt-1 line-clamp-1">Rerouted to Dallas Terminal</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-             <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Map className="text-blue-500" size={20}/> Upcoming Pet-Friendly Waypoints</h3>
-             <div className="space-y-3">
-               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-                 <div>
-                   <div className="font-semibold text-sm">Buc-ee's Dog Walk Area</div>
-                   <div className="text-xs text-slate-400">I-20 East, Exit 45 • 120 miles away</div>
-                 </div>
-                 <button className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors text-white">Add to GPS</button>
-               </div>
-               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-                 <div>
-                   <div className="font-semibold text-sm">Rest Stop 44 (Fenced Green Space)</div>
-                   <div className="text-xs text-slate-400">I-20 East, Exit 88 • 250 miles away</div>
-                 </div>
-                 <button className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors text-white">Add to GPS</button>
-               </div>
-             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- PLACEHOLDER COMPONENTS FOR REMAINING TABS ---
-function WellnessView() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-slate-500">
-      <HeartPulse size={64} className="mb-4 text-slate-700" />
-      <h2 className="text-xl font-bold text-slate-300 mb-2">Wellness & Diet Routing Module</h2>
-      <p className="max-w-md text-center">Your plant-based diet preferences and functional gym requirements are actively filtering your current route.</p>
-    </div>
-  );
-}
-
-function DigitalVaultView() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-slate-500">
-      <FileText size={64} className="mb-4 text-slate-700" />
-      <h2 className="text-xl font-bold text-slate-300 mb-2">The Digital Vault</h2>
-      <p className="max-w-md text-center">Drag and drop BOLs, Rate Cons, and receipts here. We instantly process and push them to your factoring company.</p>
-      <button className="mt-6 bg-slate-800 hover:bg-slate-700 text-white px-6 py-2 rounded-lg flex items-center gap-2">
-        <Upload size={18} /> Upload Document
-      </button>
-    </div>
-  );
-}
-
-function LaneManagementView() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-slate-500">
-      <Navigation size={64} className="mb-4 text-slate-700" />
-      <h2 className="text-xl font-bold text-slate-300 mb-2">Smart Lane Management</h2>
-      <p className="max-w-md text-center">Predictive routing board. We're currently securing high-paying freight for your Dallas drop-off to minimize deadhead.</p>
-    </div>
-  );
-}
-
-// --- QUOTE OF THE DAY ---
+// ---------- QUOTE OF THE DAY ----------
 const QUOTES = [
   { text: "The road to success is always under construction.", author: "Lily Tomlin" },
   { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
@@ -397,7 +371,1168 @@ function QuoteOfTheDay() {
   );
 }
 
-// --- UTILITY COMPONENTS ---
+// ---------- PROFILE ----------
+function ProfileView() {
+  const u = auth.currentUser;
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <h2 className="text-2xl font-bold">My Profile</h2>
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold uppercase">
+            {u?.email ? u.email[0] : 'D'}
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg font-bold truncate">{u?.email || 'Driver'}</div>
+            <div className="text-sm text-emerald-400">● Active</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <Info label="Email" value={u?.email || '—'} />
+          <Info label="Account ID" value={u?.uid ? u.uid.slice(0, 10) + '…' : '—'} />
+          <Info label="Role" value="Carrier / Driver" />
+          <Info label="Member Since" value={u?.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleDateString() : '—'} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Info({ label, value }) {
+  return (
+    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+      <div className="text-xs text-slate-500 mb-1">{label}</div>
+      <div className="font-semibold text-white break-words">{value}</div>
+    </div>
+  );
+}
+
+// ---------- SCHEDULE ----------
+const SAMPLE_EVENTS = [
+  { id: 'm1', type: 'Maintenance', title: 'Oil change & DOT inspection', date: '2026-06-26' },
+  { id: 'm2', type: 'Maintenance', title: 'Tire rotation', date: '2026-06-30' },
+];
+
+function ScheduleView() {
+  const [events, setEvents] = useState(SAMPLE_EVENTS);
+  const [loadEvents, setLoadEvents] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: '', type: 'Maintenance', date: '' });
+
+  useEffect(() => {
+    const fetchLoads = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', auth.currentUser.uid)));
+        const evs = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((l) => l.delivery_date)
+          .map((l) => ({
+            id: 'load-' + l.id,
+            type: 'Load',
+            title: `${l.loadId}: ${l.origin || '?'} → ${l.destination || '?'}`,
+            date: l.delivery_date,
+          }));
+        setLoadEvents(evs);
+      } catch (err) {
+        console.error('Error loading schedule:', err);
+      }
+    };
+    fetchLoads();
+  }, []);
+
+  const all = [...events, ...loadEvents];
+  const groups = {};
+  all.forEach((e) => {
+    const key = e.date || 'Unscheduled';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+  const dateKeys = Object.keys(groups).sort();
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!form.title || !form.date) return;
+    setEvents([{ id: 'e' + Date.now(), ...form }, ...events]);
+    setForm({ title: '', type: 'Maintenance', date: '' });
+    setShowForm(false);
+  };
+
+  const fmtDate = (str) => {
+    if (str === 'Unscheduled') return 'Unscheduled';
+    return new Date(str + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  };
+
+  const typeStyle = (t) => {
+    if (t === 'Load') return { icon: <Map size={16} />, cls: 'bg-blue-500/20 text-blue-400' };
+    if (t === 'Maintenance') return { icon: <Wrench size={16} />, cls: 'bg-amber-500/20 text-amber-400' };
+    return { icon: <Calendar size={16} />, cls: 'bg-slate-700 text-slate-300' };
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex justify-between items-end gap-4">
+        <div>
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-2"><Calendar className="text-amber-500" size={24} /> Schedule & Calendar</h2>
+          <p className="text-slate-400">Your agenda of upcoming loads and truck maintenance.</p>
+        </div>
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0"
+        >
+          <Plus size={18} /> Add Event
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleAdd} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">New Event</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 md:col-span-2"
+              placeholder="Event title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+            <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
+              <option>Maintenance</option>
+              <option>Load</option>
+              <option>Other</option>
+            </select>
+            <input className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 md:col-span-3"
+              type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors">Add to Calendar</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+            <span className="text-xs text-slate-500">Demo — added events reset on refresh.</span>
+          </div>
+        </form>
+      )}
+
+      {dateKeys.length === 0 ? (
+        <div className="text-slate-500 text-center py-12">Nothing scheduled yet.</div>
+      ) : (
+        <div className="space-y-6">
+          {dateKeys.map((dk) => (
+            <div key={dk}>
+              <div className="text-sm font-semibold text-slate-400 mb-3 border-b border-slate-800 pb-2">{fmtDate(dk)}</div>
+              <div className="space-y-3">
+                {groups[dk].map((e) => {
+                  const s = typeStyle(e.type);
+                  return (
+                    <div key={e.id} className="flex items-center gap-4 bg-slate-900 border border-slate-800 rounded-xl p-4">
+                      <div className={`p-2 rounded-lg ${s.cls}`}>{s.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-white truncate">{e.title}</div>
+                        <div className="text-xs text-slate-400">{e.type}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- LANE MANAGEMENT ----------
+function LaneManagementView() {
+  const [loads, setLoads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+
+  const STATUS_FLOW = ['Dispatched', 'Arrived at Shipper', 'Loaded', 'In Transit', 'Delivered'];
+
+  const fetchLoads = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', auth.currentUser.uid)));
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
+      setLoads(rows);
+    } catch (err) {
+      console.error('Error loading lanes:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchLoads(); }, []);
+
+  const pending = loads.filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared');
+  const active = pending[0] || null;
+  const upcoming = pending.slice(1);
+
+  const setStatus = async (newStatus) => {
+    if (!active) return;
+    setUpdating(true);
+    try {
+      await updateDoc(doc(db, 'loads', active.id), { status: newStatus });
+      await fetchLoads();
+    } catch (err) {
+      console.error('Error updating status:', err);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading lane…</div>;
+
+  if (!active) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-4">
+        <h2 className="text-2xl font-bold">Lane Management</h2>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">
+          No active load right now. Your dispatcher will assign one shortly.
+        </div>
+      </div>
+    );
+  }
+
+  const currentIdx = STATUS_FLOW.indexOf(active.status);
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Lane Management</h2>
+        <p className="text-slate-400">Everything you need to execute your current load.</p>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-amber-500 font-bold">{active.loadId}</span>
+            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">Active Load</span>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-slate-500">Gross Pay</div>
+            <div className="text-lg font-bold text-emerald-400">{money(active.gross_pay)}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+            <div className="text-xs text-emerald-400 font-semibold mb-2">SHIPPER (PICKUP)</div>
+            <div className="font-bold text-white">{active.origin || '—'}</div>
+            <div className="text-sm text-slate-400 mt-1">{active.pickup_time || 'Pickup time TBD'}</div>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+            <div className="text-xs text-amber-400 font-semibold mb-2">RECEIVER (DELIVERY)</div>
+            <div className="font-bold text-white">{active.destination || '—'}</div>
+            <div className="text-sm text-slate-400 mt-1">{active.delivery_time || (active.delivery_date ? `By ${active.delivery_date}` : 'Delivery time TBD')}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div><div className="text-xs text-slate-500 mb-1">Commodity</div><div className="text-sm font-semibold text-white">{active.commodity || '—'}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">Weight</div><div className="text-sm font-semibold text-white">{active.weight || '—'}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">PO Number</div><div className="text-sm font-semibold text-white">{active.po_number || '—'}</div></div>
+          <div><div className="text-xs text-slate-500 mb-1">Pickup Number</div><div className="text-sm font-semibold text-white">{active.pickup_number || '—'}</div></div>
+        </div>
+
+        <div>
+          <div className="text-xs text-slate-500 mb-3">UPDATE STATUS</div>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FLOW.map((s, i) => {
+              const done = i <= currentIdx;
+              const isCurrent = i === currentIdx;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatus(s)}
+                  disabled={updating}
+                  className={`text-sm px-3 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
+                    isCurrent
+                      ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
+                      : done
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
+                  }`}
+                >
+                  {done && !isCurrent ? '✓ ' : ''}{s}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Current status: <span className="text-slate-300 font-semibold">{active.status}</span></p>
+        </div>
+      </div>
+
+      {/* Route Map placeholder */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2"><Map className="text-blue-400" size={20} /> Route Map</h3>
+          <span className="text-[11px] bg-slate-800 text-slate-400 px-2 py-1 rounded">Preview</span>
+        </div>
+        <div className="relative h-64 rounded-xl overflow-hidden border border-slate-700 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950">
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, #334155 1px, transparent 1px), radial-gradient(circle at 70% 60%, #334155 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+            <Navigation className="text-blue-400 mb-3" size={32} />
+            <div className="font-semibold text-white">{active.origin || 'Origin'} → {active.destination || 'Destination'}</div>
+            <div className="text-xs text-slate-400 mt-2">Interactive live map coming soon</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-slate-400">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Pickup</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Delivery</span>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="text-lg font-bold mb-4">Upcoming Loads</h3>
+        {upcoming.length === 0 ? (
+          <div className="text-slate-500 text-sm">No upcoming loads queued. Plan your hours of service freely.</div>
+        ) : (
+          <div className="space-y-3">
+            {upcoming.map((l) => (
+              <div key={l.id} className="flex items-center justify-between bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                <div>
+                  <div className="font-mono text-slate-300 text-sm font-semibold">{l.loadId}</div>
+                  <div className="text-sm text-slate-400">{l.origin || '—'} → {l.destination || '—'}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">{l.delivery_date || 'Date TBD'}</div>
+                  <div className="text-xs bg-slate-700/40 text-slate-300 px-2 py-1 rounded mt-1 inline-block">{l.status}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- SAFE PARKING ----------
+function SafeParkingView() {
+  const [spots, setSpots] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSpots = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'safe_parking'));
+        setSpots(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.error('Error loading parking spots:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSpots();
+  }, []);
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <h2 className="text-2xl font-bold mb-2">Trusted Safe Parking</h2>
+      <p className="text-slate-400 mb-6">Pre-verified, high-security stops for your route.</p>
+
+      {loading && <div className="text-slate-400">Loading parking spots…</div>}
+      {!loading && spots.length === 0 && <div className="text-slate-400">No parking spots available yet.</div>}
+
+      {spots.map((spot) => (
+        <div key={spot.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="flex gap-4 items-center">
+            <div className="bg-emerald-500/20 text-emerald-400 p-3 rounded-xl"><MapPin size={24} /></div>
+            <div>
+              <h3 className="text-xl font-bold text-white">{spot.name}</h3>
+              <p className="text-slate-400 text-sm">{spot.highway_exit} • {spot.state}</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {spot.security_level && <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">{spot.security_level} Security</span>}
+                {spot.has_showers && <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">Showers</span>}
+              </div>
+            </div>
+          </div>
+          <button className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">Reserve Spot</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------- COMPLIANCE ----------
+function ComplianceView() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCompliance = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'compliance', auth.currentUser.uid));
+        if (snap.exists()) setData(snap.data());
+      } catch (err) {
+        console.error('Error loading compliance:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCompliance();
+  }, []);
+
+  const formatDate = (str) =>
+    str ? new Date(str + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  const isValid = (str) => str && new Date(str + 'T00:00:00') > new Date();
+
+  if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading compliance data…</div>;
+  if (!data) return <div className="max-w-4xl mx-auto text-slate-400">No compliance record found yet.</div>;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <h2 className="text-2xl font-bold mb-2">Compliance Dashboard</h2>
+      <p className="text-slate-400 mb-6">Stay ahead of expiration dates and keep your status green.</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div className="text-slate-400 mb-2">CDL Expiration</div>
+          <div className="text-2xl font-bold text-white">{formatDate(data.cdl_expiration_date)}</div>
+          <div className={`text-sm mt-2 ${isValid(data.cdl_expiration_date) ? 'text-emerald-400' : 'text-red-400'}`}>
+            {isValid(data.cdl_expiration_date) ? 'Valid' : 'Expired'}
+          </div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div className="text-slate-400 mb-2">Medical Card</div>
+          <div className="text-2xl font-bold text-white">{formatDate(data.medical_card_expiration)}</div>
+          <div className={`text-sm mt-2 ${isValid(data.medical_card_expiration) ? 'text-emerald-400' : 'text-red-400'}`}>
+            {isValid(data.medical_card_expiration) ? 'Valid' : 'Expired'}
+          </div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div className="text-slate-400 mb-2">Insurance Status</div>
+          <div className="text-2xl font-bold text-white">{data.insurance_status}</div>
+          <div className="text-emerald-400 text-sm mt-2">On file</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- DIGITAL VAULT ----------
+const VAULT_CATEGORIES = ['BOL', 'Rate Con', 'Lumper Receipt', 'Scale Ticket'];
+const SAMPLE_DOCUMENTS = [
+  { id: 1, name: 'BOL_Atlanta-Dallas.pdf', category: 'BOL', loadId: 'FM-8829', date: 'Oct 24, 2024', status: 'Approved' },
+  { id: 2, name: 'RateCon_FM-8829.pdf', category: 'Rate Con', loadId: 'FM-8829', date: 'Oct 24, 2024', status: 'Approved' },
+  { id: 3, name: 'Lumper_Dallas.jpg', category: 'Lumper Receipt', loadId: 'FM-8830', date: 'Oct 26, 2024', status: 'Pending Approval' },
+];
+
+function DigitalVaultView() {
+  const [docs, setDocs] = useState(SAMPLE_DOCUMENTS);
+  const [filter, setFilter] = useState('All');
+  const [showForm, setShowForm] = useState(false);
+  const [fileName, setFileName] = useState('');
+  const [category, setCategory] = useState('BOL');
+  const [loadId, setLoadId] = useState('');
+
+  const filtered = filter === 'All' ? docs : docs.filter((d) => d.category === filter);
+
+  const statusStyle = (status) => {
+    if (status === 'Approved') return 'text-emerald-400 bg-emerald-400/10';
+    if (status === 'Pending Approval') return 'text-amber-400 bg-amber-400/10';
+    return 'text-red-400 bg-red-400/10';
+  };
+
+  const handleFile = (e) => {
+    const f = e.target.files[0];
+    if (f) setFileName(f.name);
+  };
+
+  const handleUpload = (e) => {
+    e.preventDefault();
+    if (!fileName || !loadId) return;
+    setDocs([{
+      id: Date.now(), name: fileName, category, loadId,
+      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      status: 'Pending Approval',
+    }, ...docs]);
+    setFileName(''); setLoadId(''); setCategory('BOL'); setShowForm(false);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex justify-between items-end gap-4">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">The Digital Vault</h2>
+          <p className="text-slate-400">Your secure document cabinet — missing paperwork means missing pay.</p>
+        </div>
+        <button onClick={() => setShowForm((s) => !s)}
+          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0">
+          <Upload size={18} /> Upload
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleUpload} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">New Document</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs text-slate-400 mb-2">File</label>
+              <input type="file" onChange={handleFile}
+                className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-slate-200 file:cursor-pointer hover:file:bg-slate-700" />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-2">Category</label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+                {VAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-2">Load ID</label>
+              <input type="text" value={loadId} onChange={(e) => setLoadId(e.target.value)} placeholder="e.g. FM-8831"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors">Add to Vault</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+            <span className="text-xs text-slate-500">Demo — the file isn't stored yet; this adds the record only.</span>
+          </div>
+        </form>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {['All', ...VAULT_CATEGORIES].map((c) => (
+          <button key={c} onClick={() => setFilter(c)}
+            className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
+              filter === c ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+            }`}>
+            {c}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-slate-500 text-center py-12">No documents in this category yet.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filtered.map((d) => (
+            <div key={d.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-start gap-4">
+              <div className="p-3 bg-slate-800 text-amber-500 rounded-xl shrink-0"><FileText size={22} /></div>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-white truncate">{d.name}</div>
+                <div className="text-xs text-slate-400 mt-1">Load {d.loadId} • {d.date}</div>
+                <div className="flex items-center gap-2 mt-3">
+                  <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">{d.category}</span>
+                  <span className={`text-xs px-2 py-1 rounded ${statusStyle(d.status)}`}>{d.status}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- FINANCIALS ----------
+function FinancialsView({ paymentMethod, setPaymentMethod }) {
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Financial Routing</h2>
+        <p className="text-slate-400">Manage how you get paid and how your dispatch fees are settled.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div onClick={() => setPaymentMethod('factoring')}
+          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === 'factoring' ? 'border-amber-500 bg-amber-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}>
+          <div className="flex justify-between items-start mb-4">
+            <div className={`p-3 rounded-xl ${paymentMethod === 'factoring' ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-800 text-slate-400'}`}><Building size={24} /></div>
+            {paymentMethod === 'factoring' && <CheckCircle2 className="text-amber-500" size={24} />}
+          </div>
+          <h3 className="text-xl font-bold mb-2">The Factoring Split</h3>
+          <p className="text-sm text-slate-400">Automated, invisible settlement. We submit your BOL with a Notice of Assignment. They send you 90% and us our 10% directly.</p>
+        </div>
+
+        <div onClick={() => setPaymentMethod('ach')}
+          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === 'ach' ? 'border-amber-500 bg-amber-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}>
+          <div className="flex justify-between items-start mb-4">
+            <div className={`p-3 rounded-xl ${paymentMethod === 'ach' ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-800 text-slate-400'}`}><CreditCard size={24} /></div>
+            {paymentMethod === 'ach' && <CheckCircle2 className="text-amber-500" size={24} />}
+          </div>
+          <h3 className="text-xl font-bold mb-2">Smart ACH Auto-Pay</h3>
+          <p className="text-sm text-slate-400">Keep your payouts whole. You get paid 100% from the broker. We run a weekly auto-draft for our percentage every Friday.</p>
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 overflow-x-auto">
+        <h3 className="text-lg font-bold mb-4">Recent Settlements Ledger</h3>
+        <table className="w-full text-left border-collapse min-w-[520px]">
+          <thead>
+            <tr className="border-b border-slate-800 text-slate-400 text-sm">
+              <th className="pb-3 font-medium">Load</th>
+              <th className="pb-3 font-medium">Delivery</th>
+              <th className="pb-3 font-medium">Gross</th>
+              <th className="pb-3 font-medium">Fee (10%)</th>
+              <th className="pb-3 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody className="text-sm">
+            <tr className="border-b border-slate-800/50">
+              <td className="py-4 font-mono text-slate-300">#FM-8829</td>
+              <td className="py-4">Oct 24, 2024</td>
+              <td className="py-4 font-semibold text-white">$2,450.00</td>
+              <td className="py-4 text-slate-400">$245.00</td>
+              <td className="py-4"><span className="text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded text-xs">Cleared</span></td>
+            </tr>
+            <tr className="border-b border-slate-800/50">
+              <td className="py-4 font-mono text-slate-300">#FM-8830</td>
+              <td className="py-4">Oct 26, 2024</td>
+              <td className="py-4 font-semibold text-white">$3,100.00</td>
+              <td className="py-4 text-slate-400">$310.00</td>
+              <td className="py-4"><span className="text-amber-400 bg-amber-400/10 px-2 py-1 rounded text-xs">Processing</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------- WELLNESS ----------
+function WellnessView() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-slate-500 text-center px-4">
+      <HeartPulse size={64} className="mb-4 text-slate-700" />
+      <h2 className="text-xl font-bold text-slate-300 mb-2">Wellness & Diet Routing</h2>
+      <p className="max-w-md">Your diet preferences and gym requirements actively filter your route. Full module coming soon.</p>
+    </div>
+  );
+}
+
+// ---------- PET LOGISTICS ----------
+function PetLogisticsView() {
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Pet Logistics Dashboard</h2>
+          <p className="text-slate-400">Managing Lady's road life so you don't have to worry.</p>
+        </div>
+        <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0">
+          <ShieldCheck size={18} /> Emergency Vet Connect
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col items-center text-center">
+          <div className="w-24 h-24 bg-slate-800 rounded-full border-4 border-amber-500/30 flex items-center justify-center mb-4">
+            <Dog size={48} className="text-amber-500/80" />
+          </div>
+          <h3 className="text-xl font-bold">Lady</h3>
+          <p className="text-sm text-slate-400 mb-4">Golden Retriever • 4 yrs</p>
+          <div className="w-full bg-slate-800 rounded-lg p-3 text-left space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-slate-500">Vaccines</span><span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 size={14} /> Up to date</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Diet</span><span className="text-slate-200">Fresh Sub</span></div>
+          </div>
+        </div>
+
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Activity className="text-amber-500" size={20} /> Predictive Nutrition Engine</h3>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 bg-slate-800 rounded-xl p-4">
+                <div className="text-sm text-slate-400 mb-1">Current Supply</div>
+                <div className="text-2xl font-bold">3 Days <span className="text-sm text-slate-500 font-normal">left</span></div>
+                <div className="w-full bg-slate-700 h-2 mt-3 rounded-full overflow-hidden"><div className="bg-amber-500 w-1/4 h-full rounded-full"></div></div>
+              </div>
+              <div className="flex-1 bg-slate-800 rounded-xl p-4">
+                <div className="text-sm text-slate-400 mb-1">Next Delivery</div>
+                <div className="text-lg font-bold text-emerald-400">Oct 28th Intercept</div>
+                <div className="text-sm text-slate-300 mt-1">Rerouted to Dallas Terminal</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Map className="text-blue-500" size={20} /> Pet-Friendly Waypoints</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div>
+                  <div className="font-semibold text-sm">Buc-ee's Dog Walk Area</div>
+                  <div className="text-xs text-slate-400">I-20 East, Exit 45 • 120 mi away</div>
+                </div>
+                <button className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors text-white shrink-0">Add to GPS</button>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div>
+                  <div className="font-semibold text-sm">Rest Stop 44 (Fenced)</div>
+                  <div className="text-xs text-slate-400">I-20 East, Exit 88 • 250 mi away</div>
+                </div>
+                <button className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors text-white shrink-0">Add to GPS</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- ADMIN: ASSIGN LOAD ----------
+function AssignLoadView() {
+  const [drivers, setDrivers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState('');
+
+  const blank = {
+    driverUid: '',
+    loadId: 'FM-' + Math.floor(1000 + Math.random() * 9000),
+    origin: '', destination: '', commodity: '', weight: '',
+    po_number: '', pickup_number: '', pickup_time: '',
+    delivery_time: '', delivery_date: '', gross_pay: '',
+  };
+  const [form, setForm] = useState(blank);
+
+  useEffect(() => {
+    const loadDrivers = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        setDrivers(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+      } catch (e) {
+        console.error('Error loading drivers:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadDrivers();
+  }, []);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.driverUid || !form.origin || !form.destination) return;
+    setSaving(true);
+    setDone('');
+    try {
+      await addDoc(collection(db, 'loads'), {
+        ...form,
+        uid: form.driverUid,
+        gross_pay: Number(form.gross_pay) || 0,
+        status: 'Dispatched',
+        createdAt: serverTimestamp(),
+      });
+      const drv = drivers.find((d) => d.uid === form.driverUid);
+      setDone(`Load ${form.loadId} assigned to ${drv?.email || 'driver'} ✓`);
+      setForm({ ...blank, loadId: 'FM-' + Math.floor(1000 + Math.random() * 9000) });
+    } catch (e) {
+      console.error('Error assigning load:', e);
+      setDone('Error assigning load — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Assign a Load</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400">Create a load and assign it to a driver — it appears instantly in their Lane Management & Schedule.</p>
+
+      {loading ? (
+        <div className="text-slate-400">Loading drivers…</div>
+      ) : (
+        <form onSubmit={submit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
+          <div>
+            <label className="block text-xs text-slate-400 mb-2">Driver</label>
+            <select className={field} value={form.driverUid} onChange={(e) => set('driverUid', e.target.value)} required>
+              <option value="">Select a driver…</option>
+              {drivers.map((d) => <option key={d.uid} value={d.uid}>{d.email || d.uid}</option>)}
+            </select>
+            {drivers.length === 0 && <p className="text-xs text-amber-400 mt-2">No drivers yet — a driver has to log in once before they show up here.</p>}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-2">Load ID</label><input className={field} value={form.loadId} onChange={(e) => set('loadId', e.target.value)} /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Gross Pay ($)</label><input className={field} type="number" value={form.gross_pay} onChange={(e) => set('gross_pay', e.target.value)} placeholder="2450" /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Origin (Pickup)</label><input className={field} value={form.origin} onChange={(e) => set('origin', e.target.value)} placeholder="Atlanta, GA" required /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Destination (Delivery)</label><input className={field} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Dallas, TX" required /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Commodity</label><input className={field} value={form.commodity} onChange={(e) => set('commodity', e.target.value)} placeholder="Dry goods" /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Weight</label><input className={field} value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="42,000 lbs" /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">PO Number</label><input className={field} value={form.po_number} onChange={(e) => set('po_number', e.target.value)} /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Pickup Number</label><input className={field} value={form.pickup_number} onChange={(e) => set('pickup_number', e.target.value)} /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Pickup Time</label><input className={field} value={form.pickup_time} onChange={(e) => set('pickup_time', e.target.value)} placeholder="Oct 24, 8:00 AM" /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Delivery Time</label><input className={field} value={form.delivery_time} onChange={(e) => set('delivery_time', e.target.value)} placeholder="Oct 25, 4:00 PM" /></div>
+            <div><label className="block text-xs text-slate-400 mb-2">Delivery Date</label><input className={field} type="date" value={form.delivery_date} onChange={(e) => set('delivery_date', e.target.value)} /></div>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+              {saving ? 'Assigning…' : 'Assign Load'}
+            </button>
+            {done && <span className="text-sm text-emerald-400">{done}</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ---------- ADMIN: ALL LOADS ----------
+function AllLoadsView() {
+  const [loads, setLoads] = useState([]);
+  const [users, setUsers] = useState({});
+  const [userList, setUserList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [driverFilter, setDriverFilter] = useState('All');
+  const [updatingId, setUpdatingId] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const STATUS_FLOW = ['Dispatched', 'Arrived at Shipper', 'Loaded', 'In Transit', 'Delivered'];
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [loadSnap, userSnap] = await Promise.all([
+        getDocs(collection(db, 'loads')),
+        getDocs(collection(db, 'users')),
+      ]);
+      const userMap = {};
+      const list = [];
+      userSnap.docs.forEach((d) => {
+        userMap[d.id] = d.data().email || d.id;
+        list.push({ uid: d.id, email: d.data().email || d.id });
+      });
+      setUsers(userMap);
+      setUserList(list);
+      const rows = loadSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => (b.delivery_date || '').localeCompare(a.delivery_date || ''));
+      setLoads(rows);
+    } catch (e) {
+      console.error('Error loading all loads:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchAll(); }, []);
+
+  const changeStatus = async (loadDocId, newStatus) => {
+    if (!newStatus) return;
+    setUpdatingId(loadDocId);
+    try {
+      await updateDoc(doc(db, 'loads', loadDocId), { status: newStatus });
+      setLoads((prev) => prev.map((l) => (l.id === loadDocId ? { ...l, status: newStatus } : l)));
+    } catch (e) {
+      console.error('Error updating status:', e);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const openEdit = (l) => {
+    setEditing(l);
+    setForm({
+      driverUid: l.uid || '',
+      loadId: l.loadId || '',
+      origin: l.origin || '',
+      destination: l.destination || '',
+      commodity: l.commodity || '',
+      weight: l.weight || '',
+      po_number: l.po_number || '',
+      pickup_number: l.pickup_number || '',
+      pickup_time: l.pickup_time || '',
+      delivery_time: l.delivery_time || '',
+      delivery_date: l.delivery_date || '',
+      gross_pay: l.gross_pay ?? '',
+      status: l.status || 'Dispatched',
+    });
+  };
+
+  const closeEdit = () => { setEditing(null); setForm(null); };
+  const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = { ...form, uid: form.driverUid, gross_pay: Number(form.gross_pay) || 0 };
+      delete payload.driverUid;
+      await updateDoc(doc(db, 'loads', editing.id), payload);
+      setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...payload } : l)));
+      closeEdit();
+    } catch (err) {
+      console.error('Error saving load:', err);
+      alert('Error saving — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteLoad = async () => {
+    if (!editing) return;
+    if (!window.confirm(`Delete load ${editing.loadId || ''}? This cannot be undone.`)) return;
+    setSaving(true);
+    try {
+      await deleteDoc(doc(db, 'loads', editing.id));
+      setLoads((prev) => prev.filter((l) => l.id !== editing.id));
+      closeEdit();
+    } catch (err) {
+      console.error('Error deleting load:', err);
+      alert('Error deleting — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const driverEmails = Array.from(new Set(loads.map((l) => users[l.uid] || l.uid).filter(Boolean)));
+
+  const filtered = loads.filter((l) => {
+    const okStatus = statusFilter === 'All' || l.status === statusFilter;
+    const okDriver = driverFilter === 'All' || (users[l.uid] || l.uid) === driverFilter;
+    return okStatus && okDriver;
+  });
+
+  const statusStyle = (s) => {
+    if (s === 'Delivered' || s === 'Cleared') return 'bg-emerald-500/15 text-emerald-400';
+    if (s === 'In Transit') return 'bg-blue-500/15 text-blue-400';
+    return 'bg-amber-500/15 text-amber-400';
+  };
+
+  const totalGross = filtered.reduce((sum, l) => sum + (Number(l.gross_pay) || 0), 0);
+
+  const StatusSelect = ({ l, full }) => (
+    <select
+      value={STATUS_FLOW.includes(l.status) ? l.status : ''}
+      onChange={(e) => changeStatus(l.id, e.target.value)}
+      disabled={updatingId === l.id}
+      className={`${full ? 'w-full mt-1 py-2' : 'py-1.5'} text-xs px-2 rounded-lg border-0 focus:outline-none cursor-pointer disabled:opacity-50 ${statusStyle(l.status)}`}
+    >
+      {!STATUS_FLOW.includes(l.status) && <option value="">{l.status || 'Set status'}</option>}
+      {STATUS_FLOW.map((s) => <option key={s} value={s} className="bg-slate-800 text-slate-100">{s}</option>)}
+    </select>
+  );
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  if (loading) return <div className="text-slate-400">Loading all loads…</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">All Loads</h2>
+          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        </div>
+        <button onClick={fetchAll} className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors">Refresh</button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">Total Loads</div><div className="text-xl font-bold">{filtered.length}</div></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">In Transit</div><div className="text-xl font-bold text-blue-400">{filtered.filter((l) => l.status === 'In Transit').length}</div></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">Delivered</div><div className="text-xl font-bold text-emerald-400">{filtered.filter((l) => l.status === 'Delivered').length}</div></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">Gross (shown)</div><div className="text-xl font-bold text-emerald-400">{money(totalGross)}</div></div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+          <option value="All">All drivers</option>
+          {driverEmails.map((em) => <option key={em} value={em}>{em}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+          <option value="All">All statuses</option>
+          {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">No loads match these filters.</div>
+      ) : (
+        <>
+          <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400">
+                  <th className="p-4 font-medium">Load</th>
+                  <th className="p-4 font-medium">Driver</th>
+                  <th className="p-4 font-medium">Route</th>
+                  <th className="p-4 font-medium">Delivery</th>
+                  <th className="p-4 font-medium">Gross</th>
+                  <th className="p-4 font-medium">Status</th>
+                  <th className="p-4 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((l) => (
+                  <tr key={l.id} className="border-b border-slate-800/50 last:border-0">
+                    <td className="p-4 font-mono text-amber-500 font-semibold">{l.loadId || '—'}</td>
+                    <td className="p-4 text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</td>
+                    <td className="p-4 text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</td>
+                    <td className="p-4 text-slate-400">{l.delivery_date || '—'}</td>
+                    <td className="p-4 font-semibold text-white">{money(l.gross_pay)}</td>
+                    <td className="p-4"><StatusSelect l={l} /></td>
+                    <td className="p-4">
+                      <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden space-y-3">
+            {filtered.map((l) => (
+              <div key={l.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-amber-500 font-semibold text-sm">{l.loadId || '—'}</span>
+                  <span className="font-semibold text-white text-sm">{money(l.gross_pay)}</span>
+                </div>
+                <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
+                <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
+                <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1"><StatusSelect l={l} full /></div>
+                  <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors shrink-0">Edit</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Edit modal */}
+      {editing && form && (
+        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={closeEdit}>
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={saveEdit}
+            className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-6 my-8 space-y-5"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold">Edit Load <span className="font-mono text-amber-500">{form.loadId}</span></h3>
+              <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-400 mb-2">Driver</label>
+              <select className={field} value={form.driverUid} onChange={(e) => setField('driverUid', e.target.value)} required>
+                <option value="">Select a driver…</option>
+                {userList.map((d) => <option key={d.uid} value={d.uid}>{d.email}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className="block text-xs text-slate-400 mb-2">Load ID</label><input className={field} value={form.loadId} onChange={(e) => setField('loadId', e.target.value)} /></div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Status</label>
+                <select className={field} value={form.status} onChange={(e) => setField('status', e.target.value)}>
+                  {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
+                  <option value="Cleared">Cleared</option>
+                </select>
+              </div>
+              <div><label className="block text-xs text-slate-400 mb-2">Gross Pay ($)</label><input className={field} type="number" value={form.gross_pay} onChange={(e) => setField('gross_pay', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Delivery Date</label><input className={field} type="date" value={form.delivery_date} onChange={(e) => setField('delivery_date', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Origin (Pickup)</label><input className={field} value={form.origin} onChange={(e) => setField('origin', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Destination (Delivery)</label><input className={field} value={form.destination} onChange={(e) => setField('destination', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Commodity</label><input className={field} value={form.commodity} onChange={(e) => setField('commodity', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Weight</label><input className={field} value={form.weight} onChange={(e) => setField('weight', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">PO Number</label><input className={field} value={form.po_number} onChange={(e) => setField('po_number', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Pickup Number</label><input className={field} value={form.pickup_number} onChange={(e) => setField('pickup_number', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Pickup Time</label><input className={field} value={form.pickup_time} onChange={(e) => setField('pickup_time', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Delivery Time</label><input className={field} value={form.delivery_time} onChange={(e) => setField('delivery_time', e.target.value)} /></div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
+              <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                Delete Load
+              </button>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+                <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+// ---------- LOGIN ----------
+function LoginView() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      if (isSignUp) await createUserWithEmailAndPassword(auth, email, password);
+      else await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', ''));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError('');
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', ''));
+    }
+  };
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100 font-sans p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold tracking-wider text-white">FORWARD MOTION</h1>
+          <p className="text-xs text-amber-500 tracking-widest font-semibold mt-1">VIP FREIGHT</p>
+        </div>
+
+        <h2 className="text-xl font-bold mb-6">{isSignUp ? 'Create your account' : 'Driver Sign In'}</h2>
+
+        <form onSubmit={handleEmailAuth} className="space-y-4">
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <button type="submit" disabled={busy}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+            {busy ? 'Please wait…' : isSignUp ? 'Sign Up' : 'Sign In'}
+          </button>
+        </form>
+
+        <div className="flex items-center gap-3 my-6">
+          <div className="flex-1 h-px bg-slate-800"></div>
+          <span className="text-xs text-slate-500">OR</span>
+          <div className="flex-1 h-px bg-slate-800"></div>
+        </div>
+
+        <button onClick={handleGoogle} className="w-full bg-white text-slate-900 font-semibold py-3 rounded-lg hover:bg-slate-100 transition-colors">
+          Continue with Google
+        </button>
+
+        <p className="text-center text-sm text-slate-400 mt-6">
+          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+          <button onClick={() => { setIsSignUp(!isSignUp); setError(''); }} className="text-amber-500 font-semibold hover:underline">
+            {isSignUp ? 'Sign In' : 'Sign Up'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------- NAV ITEM ----------
 function NavItem({ icon, label, isActive, onClick }) {
   return (
     <button
