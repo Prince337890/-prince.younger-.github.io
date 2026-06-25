@@ -113,6 +113,9 @@ function DashboardView() {
         </div>
       </div>
 
+      {/* Quote of the Day — rotates at midnight, stable all day */}
+      <QuoteOfTheDay />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Logistics Snapshot */}
         <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
@@ -347,6 +350,49 @@ function LaneManagementView() {
       <Navigation size={64} className="mb-4 text-slate-700" />
       <h2 className="text-xl font-bold text-slate-300 mb-2">Smart Lane Management</h2>
       <p className="max-w-md text-center">Predictive routing board. We're currently securing high-paying freight for your Dallas drop-off to minimize deadhead.</p>
+    </div>
+  );
+}
+
+// --- QUOTE OF THE DAY ---
+const QUOTES = [
+  { text: "The road to success is always under construction.", author: "Lily Tomlin" },
+  { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+  { text: "Success is the sum of small efforts, repeated day in and day out.", author: "Robert Collier" },
+  { text: "Keep your eyes on the road and your hands upon the wheel.", author: "The Doors" },
+  { text: "Discipline is the bridge between goals and accomplishment.", author: "Jim Rohn" },
+  { text: "Every mile is two in winter.", author: "George Herbert" },
+  { text: "The harder you work, the luckier you get.", author: "Gary Player" },
+  { text: "A smooth sea never made a skilled sailor.", author: "Franklin D. Roosevelt" },
+  { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+  { text: "Great things are done by a series of small things brought together.", author: "Vincent van Gogh" },
+  { text: "Wherever you go, go with all your heart.", author: "Confucius" },
+  { text: "Out of difficulties grow miracles.", author: "Jean de La Bruyère" },
+  { text: "Quality means doing it right when no one is looking.", author: "Henry Ford" },
+  { text: "Energy and persistence conquer all things.", author: "Benjamin Franklin" },
+  { text: "The miracle isn't that I finished. It's that I had the courage to start.", author: "John Bingham" },
+  { text: "Slow down and enjoy the drive — but never lose the mission.", author: "Forward Motion" },
+  { text: "Fall seven times, stand up eight.", author: "Japanese Proverb" },
+  { text: "Well done is better than well said.", author: "Benjamin Franklin" },
+  { text: "Hard roads often lead to beautiful destinations.", author: "Unknown" },
+  { text: "Drive safe today — tomorrow's loads need you.", author: "Forward Motion" },
+];
+
+function QuoteOfTheDay() {
+  // Day-of-year as a stable seed: same quote all day, rotates at midnight.
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  const q = QUOTES[dayOfYear % QUOTES.length];
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-start gap-4">
+      <div className="text-amber-500 text-4xl leading-none font-serif select-none mt-[-4px]">&ldquo;</div>
+      <div>
+        <p className="text-slate-200 text-sm sm:text-base italic leading-relaxed">{q.text}</p>
+        <p className="text-amber-500/80 text-xs font-semibold mt-2 tracking-wide">— {q.author}</p>
+        <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-1">Quote of the Day</p>
+      </div>
     </div>
   );
 }
