@@ -123,6 +123,7 @@ export default function App() {
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
+      case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
       default: return <DashboardView />;
     }
@@ -171,6 +172,7 @@ export default function App() {
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
               <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
+              <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
               <div className="mt-6" />
             </>
@@ -1973,13 +1975,43 @@ function FleetView() {
 // ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
 function NegotiationCalcView() {
   const [v, setV] = useState({
-    originZip: '', destZip: '',
+    selectedCarrier: '',
+    originZip: '', destZip: '', pickupAt: '', deliveryAt: '',
     brokerOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
     mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '',
     commodity: 'General Dry Freight',
   });
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
+
+  // Saved carriers — pick one to auto-fill truck specs.
+  const [carriers, setCarriers] = useState([]);
+  useEffect(() => {
+    getDocs(collection(db, 'carriers'))
+      .then((snap) => setCarriers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+      .catch((e) => console.error('Error loading carriers:', e));
+  }, []);
+
+  const applyCarrier = (id) => {
+    setV((s) => {
+      const c = carriers.find((x) => x.id === id);
+      if (!c) return { ...s, selectedCarrier: '' };
+      return {
+        ...s,
+        selectedCarrier: id,
+        mpg: c.mpg ? String(c.mpg) : s.mpg,
+        maxCapacity: c.maxCapacity ? String(c.maxCapacity) : s.maxCapacity,
+        minRpm: c.minRpm ? String(c.minRpm) : s.minRpm,
+      };
+    });
+  };
+
+  // Delivery window (hours) from pickup & delivery date/times — shared into the HOS validator.
+  const windowHours = (() => {
+    if (!v.pickupAt || !v.deliveryAt) return 0;
+    const diff = (new Date(v.deliveryAt).getTime() - new Date(v.pickupAt).getTime()) / 3600000;
+    return diff > 0 ? diff : 0;
+  })();
 
   const COMMODITIES = {
     'General Dry Freight': { equip: 'Standard Dry Van.', surcharge: 0 },
@@ -2054,9 +2086,19 @@ function NegotiationCalcView() {
         {/* LEFT — inputs */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold">Load Inputs</h3>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Saved Carrier (auto-fills truck specs)</label>
+            <select className={field} value={v.selectedCarrier} onChange={(e) => applyCarrier(e.target.value)}>
+              <option value="">Manual entry…</option>
+              {carriers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {carriers.length === 0 && <p className="text-[11px] text-amber-400 mt-1">No saved carriers yet — add them in the Carriers tab.</p>}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Origin Zip Code</label><input className={field} inputMode="numeric" value={v.originZip} onChange={set('originZip')} placeholder="30301" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Destination Zip Code</label><input className={field} inputMode="numeric" value={v.destZip} onChange={set('destZip')} placeholder="75201" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Pickup Date &amp; Time</label><input className={field} type="datetime-local" value={v.pickupAt} onChange={set('pickupAt')} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Delivery Date &amp; Time</label><input className={field} type="datetime-local" value={v.deliveryAt} onChange={set('deliveryAt')} /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Broker Offer ($)</label><input className={field} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={v.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
@@ -2109,19 +2151,19 @@ function NegotiationCalcView() {
         </div>
       </div>
 
-      <HosValidator totalMiles={totalMiles} />
+      <HosValidator totalMiles={totalMiles} windowHours={windowHours} />
     </div>
   );
 }
 
 // ---------- ADMIN: TRANSIT & HOS VALIDATOR ----------
-function HosValidator({ totalMiles = 0 }) {
-  const [v, setV] = useState({ hoursToDeliver: '', driveAvail: '', speed: '55' });
+function HosValidator({ totalMiles = 0, windowHours = 0 }) {
+  const [v, setV] = useState({ driveAvail: '', speed: '55' });
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
 
   const miles = totalMiles;
-  const windowHrs = n(v.hoursToDeliver);
+  const windowHrs = windowHours;
   const speed = n(v.speed);
   const avail = Math.min(n(v.driveAvail), 11); // FMCSA caps daily driving at 11 hrs
 
@@ -2172,13 +2214,18 @@ function HosValidator({ totalMiles = 0 }) {
         {/* LEFT — inputs */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold">Trip Inputs</h3>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
-            <div className="text-xs text-slate-400">Trip Miles <span className="text-slate-500">(shared from Rate Calculator)</span></div>
-            <div className="font-bold text-white text-lg">{miles > 0 ? miles.toLocaleString() + ' mi' : '—'}</div>
-            {miles <= 0 && <div className="text-[11px] text-amber-400 mt-1">Enter Loaded / Deadhead miles in the Rate Calculator above.</div>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+              <div className="text-xs text-slate-400">Trip Miles <span className="text-slate-500">(shared)</span></div>
+              <div className="font-bold text-white text-lg">{miles > 0 ? miles.toLocaleString() + ' mi' : '—'}</div>
+            </div>
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+              <div className="text-xs text-slate-400">Delivery Window <span className="text-slate-500">(pickup → delivery)</span></div>
+              <div className="font-bold text-white text-lg">{windowHrs > 0 ? windowHrs.toFixed(1) + ' hrs' : '—'}</div>
+            </div>
           </div>
+          {(miles <= 0 || windowHrs <= 0) && <div className="text-[11px] text-amber-400">Set miles and pickup/delivery date-times in the Rate Calculator above.</div>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">Hours Until Delivery</label><input className={field} type="number" inputMode="decimal" value={v.hoursToDeliver} onChange={set('hoursToDeliver')} placeholder="36" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Drive Hours Available (max 11)</label><input className={field} type="number" inputMode="decimal" value={v.driveAvail} onChange={set('driveAvail')} placeholder="8" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Avg Truck Speed (mph)</label><input className={field} type="number" inputMode="decimal" value={v.speed} onChange={set('speed')} /></div>
           </div>
@@ -2292,6 +2339,109 @@ function NewAuthorityView() {
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700/50 rounded-2xl p-6 text-center">
         <p className="text-white font-semibold">Keep the wheels turning. Stay clean, stay consistent, and let the calendar do its work.</p>
         <p className="text-sm text-slate-400 mt-1">Every established carrier on the road today started exactly where you are.</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------- ADMIN: CARRIERS ----------
+function CarriersView() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', mcNumber: '', mpg: '', maxCapacity: '', minRpm: '' });
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const fetchCarriers = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'carriers'));
+      setList(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error('Error loading carriers:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchCarriers(); }, []);
+
+  const add = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'carriers'), {
+        name: form.name.trim(),
+        mcNumber: form.mcNumber.trim(),
+        mpg: Number(form.mpg) || 0,
+        maxCapacity: Number(form.maxCapacity) || 0,
+        minRpm: Number(form.minRpm) || 0,
+        createdAt: serverTimestamp(),
+      });
+      setForm({ name: '', mcNumber: '', mpg: '', maxCapacity: '', minRpm: '' });
+      fetchCarriers();
+    } catch (e) {
+      console.error('Error adding carrier:', e);
+      alert('Error adding carrier — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm('Remove this carrier profile?')) return;
+    try {
+      await deleteDoc(doc(db, 'carriers', id));
+      setList((p) => p.filter((c) => c.id !== id));
+    } catch (e) {
+      console.error('Error removing carrier:', e);
+    }
+  };
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Carriers</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400">Save each carrier's truck specs once. Pick them in the Rate Calculator to auto-fill MPG, capacity, and minimum RPM.</p>
+
+      <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h3 className="font-bold">Add a Carrier</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div><label className="block text-xs text-slate-400 mb-1">Carrier Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">MC Number</label><input className={field} value={form.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Truck Avg MPG</label><input className={field} type="number" inputMode="decimal" value={form.mpg} onChange={set('mpg')} placeholder="6.5" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={form.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={form.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
+        </div>
+        <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save Carrier'}
+        </button>
+      </form>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="font-bold mb-4">Saved Carriers</h3>
+        {loading ? (
+          <div className="text-slate-400 text-sm">Loading…</div>
+        ) : list.length === 0 ? (
+          <div className="text-slate-500 text-sm">No carriers saved yet.</div>
+        ) : (
+          <div className="space-y-2">
+            {list.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">{c.name} {c.mcNumber ? <span className="text-slate-500 font-normal">· {c.mcNumber}</span> : null}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min</div>
+                </div>
+                <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg shrink-0">Remove</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
