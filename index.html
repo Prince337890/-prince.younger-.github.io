@@ -489,12 +489,19 @@
             .chev { opacity: 1; }
         }
     </style>
+    <!-- Tailwind + fonts for the redesigned hero -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
+    </script>
 </head>
 <body>
 
     <a class="skip-link" href="#main">Skip to main content</a>
 
-    <header>
+    <header style="display:none" aria-hidden="true">
         <div class="logo">
             <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
                 <!-- spinning wheel hub -->
@@ -528,13 +535,130 @@
         </a>
     </header>
 
-    <div class="vosb-banner">
+    <div class="vosb-banner" style="display:none" aria-hidden="true">
         ★ VETERAN-OWNED SMALL BUSINESS (VOSB) ★
     </div>
 
     <main id="main">
 
-    <section class="hero">
+    <!-- ============================================================= -->
+    <!-- PREMIUM HERO (Tailwind) — dark, cinematic, enterprise-grade   -->
+    <!-- ============================================================= -->
+    <section class="font-sans relative min-h-screen w-full overflow-hidden bg-[#0a0f1a] text-white" style="background:#0a0f1a;color:#fff;">
+
+        <!-- Cinematic background image + dark overlays -->
+        <div class="absolute inset-0">
+            <img
+                src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=2070&q=80"
+                alt=""
+                aria-hidden="true"
+                class="h-full w-full object-cover object-center opacity-40" />
+            <!-- midnight gradient to keep text legible -->
+            <div class="absolute inset-0 bg-gradient-to-b from-[#070b14]/90 via-[#0a0f1a]/85 to-[#0a0f1a]"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-[#0a0f1a] via-transparent to-[#0a0f1a]/60"></div>
+            <!-- faint engineered grid -->
+            <div class="absolute inset-0 opacity-[0.07]"
+                 style="background-image:linear-gradient(#ffffff 1px,transparent 1px),linear-gradient(90deg,#ffffff 1px,transparent 1px);background-size:56px 56px;"></div>
+            <!-- subtle orange glow accent -->
+            <div class="pointer-events-none absolute -top-24 right-0 h-96 w-96 rounded-full bg-[#FF5722]/20 blur-[120px]"></div>
+            <div class="pointer-events-none absolute bottom-0 left-1/4 h-64 w-64 rounded-full bg-[#FF5722]/10 blur-[100px]"></div>
+        </div>
+
+        <!-- Top bar: logo + portal -->
+        <div class="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
+            <a href="#main" class="flex items-center gap-2.5">
+                <svg viewBox="0 0 48 48" class="h-9 w-9" aria-hidden="true">
+                    <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+                    <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
+                        <line x1="16" y1="24" x2="16" y2="13"/>
+                        <line x1="16" y1="24" x2="25.5" y2="29.5"/>
+                        <line x1="16" y1="24" x2="6.5" y2="29.5"/>
+                    </g>
+                    <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="31,16 38,24 31,32"/>
+                        <polyline points="37,16 44,24 37,32"/>
+                    </g>
+                </svg>
+                <span class="font-display text-sm font-extrabold uppercase tracking-[0.18em] text-white sm:text-base">
+                    Forward&nbsp;Motion <span class="text-[#FF5722]">Freight</span>
+                </span>
+            </a>
+            <a href="https://forward-motion-app-bdim.vercel.app"
+               class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold tracking-wide text-slate-200 backdrop-blur-sm transition hover:border-white/30 hover:bg-white/10 sm:text-sm">
+                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/>
+                    <rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+                </svg>
+                Driver&nbsp;Portal
+            </a>
+        </div>
+
+        <!-- Hero content -->
+        <div class="relative z-10 mx-auto flex min-h-[calc(100vh-80px)] max-w-7xl flex-col justify-center px-5 pb-20 pt-8 sm:px-8 sm:pt-4">
+            <div class="max-w-3xl">
+
+                <!-- VOSB outlined pill -->
+                <span class="mb-7 inline-flex items-center gap-2 rounded-full border border-[#FF5722]/40 bg-[#FF5722]/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-200 sm:text-xs">
+                    <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-[#FF5722]" fill="currentColor" aria-hidden="true">
+                        <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/>
+                    </svg>
+                    Veteran-Owned Small Business
+                </span>
+
+                <!-- Pre-headline (metallic silver, wide tracking) -->
+                <p class="mb-4 text-xs font-semibold uppercase tracking-[0.34em] text-slate-300 sm:text-sm">
+                    Dispatching&nbsp;Around&nbsp;the&nbsp;Clock
+                </p>
+
+                <!-- Headline -->
+                <h1 class="font-display text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
+                    Keep&nbsp;the&nbsp;Wheels&nbsp;Turning.<br class="hidden sm:block">
+                    <span class="text-slate-100">We'll&nbsp;Handle&nbsp;the&nbsp;Rest.</span>
+                </h1>
+
+                <!-- Sub-headline -->
+                <p class="mt-6 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
+                    Premium dispatching for owner-operators who want higher rates, fewer
+                    deadhead miles, and zero paperwork headaches. You drive — we negotiate,
+                    route, and handle the back office.
+                </p>
+
+                <!-- CTAs -->
+                <div class="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <a href="carrier-packet.html"
+                       class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5722] px-7 py-4 text-base font-bold text-white shadow-[0_10px_30px_-8px_rgba(255,87,34,0.6)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ff6a3c] hover:shadow-[0_16px_40px_-10px_rgba(255,87,34,0.7)]">
+                        Request a Carrier Packet
+                        <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                    </a>
+                    <a href="https://forward-motion-app-bdim.vercel.app"
+                       class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-7 py-4 text-base font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5">
+                        Driver Login
+                    </a>
+                </div>
+
+                <!-- Trust row (monoline icons) -->
+                <div class="mt-12 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-slate-400">
+                    <span class="inline-flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        24/7 Dispatch
+                    </span>
+                    <span class="inline-flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        Aggressive Rate Negotiation
+                    </span>
+                    <span class="inline-flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        Full Back-Office Support
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="hero" style="display:none" aria-hidden="true">
         <div class="sky"></div>
         <div class="sun"></div>
         <div class="moon"></div>
