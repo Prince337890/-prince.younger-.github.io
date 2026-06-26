@@ -31,10 +31,31 @@ const googleProvider = new GoogleAuthProvider();
 
 // --- Google Maps (client-side distance lookup) ---
 // Paste your referrer-restricted Maps JavaScript API key between the quotes.
-const GOOGLE_MAPS_API_KEY = '';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDhJu-V7Cth7A-VBvKkEbDIJzvMXPTN1J4';
 
-// Apps Script /exec URL that returns carrier-packet form submissions as JSON.
+// Apps Script /exec URL that returns carrier-packet form submissions (JSONP).
 const CARRIER_PACKET_API_URL = 'https://script.google.com/macros/s/AKfycby0hAu4ahT-tn8GZRqeFmKxQS0i0snSdv1SQCxfBnU2moRT6XoIJnTl9NxnQVTr_E5J/exec';
+
+// Loads JSON cross-origin via a <script> tag (JSONP) — bypasses CORS, which
+// Apps Script web apps don't support for fetch().
+function jsonpFetch(url, timeoutMs = 12000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'fmPacketCb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    const sep = url.includes('?') ? '&' : '?';
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      try { delete window[cb]; } catch (_) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error('Timed out')); } }, timeoutMs);
+    window[cb] = (data) => { if (!done) { done = true; cleanup(); resolve(data); } };
+    script.onerror = () => { if (!done) { done = true; cleanup(); reject(new Error('Script load error')); } };
+    script.src = url + sep + 'callback=' + cb;
+    document.body.appendChild(script);
+  });
+}
 
 let mapsLoaderPromise = null;
 function loadGoogleMaps() {
@@ -2578,8 +2599,7 @@ function CarriersView() {
     if (!CARRIER_PACKET_API_URL) { setImportMsg('Add CARRIER_PACKET_API_URL in the code.'); return; }
     setImporting(true);
     try {
-      const res = await fetch(CARRIER_PACKET_API_URL);
-      const data = await res.json();
+      const data = await jsonpFetch(CARRIER_PACKET_API_URL);
       const arr = Array.isArray(data) ? data : [];
       setPacket(arr);
       setImportMsg(arr.length ? `Loaded ${arr.length} submission(s) — pick one below.` : 'No carrier packet submissions yet.');
