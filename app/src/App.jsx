@@ -28,6 +28,44 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+
+// --- Google Maps (client-side distance lookup) ---
+// Paste your referrer-restricted Maps JavaScript API key between the quotes.
+const GOOGLE_MAPS_API_KEY = '';
+
+let mapsLoaderPromise = null;
+function loadGoogleMaps() {
+  if (typeof window !== 'undefined' && window.google && window.google.maps) return Promise.resolve();
+  if (mapsLoaderPromise) return mapsLoaderPromise;
+  mapsLoaderPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+    s.async = true;
+    s.defer = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Failed to load Google Maps'));
+    document.head.appendChild(s);
+  });
+  return mapsLoaderPromise;
+}
+
+async function getDrivingMiles(originZip, destZip) {
+  await loadGoogleMaps();
+  return new Promise((resolve, reject) => {
+    const svc = new window.google.maps.DistanceMatrixService();
+    svc.getDistanceMatrix({
+      origins: [originZip + ', USA'],
+      destinations: [destZip + ', USA'],
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      unitSystem: window.google.maps.UnitSystem.IMPERIAL,
+    }, (res, status) => {
+      if (status !== 'OK') return reject(new Error(status));
+      const el = res.rows && res.rows[0] && res.rows[0].elements && res.rows[0].elements[0];
+      if (!el || el.status !== 'OK') return reject(new Error(el ? el.status : 'NO_RESULT'));
+      resolve(el.distance.value / 1609.344);
+    });
+  });
+}
 // Creates a driver's auth account WITHOUT signing the admin out,
 // by using a throwaway secondary Firebase app instance.
 async function createDriverAccount(email, password) {
@@ -2015,6 +2053,24 @@ function NegotiationCalcView() {
     return diff > 0 ? diff : 0;
   })();
 
+  // Auto-calc loaded miles from the two zip codes via Google Maps.
+  const [mapsLoading, setMapsLoading] = useState(false);
+  const [mapsErr, setMapsErr] = useState('');
+  const calcMiles = async () => {
+    setMapsErr('');
+    if (!v.originZip.trim() || !v.destZip.trim()) { setMapsErr('Enter both zip codes first.'); return; }
+    if (!GOOGLE_MAPS_API_KEY) { setMapsErr('Add your Google Maps API key in the code (GOOGLE_MAPS_API_KEY).'); return; }
+    setMapsLoading(true);
+    try {
+      const mi = await getDrivingMiles(v.originZip.trim(), v.destZip.trim());
+      setV((s) => ({ ...s, loadedMiles: String(Math.round(mi)) }));
+    } catch (e) {
+      setMapsErr('Could not get distance (' + (e.message || 'error') + '). Check the zips and key restrictions.');
+    } finally {
+      setMapsLoading(false);
+    }
+  };
+
   const COMMODITIES = {
     'General Dry Freight': { equip: 'Standard Dry Van.', surcharge: 0 },
     'Frozen Seafood/Poultry': { equip: 'Reefer Unit, Continuous Run Mode, Trailer Washout Required.', surcharge: 50 },
@@ -2111,6 +2167,12 @@ function NegotiationCalcView() {
             <div><label className="block text-xs text-slate-400 mb-1">Freight Weight (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.weight} onChange={set('weight')} placeholder="42000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
           </div>
+
+          <button type="button" onClick={calcMiles} disabled={mapsLoading}
+            className="text-sm bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
+            {mapsLoading ? 'Calculating…' : '🧭 Auto-Calc Loaded Miles from Zips'}
+          </button>
+          {mapsErr && <p className="text-[11px] text-red-400">{mapsErr}</p>}
 
           <div>
             <label className="block text-xs text-slate-400 mb-1">Commodity Type</label>
