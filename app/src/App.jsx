@@ -33,6 +33,9 @@ const googleProvider = new GoogleAuthProvider();
 // Paste your referrer-restricted Maps JavaScript API key between the quotes.
 const GOOGLE_MAPS_API_KEY = '';
 
+// Apps Script /exec URL that returns carrier-packet form submissions as JSON.
+const CARRIER_PACKET_API_URL = 'https://script.google.com/macros/s/AKfycby0hAu4ahT-tn8GZRqeFmKxQS0i0snSdv1SQCxfBnU2moRT6XoIJnTl9NxnQVTr_E5J/exec';
+
 let mapsLoaderPromise = null;
 function loadGoogleMaps() {
   if (typeof window !== 'undefined' && window.google && window.google.maps) return Promise.resolve();
@@ -69,6 +72,35 @@ async function getDrivingMiles(originZip, destZip) {
         const el = res.rows && res.rows[0] && res.rows[0].elements && res.rows[0].elements[0];
         if (!el || el.status !== 'OK') return finish(reject, new Error(el ? el.status : 'NO_RESULT'));
         finish(resolve, el.distance.value / 1609.344);
+      });
+    } catch (e) {
+      finish(reject, e);
+    }
+  });
+}
+
+// Total driving miles for a route with optional waypoints (multi-stop).
+async function getRouteMiles(origin, destination, waypoints) {
+  await loadGoogleMaps();
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (fn, arg) => { if (!done) { done = true; clearTimeout(timer); fn(arg); } };
+    window.gm_authFailure = () => finish(reject, new Error('Maps auth failed — check the key, its website restriction, billing, and that the APIs are enabled.'));
+    const timer = setTimeout(() => finish(reject, new Error('Timed out — usually a key, referrer, or billing issue.')), 15000);
+    try {
+      const svc = new window.google.maps.DirectionsService();
+      svc.route({
+        origin,
+        destination,
+        waypoints: (waypoints || []).map((w) => ({ location: w, stopover: true })),
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        unitSystem: window.google.maps.UnitSystem.IMPERIAL,
+      }, (res, status) => {
+        if (status !== 'OK') return finish(reject, new Error(status));
+        const route = res.routes && res.routes[0];
+        if (!route) return finish(reject, new Error('NO_ROUTE'));
+        const meters = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
+        finish(resolve, meters / 1609.344);
       });
     } catch (e) {
       finish(reject, e);
@@ -2025,13 +2057,20 @@ function FleetView() {
 function NegotiationCalcView() {
   const [v, setV] = useState({
     selectedCarrier: '',
-    originZip: '', destZip: '', pickupAt: '', deliveryAt: '',
+    originCity: '', originZip: '', destCity: '', destZip: '',
+    pickupAt: '', deliveryAt: '',
     brokerOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
     mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '',
-    commodity: 'General Dry Freight',
+    driveAvail: '', commodity: 'General Dry Freight',
   });
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
+
+  // Up to 2 extra stops for multi-pickup / partial-drop loads.
+  const [stops, setStops] = useState([]);
+  const addStop = () => setStops((s) => (s.length < 2 ? [...s, { city: '', zip: '' }] : s));
+  const removeStop = (i) => setStops((s) => s.filter((_, idx) => idx !== i));
+  const setStop = (i, k) => (e) => setStops((s) => s.map((st, idx) => (idx === i ? { ...st, [k]: e.target.value } : st)));
 
   // Saved carriers — pick one to auto-fill truck specs.
   const [carriers, setCarriers] = useState([]);
@@ -2051,9 +2090,12 @@ function NegotiationCalcView() {
         mpg: c.mpg ? String(c.mpg) : s.mpg,
         maxCapacity: c.maxCapacity ? String(c.maxCapacity) : s.maxCapacity,
         minRpm: c.minRpm ? String(c.minRpm) : s.minRpm,
+        driveAvail: (c.currentDriveHours || c.currentDriveHours === 0) ? String(c.currentDriveHours) : s.driveAvail,
       };
     });
   };
+
+  const selectedCarrierObj = carriers.find((c) => c.id === v.selectedCarrier) || null;
 
   // Delivery window (hours) from pickup & delivery date/times — shared into the HOS validator.
   const windowHours = (() => {
@@ -2062,21 +2104,63 @@ function NegotiationCalcView() {
     return diff > 0 ? diff : 0;
   })();
 
-  // Auto-calc loaded miles from the two zip codes via Google Maps.
+  // Auto-calc miles from city/state (or zip) for origin, stops, and destination.
   const [mapsLoading, setMapsLoading] = useState(false);
   const [mapsErr, setMapsErr] = useState('');
+  const addr = (city, zip) => {
+    const c = (city || '').trim();
+    if (c) return c.toLowerCase().includes('usa') ? c : c + ', USA';
+    const z = (zip || '').trim();
+    return z ? z + ', USA' : '';
+  };
   const calcMiles = async () => {
     setMapsErr('');
-    if (!v.originZip.trim() || !v.destZip.trim()) { setMapsErr('Enter both zip codes first.'); return; }
+    const o = addr(v.originCity, v.originZip);
+    const d = addr(v.destCity, v.destZip);
+    if (!o || !d) { setMapsErr('Enter an origin and destination (city/state or zip).'); return; }
     if (!GOOGLE_MAPS_API_KEY) { setMapsErr('Add your Google Maps API key in the code (GOOGLE_MAPS_API_KEY).'); return; }
+    const ways = stops.map((st) => addr(st.city, st.zip)).filter(Boolean);
     setMapsLoading(true);
     try {
-      const mi = await getDrivingMiles(v.originZip.trim(), v.destZip.trim());
+      const mi = await getRouteMiles(o, d, ways);
       setV((s) => ({ ...s, loadedMiles: String(Math.round(mi)) }));
     } catch (e) {
-      setMapsErr('Could not get distance (' + (e.message || 'error') + '). Check the zips and key restrictions.');
+      setMapsErr('Could not get distance (' + (e.message || 'error') + '). Check the locations and key restrictions.');
     } finally {
       setMapsLoading(false);
+    }
+  };
+
+  // Assign this load to the selected carrier's linked driver login.
+  const [assigning, setAssigning] = useState(false);
+  const [assignMsg, setAssignMsg] = useState('');
+  const assignLoad = async () => {
+    setAssignMsg('');
+    if (!selectedCarrierObj) { setAssignMsg('Pick a saved carrier first.'); return; }
+    if (!selectedCarrierObj.linkedDriverUid) { setAssignMsg('This carrier has no linked driver login — set one in the Carriers tab.'); return; }
+    setAssigning(true);
+    try {
+      const loadId = 'FM-' + Math.floor(1000 + Math.random() * 9000);
+      await addDoc(collection(db, 'loads'), {
+        loadId,
+        uid: selectedCarrierObj.linkedDriverUid,
+        origin: (v.originCity.trim() || v.originZip.trim()),
+        destination: (v.destCity.trim() || v.destZip.trim()),
+        commodity: v.commodity,
+        weight: v.weight,
+        gross_pay: Number(v.brokerOffer) || 0,
+        pickup_time: v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '',
+        delivery_time: v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '',
+        delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
+        status: 'Dispatched',
+        createdAt: serverTimestamp(),
+      });
+      setAssignMsg(`Load ${loadId} assigned to ${selectedCarrierObj.name} ✓`);
+    } catch (e) {
+      console.error('Error assigning load:', e);
+      setAssignMsg('Error assigning — check the console.');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -2161,9 +2245,39 @@ function NegotiationCalcView() {
             </select>
             {carriers.length === 0 && <p className="text-[11px] text-amber-400 mt-1">No saved carriers yet — add them in the Carriers tab.</p>}
           </div>
+          {/* Route */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">Origin City, State</label><input className={field} value={v.originCity} onChange={set('originCity')} placeholder="Atlanta, GA" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Origin Zip Code</label><input className={field} inputMode="numeric" value={v.originZip} onChange={set('originZip')} placeholder="30301" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Destination City, State</label><input className={field} value={v.destCity} onChange={set('destCity')} placeholder="Dallas, TX" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Destination Zip Code</label><input className={field} inputMode="numeric" value={v.destZip} onChange={set('destZip')} placeholder="75201" /></div>
+          </div>
+
+          {/* Extra stops (multi-pickup / partial drops) */}
+          {stops.map((st, i) => (
+            <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><label className="block text-xs text-slate-400 mb-1">Stop {i + 1} City, State</label><input className={field} value={st.city} onChange={setStop(i, 'city')} placeholder="Macon, GA" /></div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Stop {i + 1} Zip</label>
+                <div className="flex gap-2">
+                  <input className={field} inputMode="numeric" value={st.zip} onChange={setStop(i, 'zip')} placeholder="31201" />
+                  <button type="button" onClick={() => removeStop(i)} className="text-xs text-red-400 border border-red-500/30 px-3 rounded-lg shrink-0">✕</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {stops.length < 2 && (
+            <button type="button" onClick={addStop} className="text-xs text-amber-400 hover:text-amber-300">+ Add Stop</button>
+          )}
+
+          <button type="button" onClick={calcMiles} disabled={mapsLoading}
+            className="w-full text-sm bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
+            {mapsLoading ? 'Calculating…' : '🧭 Auto-Calc Miles (Origin → Stops → Destination)'}
+          </button>
+          {mapsErr && <p className="text-[11px] text-red-400">{mapsErr}</p>}
+
+          {/* Times & money */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Pickup Date &amp; Time</label><input className={field} type="datetime-local" value={v.pickupAt} onChange={set('pickupAt')} /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Delivery Date &amp; Time</label><input className={field} type="datetime-local" value={v.deliveryAt} onChange={set('deliveryAt')} /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Broker Offer ($)</label><input className={field} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
@@ -2176,12 +2290,6 @@ function NegotiationCalcView() {
             <div><label className="block text-xs text-slate-400 mb-1">Freight Weight (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.weight} onChange={set('weight')} placeholder="42000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
           </div>
-
-          <button type="button" onClick={calcMiles} disabled={mapsLoading}
-            className="text-sm bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
-            {mapsLoading ? 'Calculating…' : '🧭 Auto-Calc Loaded Miles from Zips'}
-          </button>
-          {mapsErr && <p className="text-[11px] text-red-400">{mapsErr}</p>}
 
           <div>
             <label className="block text-xs text-slate-400 mb-1">Commodity Type</label>
@@ -2221,24 +2329,35 @@ function NegotiationCalcView() {
             <Metric label="Equipment Accessorial" value={money(surcharge)} accent="text-amber-400"
               guide={`Built into Trip Cost and your floor. Required: ${commodityInfo.equip}`} />
           )}
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <button type="button" onClick={assignLoad} disabled={assigning || !selectedCarrierObj}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+              {assigning ? 'Assigning…' : '➕ Assign This Load to Carrier'}
+            </button>
+            <p className="text-[11px] text-slate-500">
+              {selectedCarrierObj ? `Creates a dispatched load for ${selectedCarrierObj.name} and sends it to their portal.` : 'Pick a saved carrier above to enable.'}
+            </p>
+            {assignMsg && <p className={`text-sm ${assignMsg.includes('✓') ? 'text-emerald-400' : 'text-amber-400'}`}>{assignMsg}</p>}
+          </div>
         </div>
       </div>
 
-      <HosValidator totalMiles={totalMiles} windowHours={windowHours} />
+      <HosValidator totalMiles={totalMiles} windowHours={windowHours} driveAvail={v.driveAvail} onDriveAvail={set('driveAvail')} />
     </div>
   );
 }
 
 // ---------- ADMIN: TRANSIT & HOS VALIDATOR ----------
-function HosValidator({ totalMiles = 0, windowHours = 0 }) {
-  const [v, setV] = useState({ driveAvail: '', speed: '55' });
+function HosValidator({ totalMiles = 0, windowHours = 0, driveAvail = '', onDriveAvail }) {
+  const [v, setV] = useState({ speed: '55' });
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
 
   const miles = totalMiles;
   const windowHrs = windowHours;
   const speed = n(v.speed);
-  const avail = Math.min(n(v.driveAvail), 11); // FMCSA caps daily driving at 11 hrs
+  const avail = Math.min(n(driveAvail), 11); // FMCSA caps daily driving at 11 hrs
 
   const requiredDrive = speed > 0 ? miles / speed : 0;
 
@@ -2249,7 +2368,7 @@ function HosValidator({ totalMiles = 0, windowHours = 0 }) {
   while (remaining > 0 && resets < 100) { resets += 1; remaining -= 11; }
   const totalTransit = requiredDrive + resets * 10;
 
-  const ready = miles > 0 && windowHrs > 0 && speed > 0 && v.driveAvail !== '';
+  const ready = miles > 0 && windowHrs > 0 && speed > 0 && driveAvail !== '';
   const feasible = ready && totalTransit < windowHrs;
   const buffer = windowHrs - totalTransit;
 
@@ -2299,7 +2418,7 @@ function HosValidator({ totalMiles = 0, windowHours = 0 }) {
           </div>
           {(miles <= 0 || windowHrs <= 0) && <div className="text-[11px] text-amber-400">Set miles and pickup/delivery date-times in the Rate Calculator above.</div>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">Drive Hours Available (max 11)</label><input className={field} type="number" inputMode="decimal" value={v.driveAvail} onChange={set('driveAvail')} placeholder="8" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Drive Hours Available (max 11)</label><input className={field} type="number" inputMode="decimal" value={driveAvail} onChange={onDriveAvail} placeholder="8" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Avg Truck Speed (mph)</label><input className={field} type="number" inputMode="decimal" value={v.speed} onChange={set('speed')} /></div>
           </div>
           <p className="text-[11px] text-slate-500 leading-snug">
@@ -2420,16 +2539,31 @@ function NewAuthorityView() {
 // ---------- ADMIN: CARRIERS ----------
 function CarriersView() {
   const [list, setList] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', mcNumber: '', mpg: '', maxCapacity: '', minRpm: '' });
+  const blank = {
+    name: '', mcNumber: '', driverName: '', phone: '', homeBase: '', trailerType: '',
+    mpg: '', maxCapacity: '', minRpm: '', preferredLanes: '', noGo: '', multiStop: '',
+    linkedDriverUid: '', currentDriveHours: '',
+  };
+  const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Carrier-packet import
+  const [packet, setPacket] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
 
   const fetchCarriers = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'carriers'));
-      setList(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const [cSnap, uSnap] = await Promise.all([
+        getDocs(collection(db, 'carriers')),
+        getDocs(collection(db, 'users')),
+      ]);
+      setList(cSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setDrivers(uSnap.docs.map((d) => ({ uid: d.id, ...d.data() })));
     } catch (e) {
       console.error('Error loading carriers:', e);
     } finally {
@@ -2439,6 +2573,43 @@ function CarriersView() {
 
   useEffect(() => { fetchCarriers(); }, []);
 
+  const loadPacket = async () => {
+    setImportMsg('');
+    if (!CARRIER_PACKET_API_URL) { setImportMsg('Add CARRIER_PACKET_API_URL in the code.'); return; }
+    setImporting(true);
+    try {
+      const res = await fetch(CARRIER_PACKET_API_URL);
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : [];
+      setPacket(arr);
+      setImportMsg(arr.length ? `Loaded ${arr.length} submission(s) — pick one below.` : 'No carrier packet submissions yet.');
+    } catch (e) {
+      console.error('Packet load failed:', e);
+      setImportMsg('Could not load packets (possible CORS block). ' + (e.message || ''));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const applyPacket = (i) => {
+    const p = packet[i];
+    if (!p) return;
+    setForm((f) => ({
+      ...f,
+      name: p.name || f.name,
+      mcNumber: p.mcNumber || f.mcNumber,
+      driverName: p.driverName || f.driverName,
+      phone: p.phone || f.phone,
+      homeBase: p.homeBase || f.homeBase,
+      trailerType: p.trailerType || f.trailerType,
+      maxCapacity: p.maxCapacity ? String(p.maxCapacity) : f.maxCapacity,
+      minRpm: p.minRpm ? String(p.minRpm) : f.minRpm,
+      preferredLanes: p.preferredLanes || f.preferredLanes,
+      noGo: p.noGo || f.noGo,
+      multiStop: p.multiStop || f.multiStop,
+    }));
+  };
+
   const add = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
@@ -2447,12 +2618,23 @@ function CarriersView() {
       await addDoc(collection(db, 'carriers'), {
         name: form.name.trim(),
         mcNumber: form.mcNumber.trim(),
+        driverName: form.driverName.trim(),
+        phone: form.phone.trim(),
+        homeBase: form.homeBase.trim(),
+        trailerType: form.trailerType.trim(),
         mpg: Number(form.mpg) || 0,
         maxCapacity: Number(form.maxCapacity) || 0,
         minRpm: Number(form.minRpm) || 0,
+        preferredLanes: form.preferredLanes.trim(),
+        noGo: form.noGo.trim(),
+        multiStop: form.multiStop.trim(),
+        linkedDriverUid: form.linkedDriverUid,
+        currentDriveHours: Number(form.currentDriveHours) || 0,
         createdAt: serverTimestamp(),
       });
-      setForm({ name: '', mcNumber: '', mpg: '', maxCapacity: '', minRpm: '' });
+      setForm(blank);
+      setPacket([]);
+      setImportMsg('');
       fetchCarriers();
     } catch (e) {
       console.error('Error adding carrier:', e);
@@ -2472,6 +2654,20 @@ function CarriersView() {
     }
   };
 
+  const updateHours = async (id, hours) => {
+    try {
+      await updateDoc(doc(db, 'carriers', id), { currentDriveHours: Number(hours) || 0 });
+      setList((p) => p.map((c) => (c.id === id ? { ...c, currentDriveHours: Number(hours) || 0 } : c)));
+    } catch (e) {
+      console.error('Error updating hours:', e);
+    }
+  };
+
+  const driverEmail = (uid) => {
+    const d = drivers.find((x) => x.uid === uid);
+    return d ? d.email : '';
+  };
+
   const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
 
   return (
@@ -2480,16 +2676,46 @@ function CarriersView() {
         <h2 className="text-2xl font-bold">Carriers</h2>
         <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
       </div>
-      <p className="text-slate-400">Save each carrier's truck specs once. Pick them in the Rate Calculator to auto-fill MPG, capacity, and minimum RPM.</p>
+      <p className="text-slate-400">Save each carrier once. Pick them in the Rate Calculator to auto-fill specs and one-click assign loads.</p>
 
       <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <h3 className="font-bold">Add a Carrier</h3>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="font-bold">Add a Carrier</h3>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={loadPacket} disabled={importing}
+              className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg disabled:opacity-50">
+              {importing ? 'Loading…' : '⬇ Import from Carrier Packet'}
+            </button>
+            {packet.length > 0 && (
+              <select className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5" onChange={(e) => applyPacket(Number(e.target.value))} defaultValue="">
+                <option value="" disabled>Pick a submission…</option>
+                {packet.map((p, i) => <option key={i} value={i}>{p.name || ('Submission ' + (i + 1))}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+        {importMsg && <p className="text-[11px] text-slate-400">{importMsg}</p>}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="block text-xs text-slate-400 mb-1">Carrier Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Carrier / Business Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">MC Number</label><input className={field} value={form.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Driver Name</label><input className={field} value={form.driverName} onChange={set('driverName')} /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Driver Cell Phone</label><input className={field} value={form.phone} onChange={set('phone')} /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Home Base (City, State)</label><input className={field} value={form.homeBase} onChange={set('homeBase')} /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Trailer Type</label><input className={field} value={form.trailerType} onChange={set('trailerType')} placeholder="Dry Van / Reefer / Flatbed" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Truck Avg MPG</label><input className={field} type="number" inputMode="decimal" value={form.mpg} onChange={set('mpg')} placeholder="6.5" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={form.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={form.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Current Drive Hours Available</label><input className={field} type="number" inputMode="decimal" value={form.currentDriveHours} onChange={set('currentDriveHours')} placeholder="8" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Preferred Lanes / Regions</label><input className={field} value={form.preferredLanes} onChange={set('preferredLanes')} /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">No-Go States / Cities</label><input className={field} value={form.noGo} onChange={set('noGo')} /></div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs text-slate-400 mb-1">Linked Driver Login (for assigning loads)</label>
+            <select className={field} value={form.linkedDriverUid} onChange={set('linkedDriverUid')}>
+              <option value="">— none —</option>
+              {drivers.map((d) => <option key={d.uid} value={d.uid}>{d.email}</option>)}
+            </select>
+          </div>
         </div>
         <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
           {saving ? 'Saving…' : 'Save Carrier'}
@@ -2505,12 +2731,24 @@ function CarriersView() {
         ) : (
           <div className="space-y-2">
             {list.map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{c.name} {c.mcNumber ? <span className="text-slate-500 font-normal">· {c.mcNumber}</span> : null}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min</div>
+              <div key={c.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">{c.name} {c.mcNumber ? <span className="text-slate-500 font-normal">· {c.mcNumber}</span> : null}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min · {c.trailerType || '—'}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Driver: {c.linkedDriverUid ? (driverEmail(c.linkedDriverUid) || 'linked') : <span className="text-amber-400">not linked</span>}</div>
+                  </div>
+                  <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg shrink-0">Remove</button>
                 </div>
-                <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg shrink-0">Remove</button>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="text-[11px] text-slate-400">Current drive hrs:</span>
+                  <input
+                    className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
+                    type="number" defaultValue={c.currentDriveHours ?? ''}
+                    onBlur={(e) => updateHours(c.id, e.target.value)}
+                  />
+                  <span className="text-[10px] text-slate-600">saves on blur — keep fresh for accurate HOS</span>
+                </div>
               </div>
             ))}
           </div>
