@@ -1973,11 +1973,23 @@ function FleetView() {
 // ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
 function NegotiationCalcView() {
   const [v, setV] = useState({
+    originZip: '', destZip: '',
     brokerOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
     mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '',
+    commodity: 'General Dry Freight',
   });
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
+
+  const COMMODITIES = {
+    'General Dry Freight': { equip: 'Standard Dry Van.', surcharge: 0 },
+    'Frozen Seafood/Poultry': { equip: 'Reefer Unit, Continuous Run Mode, Trailer Washout Required.', surcharge: 50 },
+    'Fresh Produce': { equip: 'Reefer Unit, Cycle Sentry Mode, Pulping Thermometer.', surcharge: 25 },
+    'Coiled Steel': { equip: 'Flatbed, Heavy-Duty Chains, Binders, 8ft Steel Tarps.', surcharge: 150 },
+    'High-Value Electronics': { equip: 'Dry Van, High-Security Bolt Seals, E-Tracks, Lock-Down Logistics.', surcharge: 0 },
+  };
+  const commodityInfo = COMMODITIES[v.commodity] || COMMODITIES['General Dry Freight'];
+  const surcharge = commodityInfo.surcharge;
 
   const brokerOffer = n(v.brokerOffer);
   const tolls = n(v.tolls);
@@ -1989,8 +2001,8 @@ function NegotiationCalcView() {
   const totalMiles = n(v.loadedMiles) + n(v.deadheadMiles);
 
   const trueRpm = totalMiles > 0 ? brokerOffer / totalMiles : 0;
-  const tripCost = mpg > 0 ? (totalMiles / mpg) * fuelPrice + tolls : tolls;
-  const targetOffer = minRpm * totalMiles + tolls;
+  const tripCost = (mpg > 0 ? (totalMiles / mpg) * fuelPrice : 0) + tolls + surcharge;
+  const targetOffer = minRpm * totalMiles + tolls + surcharge;
   const gap = targetOffer - brokerOffer;
   const weightFactor = maxCap > 0 ? (weight / maxCap) * 100 : 0;
 
@@ -2043,6 +2055,8 @@ function NegotiationCalcView() {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold">Load Inputs</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">Origin Zip Code</label><input className={field} inputMode="numeric" value={v.originZip} onChange={set('originZip')} placeholder="30301" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Destination Zip Code</label><input className={field} inputMode="numeric" value={v.destZip} onChange={set('destZip')} placeholder="75201" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Broker Offer ($)</label><input className={field} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={v.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
@@ -2052,6 +2066,18 @@ function NegotiationCalcView() {
             <div><label className="block text-xs text-slate-400 mb-1">Fuel Price ($/gal)</label><input className={field} type="number" inputMode="decimal" value={v.fuelPrice} onChange={set('fuelPrice')} /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Freight Weight (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.weight} onChange={set('weight')} placeholder="42000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Commodity Type</label>
+            <select className={field} value={v.commodity} onChange={set('commodity')}>
+              {Object.keys(COMMODITIES).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+            <div className="text-xs text-amber-400 font-semibold mb-1">REQUIRED EQUIPMENT</div>
+            <div className="text-sm text-slate-200">{commodityInfo.equip}</div>
+            <div className="text-xs text-slate-400 mt-2">Accessorial surcharge: <span className="text-white font-semibold">{money(surcharge)}</span></div>
           </div>
         </div>
 
@@ -2066,7 +2092,7 @@ function NegotiationCalcView() {
             accent={ready ? (trueRpm >= minRpm ? 'text-emerald-400' : 'text-amber-400') : 'text-white'}
             guide="What the truck actually earns per mile driven. Compare to Carrier Min — if it's lower, you must negotiate." />
           <Metric label="Trip Cost" value={money(tripCost)}
-            guide="The hard cash to move the truck (fuel + tolls). The offer must cover this plus profit. Protect the margin." />
+            guide={`Hard cash to move the truck — fuel + tolls${surcharge > 0 ? ` + ${money(surcharge)} equipment accessorial` : ''}. The offer must cover this plus profit.`} />
           <Metric label="Target Offer (Floor)" value={money(targetOffer)}
             guide="Your negotiation floor. Don't accept below this — counter the broker slightly higher than this number." />
           {gap > 0 && (
@@ -2076,21 +2102,25 @@ function NegotiationCalcView() {
           <Metric label="Weight Factor" value={weightFactor.toFixed(0) + '%'}
             accent={weightFactor >= 85 ? 'text-amber-400' : 'text-white'}
             guide="Over 85% means heavy freight that burns more fuel. Use it to justify asking for a higher rate." />
+          {surcharge > 0 && (
+            <Metric label="Equipment Accessorial" value={money(surcharge)} accent="text-amber-400"
+              guide={`Built into Trip Cost and your floor. Required: ${commodityInfo.equip}`} />
+          )}
         </div>
       </div>
 
-      <HosValidator />
+      <HosValidator totalMiles={totalMiles} />
     </div>
   );
 }
 
 // ---------- ADMIN: TRANSIT & HOS VALIDATOR ----------
-function HosValidator() {
-  const [v, setV] = useState({ miles: '', hoursToDeliver: '', driveAvail: '', speed: '55' });
+function HosValidator({ totalMiles = 0 }) {
+  const [v, setV] = useState({ hoursToDeliver: '', driveAvail: '', speed: '55' });
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
 
-  const miles = n(v.miles);
+  const miles = totalMiles;
   const windowHrs = n(v.hoursToDeliver);
   const speed = n(v.speed);
   const avail = Math.min(n(v.driveAvail), 11); // FMCSA caps daily driving at 11 hrs
@@ -2142,8 +2172,12 @@ function HosValidator() {
         {/* LEFT — inputs */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold">Trip Inputs</h3>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+            <div className="text-xs text-slate-400">Trip Miles <span className="text-slate-500">(shared from Rate Calculator)</span></div>
+            <div className="font-bold text-white text-lg">{miles > 0 ? miles.toLocaleString() + ' mi' : '—'}</div>
+            {miles <= 0 && <div className="text-[11px] text-amber-400 mt-1">Enter Loaded / Deadhead miles in the Rate Calculator above.</div>}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">Total Trip Miles</label><input className={field} type="number" inputMode="decimal" value={v.miles} onChange={set('miles')} placeholder="1200" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Hours Until Delivery</label><input className={field} type="number" inputMode="decimal" value={v.hoursToDeliver} onChange={set('hoursToDeliver')} placeholder="36" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Drive Hours Available (max 11)</label><input className={field} type="number" inputMode="decimal" value={v.driveAvail} onChange={set('driveAvail')} placeholder="8" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Avg Truck Speed (mph)</label><input className={field} type="number" inputMode="decimal" value={v.speed} onChange={set('speed')} /></div>
