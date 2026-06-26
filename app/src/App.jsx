@@ -4,14 +4,14 @@ import {
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
   MapPin, User, Calendar, Wrench, Plus
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 import {
   getFirestore, doc, getDoc, getDocs, collection, setDoc, addDoc,
   query, where, serverTimestamp, updateDoc, deleteDoc
 } from 'firebase/firestore';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut, onAuthStateChanged
+  createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword
 } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -28,7 +28,19 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
-
+// Creates a driver's auth account WITHOUT signing the admin out,
+// by using a throwaway secondary Firebase app instance.
+async function createDriverAccount(email, password) {
+  const secondary = initializeApp(firebaseConfig, 'driver-creator-' + Date.now());
+  const secondaryAuth = getAuth(secondary);
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    return cred.user.uid;
+  } finally {
+    try { await signOut(secondaryAuth); } catch (_) {}
+    try { await deleteApp(secondary); } catch (_) {}
+  }
+}
 // Anyone whose login email is in this list sees the Admin tools.
 const ADMIN_EMAILS = [
   'prince.younger3@gmail.com',
@@ -40,26 +52,54 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [needsPwChange, setNeedsPwChange] = useState(false);
+
+  const isAdminEmail = (email) =>
+    ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((email || '').toLowerCase());
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      setAuthLoading(false);
-      if (u) {
-        try {
-          await setDoc(
-            doc(db, 'users', u.uid),
-            { email: u.email, lastLogin: serverTimestamp() },
-            { merge: true }
-          );
-        } catch (e) {
-          console.error('users upsert failed', e);
+      if (!u) {
+        setUser(null);
+        setNeedsPwChange(false);
+        setAuthLoading(false);
+        return;
+      }
+      const admin = isAdminEmail(u.email);
+      try {
+        const snap = await getDoc(doc(db, 'users', u.uid));
+        const data = snap.exists() ? snap.data() : null;
+        const approved = admin || (data && data.approved === true);
+
+        if (!approved) {
+          // Not invited — kick them back out.
+          await signOut(auth);
+          setUser(null);
+          setAccessDenied(true);
+          setAuthLoading(false);
+          return;
         }
+
+        // Approved: record the login and let them in.
+        await setDoc(
+          doc(db, 'users', u.uid),
+          { email: u.email, approved: true, lastLogin: serverTimestamp() },
+          { merge: true }
+        );
+        setNeedsPwChange(!admin && data && data.mustChangePassword === true);
+        setUser(u);
+        setAccessDenied(false);
+      } catch (e) {
+        console.error('access check failed', e);
+        setUser(u); // fail open so a glitch doesn't lock you out; rules will enforce
+      } finally {
+        setAuthLoading(false);
       }
     });
   }, []);
 
-  const isAdmin = !!user && ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((user.email || '').toLowerCase());
+  const isAdmin = !!user && isAdminEmail(user.email);
 
   const go = (tab) => {
     setActiveTab(tab);
@@ -80,6 +120,8 @@ export default function App() {
       case 'pets': return <PetLogisticsView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
+      case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
+      case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
       default: return <DashboardView />;
     }
   };
@@ -88,7 +130,10 @@ export default function App() {
     return <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400 font-sans">Loading…</div>;
   }
   if (!user) {
-    return <LoginView />;
+    return <LoginView accessDenied={accessDenied} />;
+  }
+  if (needsPwChange) {
+    return <ChangePasswordView onDone={() => setNeedsPwChange(false)} />;
   }
 
   return (
@@ -122,6 +167,8 @@ export default function App() {
               <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">ADMIN</div>
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
+              <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
+              <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <div className="mt-6" />
             </>
           )}
@@ -267,10 +314,7 @@ function DashboardView() {
           <div className="text-3xl font-bold text-emerald-400">{money(earnings)}</div>
         </div>
       </div>
-
-      {/* Quote of the Day — rotates at midnight, stable all day */}
       <QuoteOfTheDay />
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
           <div className="flex items-center justify-between mb-6">
@@ -327,7 +371,6 @@ function DashboardView() {
     </div>
   );
 }
-
 // ---------- QUOTE OF THE DAY ----------
 const QUOTES = [
   { text: "The road to success is always under construction.", author: "Lily Tomlin" },
@@ -353,7 +396,6 @@ const QUOTES = [
 ];
 
 function QuoteOfTheDay() {
-  // Day-of-year as a stable seed: same quote all day, rotates at midnight.
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
   const dayOfYear = Math.floor((now - start) / 86400000);
@@ -370,7 +412,6 @@ function QuoteOfTheDay() {
     </div>
   );
 }
-
 // ---------- PROFILE ----------
 function ProfileView() {
   const u = auth.currentUser;
@@ -1458,11 +1499,11 @@ function AllLoadsView() {
     </div>
   );
 }
-// ---------- LOGIN ----------
-function LoginView() {
+
+// ---------- LOGIN (invite-only) ----------
+function LoginView({ accessDenied }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -1471,21 +1512,11 @@ function LoginView() {
     setError('');
     setBusy(true);
     try {
-      if (isSignUp) await createUserWithEmailAndPassword(auth, email, password);
-      else await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       setError(err.message.replace('Firebase: ', ''));
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleGoogle = async () => {
-    setError('');
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      setError(err.message.replace('Firebase: ', ''));
     }
   };
 
@@ -1497,7 +1528,14 @@ function LoginView() {
           <p className="text-xs text-amber-500 tracking-widest font-semibold mt-1">VIP FREIGHT</p>
         </div>
 
-        <h2 className="text-xl font-bold mb-6">{isSignUp ? 'Create your account' : 'Driver Sign In'}</h2>
+        <h2 className="text-xl font-bold mb-2">Driver Sign In</h2>
+        <p className="text-sm text-slate-400 mb-6">Access is invite-only. Use the email and temporary password your dispatcher gave you.</p>
+
+        {accessDenied && (
+          <div className="mb-4 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
+            This account isn't authorized for the portal yet. Contact your dispatcher to get access.
+          </div>
+        )}
 
         <form onSubmit={handleEmailAuth} className="space-y-4">
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required
@@ -1507,27 +1545,369 @@ function LoginView() {
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <button type="submit" disabled={busy}
             className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
-            {busy ? 'Please wait…' : isSignUp ? 'Sign Up' : 'Sign In'}
+            {busy ? 'Please wait…' : 'Sign In'}
           </button>
         </form>
 
-        <div className="flex items-center gap-3 my-6">
-          <div className="flex-1 h-px bg-slate-800"></div>
-          <span className="text-xs text-slate-500">OR</span>
-          <div className="flex-1 h-px bg-slate-800"></div>
-        </div>
-
-        <button onClick={handleGoogle} className="w-full bg-white text-slate-900 font-semibold py-3 rounded-lg hover:bg-slate-100 transition-colors">
-          Continue with Google
-        </button>
-
-        <p className="text-center text-sm text-slate-400 mt-6">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <button onClick={() => { setIsSignUp(!isSignUp); setError(''); }} className="text-amber-500 font-semibold hover:underline">
-            {isSignUp ? 'Sign In' : 'Sign Up'}
-          </button>
+        <p className="text-center text-xs text-slate-500 mt-6">
+          Need access? Ask your dispatcher to add you.
         </p>
       </div>
+    </div>
+  );
+}
+
+// ---------- FIRST-LOGIN PASSWORD CHANGE ----------
+function ChangePasswordView({ onDone }) {
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (pw.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (pw !== pw2) { setError('Passwords do not match.'); return; }
+    setBusy(true);
+    try {
+      await updatePassword(auth.currentUser, pw);
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), { mustChangePassword: false });
+      onDone();
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') {
+        setError('For security, please sign out and sign back in, then change your password.');
+      } else {
+        setError(err.message.replace('Firebase: ', ''));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100 font-sans p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8">
+        <h2 className="text-xl font-bold mb-2">Set Your Password</h2>
+        <p className="text-sm text-slate-400 mb-6">You're using a temporary password. Choose a new one to continue.</p>
+        <form onSubmit={submit} className="space-y-4">
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password" required
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+          <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Confirm new password" required
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <button type="submit" disabled={busy}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+            {busy ? 'Saving…' : 'Save & Continue'}
+          </button>
+        </form>
+        <button onClick={() => signOut(auth)} className="w-full text-center text-xs text-slate-500 mt-6 hover:text-slate-300">Sign out</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- ADMIN: MANAGE DRIVERS ----------
+function ManageDriversView() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [pw, setPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [created, setCreated] = useState(null);
+  const [error, setError] = useState('');
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      setList(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+    } catch (e) {
+      console.error('Error loading drivers:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const genPw = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let p = '';
+    for (let i = 0; i < 10; i++) p += chars[Math.floor(Math.random() * chars.length)];
+    setPw(p);
+  };
+
+  const createDriver = async (e) => {
+    e.preventDefault();
+    setError('');
+    setCreated(null);
+    if (!email || pw.length < 6) { setError('Enter an email and a temp password of at least 6 characters.'); return; }
+    setSaving(true);
+    try {
+      const uid = await createDriverAccount(email.trim(), pw);
+      await setDoc(doc(db, 'users', uid), {
+        email: email.trim(),
+        approved: true,
+        mustChangePassword: true,
+        createdAt: serverTimestamp(),
+      }, { merge: true });
+      setCreated({ email: email.trim(), pw });
+      setEmail(''); setPw('');
+      fetchUsers();
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', ''));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setApproved = async (uid, value) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), { approved: value });
+      setList((prev) => prev.map((u) => (u.uid === uid ? { ...u, approved: value } : u)));
+    } catch (err) {
+      console.error('Error updating approval:', err);
+    }
+  };
+
+  const isAdminEmail = (em) => ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((em || '').toLowerCase());
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Manage Drivers</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400">Create driver accounts and control who can sign in. Drivers can't self-register.</p>
+
+      <form onSubmit={createDriver} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h3 className="font-bold">Add a New Driver</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-slate-400 mb-2">Driver Email</label>
+            <input className={field} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="driver@example.com" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-2">Temporary Password</label>
+            <div className="flex gap-2">
+              <input className={field} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 6 characters" />
+              <button type="button" onClick={genPw} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 rounded-lg shrink-0">Generate</button>
+            </div>
+          </div>
+        </div>
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+        <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+          {saving ? 'Creating…' : 'Create Driver Account'}
+        </button>
+
+        {created && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-sm">
+            <div className="font-semibold text-emerald-400 mb-2">✓ Account created — share these with the driver:</div>
+            <div className="font-mono text-slate-200">Email: {created.email}</div>
+            <div className="font-mono text-slate-200">Temp password: {created.pw}</div>
+            <div className="text-xs text-slate-400 mt-2">They'll be asked to set their own password on first login.</div>
+          </div>
+        )}
+      </form>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="font-bold mb-4">Current Accounts</h3>
+        {loading ? (
+          <div className="text-slate-400 text-sm">Loading…</div>
+        ) : list.length === 0 ? (
+          <div className="text-slate-500 text-sm">No accounts yet.</div>
+        ) : (
+          <div className="space-y-2">
+            {list.map((u) => {
+              const admin = isAdminEmail(u.email);
+              const approved = admin || u.approved === true;
+              return (
+                <div key={u.uid} className="flex items-center justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">{u.email || u.uid}</div>
+                    <div className="text-xs mt-0.5">
+                      {admin ? <span className="text-amber-400">Admin</span>
+                        : approved ? <span className="text-emerald-400">● Approved</span>
+                        : <span className="text-slate-500">● Pending / Revoked</span>}
+                    </div>
+                  </div>
+                  {!admin && (
+                    approved ? (
+                      <button onClick={() => setApproved(u.uid, false)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg shrink-0">Revoke</button>
+                    ) : (
+                      <button onClick={() => setApproved(u.uid, true)} className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg shrink-0">Approve</button>
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- ADMIN: FLEET / ELD (demo data) ----------
+const DEMO_VEHICLES = [
+  { id: 'demo-v1', name: 'Truck 101', vin: '1FUJGLDR8NLAA1234', make: 'Freightliner', model: 'Cascadia', year: '2022', licensePlate: 'GA-8842' },
+  { id: 'demo-v2', name: 'Truck 102', vin: '1XKWDB0X1MJ334455', make: 'Kenworth', model: 'T680', year: '2021', licensePlate: 'TX-2291' },
+  { id: 'demo-v3', name: 'Truck 103', vin: '4V4NC9EH7PN998877', make: 'Volvo', model: 'VNL 760', year: '2023', licensePlate: 'FL-7733' },
+];
+const DEMO_DRIVERS = [
+  { id: 'demo-d1', name: 'Marcus Bell', username: 'mbell', phone: '555-0142' },
+  { id: 'demo-d2', name: 'Tanya Cruz', username: 'tcruz', phone: '555-0199' },
+  { id: 'demo-d3', name: 'Devon Pratt', username: 'dpratt', phone: '555-0177' },
+];
+const HR = 3600000;
+const DEMO_HOS = [
+  { id: 'demo-d1', driverName: 'Marcus Bell', dutyStatus: 'Driving', driveRemainingMs: 4.5 * HR, shiftRemainingMs: 6 * HR, cycleRemainingMs: 38 * HR },
+  { id: 'demo-d2', driverName: 'Tanya Cruz', dutyStatus: 'On Duty', driveRemainingMs: 8 * HR, shiftRemainingMs: 9 * HR, cycleRemainingMs: 50 * HR },
+  { id: 'demo-d3', driverName: 'Devon Pratt', dutyStatus: 'Sleeper Berth', driveRemainingMs: 11 * HR, shiftRemainingMs: 14 * HR, cycleRemainingMs: 60 * HR },
+];
+
+function FleetView() {
+  const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [hos, setHos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [v, d, h] = await Promise.all([
+        getDocs(collection(db, 'vehicles')),
+        getDocs(collection(db, 'fleet_drivers')),
+        getDocs(collection(db, 'hos_status')),
+      ]);
+      setVehicles(v.docs.map((x) => ({ id: x.id, ...x.data() })));
+      setDrivers(d.docs.map((x) => ({ id: x.id, ...x.data() })));
+      setHos(h.docs.map((x) => ({ id: x.id, ...x.data() })));
+    } catch (e) {
+      console.error('Error loading fleet:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchAll(); }, []);
+
+  const loadDemo = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const ts = serverTimestamp();
+      await Promise.all([
+        ...DEMO_VEHICLES.map(({ id, ...data }) => setDoc(doc(db, 'vehicles', id), { ...data, syncedAt: ts }, { merge: true })),
+        ...DEMO_DRIVERS.map(({ id, ...data }) => setDoc(doc(db, 'fleet_drivers', id), { ...data, syncedAt: ts }, { merge: true })),
+        ...DEMO_HOS.map(({ id, ...data }) => setDoc(doc(db, 'hos_status', id), { ...data, syncedAt: ts }, { merge: true })),
+      ]);
+      setMsg('Demo fleet data loaded ✓');
+      await fetchAll();
+    } catch (e) {
+      console.error(e); setMsg('Failed: ' + (e.message || 'check console'));
+    } finally { setBusy(false); }
+  };
+
+  const clearDemo = async () => {
+    setBusy(true); setMsg('');
+    try {
+      await Promise.all([
+        ...DEMO_VEHICLES.map(({ id }) => deleteDoc(doc(db, 'vehicles', id))),
+        ...DEMO_DRIVERS.map(({ id }) => deleteDoc(doc(db, 'fleet_drivers', id))),
+        ...DEMO_HOS.map(({ id }) => deleteDoc(doc(db, 'hos_status', id))),
+      ]);
+      setMsg('Demo data cleared.');
+      await fetchAll();
+    } catch (e) {
+      console.error(e); setMsg('Failed: ' + (e.message || 'check console'));
+    } finally { setBusy(false); }
+  };
+
+  const fmtHrs = (ms) => (ms || ms === 0) ? (ms / HR).toFixed(1) + 'h' : '—';
+  const dutyStyle = (s) => {
+    if (s === 'Driving') return 'text-blue-400';
+    if (s === 'On Duty') return 'text-amber-400';
+    if (s === 'Sleeper Berth' || s === 'Off Duty') return 'text-emerald-400';
+    return 'text-slate-300';
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">Fleet (ELD)</h2>
+          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">DEMO</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={loadDemo} disabled={busy}
+            className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+            {busy ? 'Working…' : 'Load Demo Data'}
+          </button>
+          <button onClick={clearDemo} disabled={busy}
+            className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="text-xs text-slate-500 bg-slate-800/40 border border-slate-700 rounded-lg px-4 py-2">
+        This is sample data so you can build the UI today. When your Samsara token is ready, a Cloud Function fills these same screens with real fleet data — no UI changes.
+      </div>
+      {msg && <div className="text-sm text-slate-300 bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-2">{msg}</div>}
+
+      {loading ? (
+        <div className="text-slate-400">Loading fleet…</div>
+      ) : (
+        <>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="font-bold mb-4">Hours of Service</h3>
+            {hos.length === 0 ? <div className="text-slate-500 text-sm">No HOS data yet — click "Load Demo Data".</div> : (
+              <div className="space-y-2">
+                {hos.map((h) => (
+                  <div key={h.id} className="flex flex-wrap items-center justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-sm">
+                    <span className="font-semibold text-white">{h.driverName || h.id}</span>
+                    <span className={`font-semibold ${dutyStyle(h.dutyStatus)}`}>{h.dutyStatus}</span>
+                    <span className="text-slate-400">Drive: {fmtHrs(h.driveRemainingMs)} · Shift: {fmtHrs(h.shiftRemainingMs)} · Cycle: {fmtHrs(h.cycleRemainingMs)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <h3 className="font-bold mb-4">Vehicles ({vehicles.length})</h3>
+              {vehicles.length === 0 ? <div className="text-slate-500 text-sm">None yet.</div> : (
+                <div className="space-y-2">
+                  {vehicles.map((v) => (
+                    <div key={v.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-sm">
+                      <div className="font-semibold text-white">{v.name || v.id}</div>
+                      <div className="text-xs text-slate-400">{[v.year, v.make, v.model].filter(Boolean).join(' ')} · VIN {v.vin || '—'} · {v.licensePlate || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <h3 className="font-bold mb-4">Drivers ({drivers.length})</h3>
+              {drivers.length === 0 ? <div className="text-slate-500 text-sm">None yet.</div> : (
+                <div className="space-y-2">
+                  {drivers.map((d) => (
+                    <div key={d.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-sm">
+                      <div className="font-semibold text-white">{d.name || d.id}</div>
+                      <div className="text-xs text-slate-400">{d.username || '—'} · {d.phone || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
