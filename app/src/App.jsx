@@ -970,11 +970,58 @@ function DigitalVaultView() {
 
 // ---------- FINANCIALS ----------
 function FinancialsView({ paymentMethod, setPaymentMethod }) {
+  const [loads, setLoads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLoads = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', auth.currentUser.uid)));
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        rows.sort((a, b) => (b.delivery_date || '').localeCompare(a.delivery_date || ''));
+        setLoads(rows);
+      } catch (e) {
+        console.error('Error loading financials:', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLoads();
+  }, []);
+
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const FEE_RATE = 0.10;
+  const settled = loads.filter((l) => l.status === 'Delivered' || l.status === 'Cleared');
+  const totalGross = settled.reduce((s, l) => s + (Number(l.gross_pay) || 0), 0);
+  const totalFee = totalGross * FEE_RATE;
+  const totalNet = totalGross - totalFee;
+  const fmtDate = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const statusStyle = (s) => {
+    if (s === 'Cleared') return 'text-emerald-400 bg-emerald-400/10';
+    if (s === 'Delivered') return 'text-blue-400 bg-blue-400/10';
+    return 'text-amber-400 bg-amber-400/10';
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
         <h2 className="text-2xl font-bold mb-2">Financial Routing</h2>
         <p className="text-slate-400">Manage how you get paid and how your dispatch fees are settled.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <div className="text-xs text-slate-500 mb-1">Gross Earned (Delivered)</div>
+          <div className="text-2xl font-bold text-white">{money(totalGross)}</div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <div className="text-xs text-slate-500 mb-1">Dispatch Fees (10%)</div>
+          <div className="text-2xl font-bold text-amber-400">{money(totalFee)}</div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <div className="text-xs text-slate-500 mb-1">Your Net Payout (90%)</div>
+          <div className="text-2xl font-bold text-emerald-400">{money(totalNet)}</div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1000,34 +1047,41 @@ function FinancialsView({ paymentMethod, setPaymentMethod }) {
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 overflow-x-auto">
-        <h3 className="text-lg font-bold mb-4">Recent Settlements Ledger</h3>
-        <table className="w-full text-left border-collapse min-w-[520px]">
-          <thead>
-            <tr className="border-b border-slate-800 text-slate-400 text-sm">
-              <th className="pb-3 font-medium">Load</th>
-              <th className="pb-3 font-medium">Delivery</th>
-              <th className="pb-3 font-medium">Gross</th>
-              <th className="pb-3 font-medium">Fee (10%)</th>
-              <th className="pb-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody className="text-sm">
-            <tr className="border-b border-slate-800/50">
-              <td className="py-4 font-mono text-slate-300">#FM-8829</td>
-              <td className="py-4">Oct 24, 2024</td>
-              <td className="py-4 font-semibold text-white">$2,450.00</td>
-              <td className="py-4 text-slate-400">$245.00</td>
-              <td className="py-4"><span className="text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded text-xs">Cleared</span></td>
-            </tr>
-            <tr className="border-b border-slate-800/50">
-              <td className="py-4 font-mono text-slate-300">#FM-8830</td>
-              <td className="py-4">Oct 26, 2024</td>
-              <td className="py-4 font-semibold text-white">$3,100.00</td>
-              <td className="py-4 text-slate-400">$310.00</td>
-              <td className="py-4"><span className="text-amber-400 bg-amber-400/10 px-2 py-1 rounded text-xs">Processing</span></td>
-            </tr>
-          </tbody>
-        </table>
+        <h3 className="text-lg font-bold mb-4">Settlements Ledger</h3>
+        {loading ? (
+          <div className="text-slate-400 text-sm">Loading…</div>
+        ) : loads.length === 0 ? (
+          <div className="text-slate-500 text-sm py-6 text-center">No loads yet. Settlements appear here once your dispatcher assigns and delivers loads.</div>
+        ) : (
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 text-sm">
+                <th className="pb-3 font-medium">Load</th>
+                <th className="pb-3 font-medium">Delivery</th>
+                <th className="pb-3 font-medium">Gross</th>
+                <th className="pb-3 font-medium">Fee (10%)</th>
+                <th className="pb-3 font-medium">Your Net</th>
+                <th className="pb-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              {loads.map((l) => {
+                const gross = Number(l.gross_pay) || 0;
+                const fee = gross * FEE_RATE;
+                return (
+                  <tr key={l.id} className="border-b border-slate-800/50">
+                    <td className="py-4 font-mono text-amber-500">{l.loadId || '—'}</td>
+                    <td className="py-4 text-slate-400">{fmtDate(l.delivery_date)}</td>
+                    <td className="py-4 font-semibold text-white">{money(gross)}</td>
+                    <td className="py-4 text-slate-400">{money(fee)}</td>
+                    <td className="py-4 font-semibold text-emerald-400">{money(gross - fee)}</td>
+                    <td className="py-4"><span className={`px-2 py-1 rounded text-xs ${statusStyle(l.status)}`}>{l.status || '—'}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
