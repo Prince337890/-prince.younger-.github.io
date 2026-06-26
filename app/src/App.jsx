@@ -122,6 +122,7 @@ export default function App() {
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
+      case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
       default: return <DashboardView />;
     }
   };
@@ -169,6 +170,7 @@ export default function App() {
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
               <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
+              <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
               <div className="mt-6" />
             </>
           )}
@@ -1908,6 +1910,118 @@ function FleetView() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
+function NegotiationCalcView() {
+  const [v, setV] = useState({
+    brokerOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
+    mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '',
+  });
+  const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
+  const n = (x) => parseFloat(x) || 0;
+
+  const brokerOffer = n(v.brokerOffer);
+  const tolls = n(v.tolls);
+  const mpg = n(v.mpg);
+  const fuelPrice = n(v.fuelPrice);
+  const minRpm = n(v.minRpm);
+  const maxCap = n(v.maxCapacity);
+  const weight = n(v.weight);
+  const totalMiles = n(v.loadedMiles) + n(v.deadheadMiles);
+
+  const trueRpm = totalMiles > 0 ? brokerOffer / totalMiles : 0;
+  const tripCost = mpg > 0 ? (totalMiles / mpg) * fuelPrice + tolls : tolls;
+  const targetOffer = minRpm * totalMiles + tolls;
+  const gap = targetOffer - brokerOffer;
+  const weightFactor = maxCap > 0 ? (weight / maxCap) * 100 : 0;
+
+  const ready = brokerOffer > 0 && totalMiles > 0 && minRpm > 0;
+
+  // Traffic-light status
+  let status = 'idle';
+  if (ready) {
+    if (trueRpm >= minRpm && weightFactor < 85) status = 'green';
+    else if (trueRpm < minRpm && gap > 0.15 * brokerOffer) status = 'red';
+    else status = 'yellow';
+  }
+
+  const money = (x) => '$' + (x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const rpm = (x) => '$' + (x || 0).toFixed(2);
+
+  const banner = {
+    idle: { cls: 'bg-slate-800 border-slate-700 text-slate-300', title: 'Enter load details to analyze', sub: 'Fill in the broker offer, miles, and carrier minimum RPM to see the math.' },
+    green: { cls: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300', title: '🟢 Profitable Load — Proceed', sub: 'The numbers work. Book it — or push for a little extra.' },
+    yellow: {
+      cls: 'bg-amber-500/15 border-amber-500/40 text-amber-300',
+      title: gap > 0 ? `🟡 Counter Offer Required — Ask for ${money(gap)}` : '🟡 Heavy Load — Leverage the Weight',
+      sub: gap > 0 ? 'The rate is close. Counter the broker to reach your floor.' : 'Freight is over 85% of capacity. Use the weight to justify a higher rate.',
+    },
+    red: { cls: 'bg-red-500/15 border-red-500/40 text-red-300', title: '🔴 Unprofitable — Walk Away', sub: `This offer is well below your floor — you'd need ${money(gap)} more. Politely pass.` },
+  }[status];
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  const Metric = ({ label, value, guide, accent }) => (
+    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-slate-400">{label}</span>
+        <span className={`text-lg font-bold ${accent || 'text-white'}`}>{value}</span>
+      </div>
+      <p className="text-[11px] text-slate-500 mt-2 leading-snug">{guide}</p>
+    </div>
+  );
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Rate Calculator</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400">Punch in the broker's numbers live on the call — see instantly if the load works and exactly what to counter.</p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LEFT — inputs */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">Load Inputs</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">Broker Offer ($)</label><input className={field} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Carrier Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={v.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Deadhead Miles</label><input className={field} type="number" inputMode="decimal" value={v.deadheadMiles} onChange={set('deadheadMiles')} placeholder="50" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Estimated Tolls ($)</label><input className={field} type="number" inputMode="decimal" value={v.tolls} onChange={set('tolls')} placeholder="40" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Truck Avg MPG</label><input className={field} type="number" inputMode="decimal" value={v.mpg} onChange={set('mpg')} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Fuel Price ($/gal)</label><input className={field} type="number" inputMode="decimal" value={v.fuelPrice} onChange={set('fuelPrice')} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Freight Weight (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.weight} onChange={set('weight')} placeholder="42000" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Carrier Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={v.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
+          </div>
+        </div>
+
+        {/* RIGHT — smart output */}
+        <div className="space-y-4">
+          <div className={`rounded-2xl border p-5 ${banner.cls}`}>
+            <div className="font-bold text-base">{banner.title}</div>
+            <div className="text-sm opacity-80 mt-1">{banner.sub}</div>
+          </div>
+
+          <Metric label="True RPM" value={rpm(trueRpm)}
+            accent={ready ? (trueRpm >= minRpm ? 'text-emerald-400' : 'text-amber-400') : 'text-white'}
+            guide="What the truck actually earns per mile driven. Compare to Carrier Min — if it's lower, you must negotiate." />
+          <Metric label="Trip Cost" value={money(tripCost)}
+            guide="The hard cash to move the truck (fuel + tolls). The offer must cover this plus profit. Protect the margin." />
+          <Metric label="Target Offer (Floor)" value={money(targetOffer)}
+            guide="Your negotiation floor. Don't accept below this — counter the broker slightly higher than this number." />
+          {gap > 0 && (
+            <Metric label="The Gap (Counter By)" value={money(gap)} accent="text-amber-400"
+              guide="Ask the broker for exactly this much more to make the load viable." />
+          )}
+          <Metric label="Weight Factor" value={weightFactor.toFixed(0) + '%'}
+            accent={weightFactor >= 85 ? 'text-amber-400' : 'text-white'}
+            guide="Over 85% means heavy freight that burns more fuel. Use it to justify asking for a higher rate." />
+        </div>
+      </div>
     </div>
   );
 }
