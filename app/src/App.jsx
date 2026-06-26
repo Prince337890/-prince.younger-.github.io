@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
@@ -63,7 +63,7 @@ function loadGoogleMaps() {
   if (mapsLoaderPromise) return mapsLoaderPromise;
   mapsLoaderPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
     s.async = true;
     s.defer = true;
     s.onload = resolve;
@@ -128,6 +128,26 @@ async function getRouteMiles(origin, destination, waypoints) {
     }
   });
 }
+
+// Reverse-geocode a US zip into "City, ST".
+async function geocodeZip(zip) {
+  await loadGoogleMaps();
+  return new Promise((resolve, reject) => {
+    try {
+      const g = new window.google.maps.Geocoder();
+      g.geocode({ address: zip + ', USA' }, (results, status) => {
+        if (status !== 'OK' || !results || !results[0]) return reject(new Error(status || 'NO_RESULT'));
+        const comps = results[0].address_components || [];
+        const get = (type) => comps.find((x) => x.types.includes(type)) || null;
+        const cityC = get('locality') || get('postal_town') || get('sublocality') || get('neighborhood');
+        const stateC = get('administrative_area_level_1');
+        const city = cityC ? cityC.long_name : '';
+        const state = stateC ? stateC.short_name : '';
+        resolve(city && state ? city + ', ' + state : (city || state || ''));
+      });
+    } catch (e) { reject(e); }
+  });
+}
 // Creates a driver's auth account WITHOUT signing the admin out,
 // by using a throwaway secondary Firebase app instance.
 async function createDriverAccount(email, password) {
@@ -154,6 +174,8 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [needsPwChange, setNeedsPwChange] = useState(false);
+  const [viewAs, setViewAs] = useState(null);        // { id, uid, name } when acting as a carrier
+  const [carrierOpts, setCarrierOpts] = useState([]); // carriers that have a linked driver login
 
   const isAdminEmail = (email) =>
     ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((email || '').toLowerCase());
@@ -201,6 +223,19 @@ export default function App() {
 
   const isAdmin = !!user && isAdminEmail(user.email);
 
+  // Load carriers (with a linked driver login) so an admin can view their portal.
+  useEffect(() => {
+    if (!isAdmin) { setCarrierOpts([]); return; }
+    getDocs(collection(db, 'carriers'))
+      .then((snap) => setCarrierOpts(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.linkedDriverUid)
+      ))
+      .catch((e) => console.error('Error loading carrier options:', e));
+  }, [isAdmin]);
+
+  const viewUid = viewAs ? viewAs.uid : (user ? user.uid : null);
+  const viewName = viewAs ? viewAs.name : null;
+
   const go = (tab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
@@ -208,15 +243,15 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView />;
+      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} />;
       case 'newauthority': return <NewAuthorityView />;
-      case 'profile': return <ProfileView />;
-      case 'schedule': return <ScheduleView />;
-      case 'lanes': return <LaneManagementView />;
+      case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
+      case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
+      case 'lanes': return <LaneManagementView key={'lane-' + viewUid} uid={viewUid} />;
       case 'parking': return <SafeParkingView />;
-      case 'compliance': return <ComplianceView />;
+      case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} />;
       case 'vault': return <DigitalVaultView />;
-      case 'financials': return <FinancialsView paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
+      case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
       case 'wellness': return <WellnessView />;
       case 'pets': return <PetLogisticsView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
@@ -266,7 +301,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4">
-          {isAdmin && (
+          {isAdmin && !viewAs && (
             <>
               <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">ADMIN</div>
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
@@ -332,6 +367,21 @@ export default function App() {
             <h2 className="text-lg font-medium capitalize text-slate-200 truncate">{activeTab.replace('-', ' ')}</h2>
           </div>
           <div className="flex items-center gap-3 md:gap-5 text-slate-400 shrink-0">
+            {isAdmin && (
+              <select
+                value={viewAs ? viewAs.id : ''}
+                onChange={(e) => {
+                  const c = carrierOpts.find((x) => x.id === e.target.value);
+                  if (c) { setViewAs({ id: c.id, uid: c.linkedDriverUid, name: c.name }); setActiveTab('dashboard'); }
+                  else setViewAs(null);
+                }}
+                className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 max-w-[150px]"
+                title="View a carrier's portal"
+              >
+                <option value="">Admin (you)</option>
+                {carrierOpts.map((c) => <option key={c.id} value={c.id}>View: {c.name}</option>)}
+              </select>
+            )}
             <a href="https://forwardmotionfreight.com" target="_blank" rel="noopener noreferrer"
               className="text-sm flex items-center gap-1.5 hover:text-white transition-colors">
               ← <span className="hidden sm:inline">Back to Website</span>
@@ -341,7 +391,14 @@ export default function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        {viewAs && (
+          <div className="bg-indigo-600 text-white px-4 md:px-8 py-2 flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold truncate">👁 CARRIER VIEW — {viewAs.name}<span className="font-normal opacity-80 hidden sm:inline"> · you're seeing their portal</span></div>
+            <button onClick={() => setViewAs(null)} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg shrink-0">Return to Admin</button>
+          </div>
+        )}
+
+        <div className={`flex-1 overflow-y-auto p-4 md:p-8 ${viewAs ? 'ring-2 ring-inset ring-indigo-600/50' : ''}`}>
           {renderContent()}
         </div>
       </main>
@@ -350,8 +407,9 @@ export default function App() {
 }
 
 // ---------- DASHBOARD ----------
-function DashboardView() {
+function DashboardView({ uid, displayName }) {
   const u = auth.currentUser;
+  const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
   const [active, setActive] = useState(null);
   const [loaded, setLoaded] = useState(false);
@@ -362,7 +420,7 @@ function DashboardView() {
       .filter(Boolean)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
-  const name = u?.displayName || (u?.email ? prettyName(u.email.split('@')[0]) : 'Driver');
+  const name = displayName || u?.displayName || (u?.email ? prettyName(u.email.split('@')[0]) : 'Driver');
 
   // Monday 00:00 of the current week
   const startOfWeek = () => {
@@ -376,7 +434,7 @@ function DashboardView() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', u.uid)));
+        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
         const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
         // Active load = first non-delivered load by delivery date
@@ -399,8 +457,8 @@ function DashboardView() {
         setLoaded(true);
       }
     };
-    if (u) fetchData();
-  }, [u]);
+    if (targetUid) fetchData();
+  }, [targetUid]);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -521,26 +579,29 @@ function QuoteOfTheDay() {
   );
 }
 // ---------- PROFILE ----------
-function ProfileView() {
+function ProfileView({ uid, displayName }) {
   const u = auth.currentUser;
+  const impersonating = !!displayName;
+  const title = displayName || u?.email || 'Driver';
+  const acctUid = uid || u?.uid;
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <h2 className="text-2xl font-bold">My Profile</h2>
+      <h2 className="text-2xl font-bold">{impersonating ? 'Carrier Profile' : 'My Profile'}</h2>
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold uppercase">
-            {u?.email ? u.email[0] : 'D'}
+            {title ? title[0] : 'D'}
           </div>
           <div className="min-w-0">
-            <div className="text-lg font-bold truncate">{u?.email || 'Driver'}</div>
+            <div className="text-lg font-bold truncate">{title}</div>
             <div className="text-sm text-emerald-400">● Active</div>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <Info label="Email" value={u?.email || '—'} />
-          <Info label="Account ID" value={u?.uid ? u.uid.slice(0, 10) + '…' : '—'} />
+          <Info label={impersonating ? 'Carrier' : 'Email'} value={impersonating ? displayName : (u?.email || '—')} />
+          <Info label="Account ID" value={acctUid ? acctUid.slice(0, 10) + '…' : '—'} />
           <Info label="Role" value="Carrier / Driver" />
-          <Info label="Member Since" value={u?.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleDateString() : '—'} />
+          <Info label="Member Since" value={impersonating ? '—' : (u?.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleDateString() : '—')} />
         </div>
       </div>
     </div>
@@ -562,7 +623,8 @@ const SAMPLE_EVENTS = [
   { id: 'm2', type: 'Maintenance', title: 'Tire rotation', date: '2026-06-30' },
 ];
 
-function ScheduleView() {
+function ScheduleView({ uid }) {
+  const targetUid = uid || auth.currentUser?.uid;
   const [events, setEvents] = useState(SAMPLE_EVENTS);
   const [loadEvents, setLoadEvents] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -571,7 +633,7 @@ function ScheduleView() {
   useEffect(() => {
     const fetchLoads = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', auth.currentUser.uid)));
+        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
         const evs = snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
           .filter((l) => l.delivery_date)
@@ -685,7 +747,8 @@ function ScheduleView() {
 }
 
 // ---------- LANE MANAGEMENT ----------
-function LaneManagementView() {
+function LaneManagementView({ uid }) {
+  const targetUid = uid || auth.currentUser?.uid;
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -694,7 +757,7 @@ function LaneManagementView() {
 
   const fetchLoads = async () => {
     try {
-      const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', auth.currentUser.uid)));
+      const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       rows.sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
       setLoads(rows);
@@ -900,14 +963,15 @@ function SafeParkingView() {
 }
 
 // ---------- COMPLIANCE ----------
-function ComplianceView() {
+function ComplianceView({ uid }) {
+  const targetUid = uid || auth.currentUser?.uid;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchCompliance = async () => {
       try {
-        const snap = await getDoc(doc(db, 'compliance', auth.currentUser.uid));
+        const snap = await getDoc(doc(db, 'compliance', targetUid));
         if (snap.exists()) setData(snap.data());
       } catch (err) {
         console.error('Error loading compliance:', err);
@@ -1073,14 +1137,15 @@ function DigitalVaultView() {
 }
 
 // ---------- FINANCIALS ----------
-function FinancialsView({ paymentMethod, setPaymentMethod }) {
+function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
+  const targetUid = uid || auth.currentUser?.uid;
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLoads = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', auth.currentUser.uid)));
+        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
         const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         rows.sort((a, b) => (b.delivery_date || '').localeCompare(a.delivery_date || ''));
         setLoads(rows);
@@ -2076,19 +2141,31 @@ function FleetView() {
 
 // ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
 function NegotiationCalcView() {
-  const [v, setV] = useState({
+  const DEFAULTS = {
     selectedCarrier: '',
     originCity: '', originZip: '', destCity: '', destZip: '',
     pickupAt: '', deliveryAt: '',
-    brokerOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
+    brokerOffer: '', finalOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
     mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '',
     driveAvail: '', commodity: 'General Dry Freight',
-  });
+  };
+  const STORAGE_KEY = 'fm_ratecalc_v1';
+  const loadSaved = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (_) { return {}; } };
+
+  const [v, setV] = useState(() => ({ ...DEFAULTS, ...(loadSaved().v || {}) }));
+  const [stops, setStops] = useState(() => loadSaved().stops || []);
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   const n = (x) => parseFloat(x) || 0;
 
+  // Persist inputs so switching tabs (or a refresh) doesn't wipe the load.
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v, stops })); } catch (_) {}
+  }, [v, stops]);
+
+  const clearAll = () => { setV(DEFAULTS); setStops([]); try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} };
+  const clearCarrier = () => setV((s) => ({ ...s, selectedCarrier: '' }));
+
   // Up to 2 extra stops for multi-pickup / partial-drop loads.
-  const [stops, setStops] = useState([]);
   const addStop = () => setStops((s) => (s.length < 2 ? [...s, { city: '', zip: '' }] : s));
   const removeStop = (i) => setStops((s) => s.filter((_, idx) => idx !== i));
   const setStop = (i, k) => (e) => setStops((s) => s.map((st, idx) => (idx === i ? { ...st, [k]: e.target.value } : st)));
@@ -2117,6 +2194,43 @@ function NegotiationCalcView() {
   };
 
   const selectedCarrierObj = carriers.find((c) => c.id === v.selectedCarrier) || null;
+
+  // Zip → City, State (reverse geocode on blur, only if the city is empty).
+  const fillCityFromZip = async (zip, key, currentCity) => {
+    if ((currentCity || '').trim() || !(zip || '').trim() || !GOOGLE_MAPS_API_KEY) return;
+    try {
+      const cs = await geocodeZip(zip.trim());
+      if (cs) setV((s) => ({ ...s, [key]: cs }));
+    } catch (_) { /* ignore */ }
+  };
+
+  // City/State autocomplete dropdowns (Google Places).
+  const originRef = useRef(null);
+  const destRef = useRef(null);
+  useEffect(() => {
+    let acs = [];
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadGoogleMaps();
+        if (cancelled || !window.google || !window.google.maps || !window.google.maps.places) return;
+        const attach = (ref, key) => {
+          if (!ref.current) return null;
+          const ac = new window.google.maps.places.Autocomplete(ref.current, {
+            types: ['(cities)'], componentRestrictions: { country: 'us' },
+          });
+          ac.addListener('place_changed', () => {
+            const place = ac.getPlace();
+            const val = (place && (place.formatted_address || place.name)) || ref.current.value;
+            setV((s) => ({ ...s, [key]: String(val).replace(/, USA$/, '') }));
+          });
+          return ac;
+        };
+        acs = [attach(originRef, 'originCity'), attach(destRef, 'destCity')].filter(Boolean);
+      } catch (_) { /* maps not ready */ }
+    })();
+    return () => { cancelled = true; acs.forEach((ac) => { if (window.google) window.google.maps.event.clearInstanceListeners(ac); }); };
+  }, []);
 
   // Delivery window (hours) from pickup & delivery date/times — shared into the HOS validator.
   const windowHours = (() => {
@@ -2169,7 +2283,7 @@ function NegotiationCalcView() {
         destination: (v.destCity.trim() || v.destZip.trim()),
         commodity: v.commodity,
         weight: v.weight,
-        gross_pay: Number(v.brokerOffer) || 0,
+        gross_pay: Number(v.finalOffer) || Number(v.brokerOffer) || 0,
         pickup_time: v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '',
         delivery_time: v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '',
         delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
@@ -2236,11 +2350,11 @@ function NegotiationCalcView() {
 
   const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
 
-  const Metric = ({ label, value, guide, accent }) => (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+  const Metric = ({ label, value, guide, accent, highlight }) => (
+    <div className={`border rounded-xl p-4 ${highlight ? 'bg-amber-500/10 border-amber-500/40' : 'bg-slate-800/50 border-slate-700'}`}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs text-slate-400">{label}</span>
-        <span className={`text-lg font-bold ${accent || 'text-white'}`}>{value}</span>
+        <span className={`text-xs ${highlight ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>{label}</span>
+        <span className={`font-bold ${highlight ? 'text-2xl' : 'text-lg'} ${accent || 'text-white'}`}>{value}</span>
       </div>
       <p className="text-[11px] text-slate-500 mt-2 leading-snug">{guide}</p>
     </div>
@@ -2253,6 +2367,12 @@ function NegotiationCalcView() {
         <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
       </div>
       <p className="text-slate-400">Punch in the broker's numbers live on the call — see instantly if the load works and exactly what to counter.</p>
+
+      <div className="flex flex-wrap gap-2 items-center">
+        <button type="button" onClick={clearAll} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">Clear (New Load)</button>
+        {v.selectedCarrier && <button type="button" onClick={clearCarrier} className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg">Clear Carrier</button>}
+        <span className="text-[11px] text-slate-500">Inputs are saved automatically — switching tabs won't lose them.</span>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LEFT — inputs */}
@@ -2268,10 +2388,10 @@ function NegotiationCalcView() {
           </div>
           {/* Route */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">Origin City, State</label><input className={field} value={v.originCity} onChange={set('originCity')} placeholder="Atlanta, GA" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Origin Zip Code</label><input className={field} inputMode="numeric" value={v.originZip} onChange={set('originZip')} placeholder="30301" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Destination City, State</label><input className={field} value={v.destCity} onChange={set('destCity')} placeholder="Dallas, TX" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Destination Zip Code</label><input className={field} inputMode="numeric" value={v.destZip} onChange={set('destZip')} placeholder="75201" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Origin City, State</label><input ref={originRef} className={field} value={v.originCity} onChange={set('originCity')} placeholder="Start typing a city…" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Origin Zip Code</label><input className={field} inputMode="numeric" value={v.originZip} onChange={set('originZip')} onBlur={() => fillCityFromZip(v.originZip, 'originCity', v.originCity)} placeholder="30301" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Destination City, State</label><input ref={destRef} className={field} value={v.destCity} onChange={set('destCity')} placeholder="Start typing a city…" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Destination Zip Code</label><input className={field} inputMode="numeric" value={v.destZip} onChange={set('destZip')} onBlur={() => fillCityFromZip(v.destZip, 'destCity', v.destCity)} placeholder="75201" /></div>
           </div>
 
           {/* Extra stops (multi-pickup / partial drops) */}
@@ -2301,7 +2421,7 @@ function NegotiationCalcView() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Pickup Date &amp; Time</label><input className={field} type="datetime-local" value={v.pickupAt} onChange={set('pickupAt')} /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Delivery Date &amp; Time</label><input className={field} type="datetime-local" value={v.deliveryAt} onChange={set('deliveryAt')} /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Broker Offer ($)</label><input className={field} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
+            <div><label className="block text-xs text-amber-300 font-semibold mb-1">Broker Offer ($)</label><input className={`${field} border-amber-500/60 bg-amber-500/5 text-base font-semibold`} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={v.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Deadhead Miles</label><input className={field} type="number" inputMode="decimal" value={v.deadheadMiles} onChange={set('deadheadMiles')} placeholder="50" /></div>
@@ -2337,7 +2457,7 @@ function NegotiationCalcView() {
             guide="What the truck actually earns per mile driven. Compare to Carrier Min — if it's lower, you must negotiate." />
           <Metric label="Trip Cost" value={money(tripCost)}
             guide={`Hard cash to move the truck — fuel + tolls${surcharge > 0 ? ` + ${money(surcharge)} equipment accessorial` : ''}. The offer must cover this plus profit.`} />
-          <Metric label="Target Offer (Floor)" value={money(targetOffer)}
+          <Metric label="Target Offer (Floor)" value={money(targetOffer)} accent="text-amber-400" highlight
             guide="Your negotiation floor. Don't accept below this — counter the broker slightly higher than this number." />
           {gap > 0 && (
             <Metric label="The Gap (Counter By)" value={money(gap)} accent="text-amber-400"
@@ -2352,6 +2472,11 @@ function NegotiationCalcView() {
           )}
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Final Agreed Rate ($)</label>
+              <input className={`${field} text-base font-semibold`} type="number" inputMode="decimal" value={v.finalOffer} onChange={set('finalOffer')} placeholder={v.brokerOffer ? `${v.brokerOffer} (broker offer)` : 'e.g. 2200'} />
+              <p className="text-[10px] text-slate-500 mt-1">What the load actually pays the carrier. Leave blank to use the broker offer.</p>
+            </div>
             <button type="button" onClick={assignLoad} disabled={assigning || !selectedCarrierObj}
               className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50">
               {assigning ? 'Assigning…' : '➕ Assign This Load to Carrier'}
