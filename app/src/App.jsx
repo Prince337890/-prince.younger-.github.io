@@ -2078,6 +2078,106 @@ function NegotiationCalcView() {
             guide="Over 85% means heavy freight that burns more fuel. Use it to justify asking for a higher rate." />
         </div>
       </div>
+
+      <HosValidator />
+    </div>
+  );
+}
+
+// ---------- ADMIN: TRANSIT & HOS VALIDATOR ----------
+function HosValidator() {
+  const [v, setV] = useState({ miles: '', hoursToDeliver: '', driveAvail: '', speed: '55' });
+  const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
+  const n = (x) => parseFloat(x) || 0;
+
+  const miles = n(v.miles);
+  const windowHrs = n(v.hoursToDeliver);
+  const speed = n(v.speed);
+  const avail = Math.min(n(v.driveAvail), 11); // FMCSA caps daily driving at 11 hrs
+
+  const requiredDrive = speed > 0 ? miles / speed : 0;
+
+  // After the driver's available hours run out, each new driving window (11 hrs)
+  // requires a mandatory 10-hour reset before it.
+  let resets = 0;
+  let remaining = requiredDrive - avail;
+  while (remaining > 0 && resets < 100) { resets += 1; remaining -= 11; }
+  const totalTransit = requiredDrive + resets * 10;
+
+  const ready = miles > 0 && windowHrs > 0 && speed > 0 && v.driveAvail !== '';
+  const feasible = ready && totalTransit < windowHrs;
+  const buffer = windowHrs - totalTransit;
+
+  const hrs = (x) => (x || x === 0) ? x.toFixed(1) + ' hrs' : '—';
+
+  let status = 'idle';
+  if (ready) status = feasible ? 'green' : 'red';
+
+  const banner = {
+    idle: { cls: 'bg-slate-800 border-slate-700 text-slate-300', title: 'Enter trip details to check legality', sub: 'Miles, the delivery window, and the driver’s remaining drive hours.' },
+    green: { cls: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300', title: '🟢 Feasible — You Can Book It', sub: `${hrs(buffer)} of buffer before the deadline.` },
+    red: { cls: 'bg-red-500/15 border-red-500/40 text-red-300', title: '🔴 Not Legal In Time — Pass or Push Delivery', sub: `Short by ${hrs(Math.abs(buffer))}. Negotiate a later delivery date.` },
+  }[status];
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const Metric = ({ label, value, guide, accent }) => (
+    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs text-slate-400">{label}</span>
+        <span className={`text-lg font-bold ${accent || 'text-white'}`}>{value}</span>
+      </div>
+      <p className="text-[11px] text-slate-500 mt-2 leading-snug">{guide}</p>
+    </div>
+  );
+
+  return (
+    <div className="pt-2">
+      <div className="flex items-center gap-2 mb-1">
+        <h2 className="text-2xl font-bold">Transit & HOS Validator</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400 mb-4">Can the driver legally make this delivery window? Get a yes/no in seconds — before you commit to the broker.</p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LEFT — inputs */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">Trip Inputs</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">Total Trip Miles</label><input className={field} type="number" inputMode="decimal" value={v.miles} onChange={set('miles')} placeholder="1200" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Hours Until Delivery</label><input className={field} type="number" inputMode="decimal" value={v.hoursToDeliver} onChange={set('hoursToDeliver')} placeholder="36" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Drive Hours Available (max 11)</label><input className={field} type="number" inputMode="decimal" value={v.driveAvail} onChange={set('driveAvail')} placeholder="8" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Avg Truck Speed (mph)</label><input className={field} type="number" inputMode="decimal" value={v.speed} onChange={set('speed')} /></div>
+          </div>
+          <p className="text-[11px] text-slate-500 leading-snug">
+            Tip: keep avg speed at 50–55 — a truck cruising 65 averages far less once you add fuel stops, scales, and traffic.
+          </p>
+        </div>
+
+        {/* RIGHT — output */}
+        <div className="space-y-4">
+          <div className={`rounded-2xl border p-5 ${banner.cls}`}>
+            <div className="font-bold text-base">{banner.title}</div>
+            <div className="text-sm opacity-80 mt-1">{banner.sub}</div>
+          </div>
+
+          <Metric label="Required Drive Time" value={hrs(requiredDrive)}
+            guide="Pure driving time at this average speed — before any rest." />
+          <Metric label="10-Hour Resets Needed" value={ready ? String(resets) : '—'}
+            accent={resets > 0 ? 'text-amber-400' : 'text-white'}
+            guide="Each reset is a mandatory 10-hour break once the driver's daily hours run out." />
+          <Metric label="Total Transit Time" value={hrs(totalTransit)}
+            guide="Driving time PLUS every required rest. This is the real door-to-door clock." />
+          <Metric label="Delivery Window" value={hrs(windowHrs)}
+            guide="How long the broker is giving you to deliver." />
+          <Metric label={feasible ? 'Buffer' : 'Shortfall'} value={ready ? hrs(Math.abs(buffer)) : '—'}
+            accent={feasible ? 'text-emerald-400' : 'text-red-400'}
+            guide={feasible ? 'Slack time before the deadline. More is safer.' : 'How much you’re over the legal window. Push the delivery date out by at least this much.'} />
+        </div>
+      </div>
+
+      <p className="text-[11px] text-slate-600 mt-4 leading-snug">
+        Simplified estimate based on drive time + 10-hour resets. Always confirm against the 14-hour on-duty window and the 70-hour/8-day cycle in the driver's ELD before committing.
+      </p>
     </div>
   );
 }
