@@ -109,6 +109,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardView />;
+      case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView />;
       case 'schedule': return <ScheduleView />;
       case 'lanes': return <LaneManagementView />;
@@ -177,6 +178,7 @@ export default function App() {
 
           <div className="px-4 mb-2 text-xs font-semibold text-slate-500 tracking-wider">OVERVIEW</div>
           <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
+          <NavItem icon={<Navigation size={18} />} label="New Authority" isActive={activeTab === 'newauthority'} onClick={() => go('newauthority')} />
           <NavItem icon={<User size={18} />} label="My Profile" isActive={activeTab === 'profile'} onClick={() => go('profile')} />
           <NavItem icon={<Calendar size={18} />} label="Schedule & Calendar" isActive={activeTab === 'schedule'} onClick={() => go('schedule')} />
 
@@ -2021,6 +2023,87 @@ function NegotiationCalcView() {
             accent={weightFactor >= 85 ? 'text-amber-400' : 'text-white'}
             guide="Over 85% means heavy freight that burns more fuel. Use it to justify asking for a higher rate." />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- NEW AUTHORITY: STRAIGHT TALK ----------
+function NewAuthorityView() {
+  const reasons = [
+    { t: 'Your authority is brand new', d: "Many brokers and shippers won't touch an MC number until it's 90–180 days old. It's not personal — it's their risk policy. Time alone fixes this." },
+    { t: 'You have no track record yet', d: 'Brokers hand their best-paying loads to carriers they trust. You earn that trust one on-time, no-drama delivery at a time — and it compounds fast.' },
+    { t: 'First-year insurance is expensive', d: 'New-authority insurance is high for the first 12 months, which eats margins. After one clean year it drops a lot, so early loads feel tighter than they will later.' },
+    { t: "You're on the spot market", d: 'New carriers live on load boards — the most competitive, lowest-priced tier. Better-paying contract and direct-shipper freight comes once you have history.' },
+    { t: 'No broker relationships yet', d: 'Great rates come from repeat brokers who know you deliver. Every load we book is building that book of relationships for you.' },
+  ];
+  const phases = [
+    { p: 'Months 0–3', d: 'The grind. Cheaper loads, building history, proving reliability. Stay clean, stay consistent.', c: 'text-amber-400' },
+    { p: 'Months 3–6', d: 'Doors open. Authority ages, brokers start repeating, factoring expands. Rates climb.', c: 'text-blue-400' },
+    { p: 'Months 6–12', d: 'Momentum. Better lanes, preferred-carrier status, insurance about to drop.', c: 'text-emerald-400' },
+    { p: '12 months +', d: "Leverage. You're a price-setter, not a price-taker. Cheaper insurance, your pick of freight.", c: 'text-emerald-400' },
+  ];
+  const helps = [
+    'We negotiate every rate so you never take the first number a broker offers.',
+    'We hunt smarter lanes to cut deadhead — empty miles are where new carriers bleed money.',
+    'We build your broker relationships on every load, so repeat freight comes sooner.',
+    'We handle factoring, paperwork, and compliance so you can focus on driving and building your record.',
+  ];
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="bg-gradient-to-r from-amber-500/10 to-slate-900 border border-amber-500/30 rounded-2xl p-6">
+        <h2 className="text-2xl font-bold text-white mb-2">The First 90 Days: Straight Talk</h2>
+        <p className="text-slate-300 leading-relaxed">
+          If finding good-paying freight feels hard right now, read this. It's not because you're doing
+          something wrong, and it's not your dispatcher failing you — <span className="text-amber-400 font-semibold">every
+          new authority goes through this</span>. Here's exactly why, and exactly how we shorten it for you.
+        </p>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="text-lg font-bold mb-4">Why good freight is harder to find at first</h3>
+        <div className="space-y-3">
+          {reasons.map((r) => (
+            <div key={r.t} className="flex gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+              <div className="text-amber-500 font-bold shrink-0">•</div>
+              <div>
+                <div className="font-semibold text-white">{r.t}</div>
+                <div className="text-sm text-slate-400 mt-1">{r.d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="text-lg font-bold mb-1">It gets better — here's the timeline</h3>
+        <p className="text-sm text-slate-400 mb-4">This curve is normal. The grind is temporary and it pays off.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {phases.map((ph) => (
+            <div key={ph.p} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+              <div className={`font-bold ${ph.c}`}>{ph.p}</div>
+              <div className="text-sm text-slate-400 mt-1">{ph.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="text-lg font-bold mb-4">What we're doing about it — for you</h3>
+        <div className="space-y-2">
+          {helps.map((h) => (
+            <div key={h} className="flex gap-3 items-start text-sm">
+              <CheckCircle2 className="text-emerald-400 shrink-0 mt-0.5" size={18} />
+              <span className="text-slate-300">{h}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700/50 rounded-2xl p-6 text-center">
+        <p className="text-white font-semibold">Keep the wheels turning. Stay clean, stay consistent, and let the calendar do its work.</p>
+        <p className="text-sm text-slate-400 mt-1">Every established carrier on the road today started exactly where you are.</p>
       </div>
     </div>
   );
