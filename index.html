@@ -549,13 +549,14 @@
         <!-- Cinematic background image + dark overlays -->
         <div class="absolute inset-0">
             <img
-                src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=2070&q=80"
+                src="hero.png"
                 alt=""
                 aria-hidden="true"
-                class="h-full w-full object-cover object-center opacity-40" />
-            <!-- midnight gradient to keep text legible -->
-            <div class="absolute inset-0 bg-gradient-to-b from-[#070b14]/90 via-[#0a0f1a]/85 to-[#0a0f1a]"></div>
-            <div class="absolute inset-0 bg-gradient-to-r from-[#0a0f1a] via-transparent to-[#0a0f1a]/60"></div>
+                class="h-full w-full object-cover object-center opacity-90" />
+            <!-- darken left for headline contrast; let the truck on the right stay bright -->
+            <div class="absolute inset-0 bg-gradient-to-r from-[#0a0f1a] via-[#0a0f1a]/35 to-transparent"></div>
+            <!-- soft top + bottom fade for the nav and the section seam below -->
+            <div class="absolute inset-0 bg-gradient-to-b from-[#0a0f1a]/60 via-transparent to-[#0a0f1a]"></div>
             <!-- faint engineered grid -->
             <div class="absolute inset-0 opacity-[0.07]"
                  style="background-image:linear-gradient(#ffffff 1px,transparent 1px),linear-gradient(90deg,#ffffff 1px,transparent 1px);background-size:56px 56px;"></div>
