@@ -52,18 +52,27 @@ function loadGoogleMaps() {
 async function getDrivingMiles(originZip, destZip) {
   await loadGoogleMaps();
   return new Promise((resolve, reject) => {
-    const svc = new window.google.maps.DistanceMatrixService();
-    svc.getDistanceMatrix({
-      origins: [originZip + ', USA'],
-      destinations: [destZip + ', USA'],
-      travelMode: window.google.maps.TravelMode.DRIVING,
-      unitSystem: window.google.maps.UnitSystem.IMPERIAL,
-    }, (res, status) => {
-      if (status !== 'OK') return reject(new Error(status));
-      const el = res.rows && res.rows[0] && res.rows[0].elements && res.rows[0].elements[0];
-      if (!el || el.status !== 'OK') return reject(new Error(el ? el.status : 'NO_RESULT'));
-      resolve(el.distance.value / 1609.344);
-    });
+    let done = false;
+    const finish = (fn, arg) => { if (!done) { done = true; clearTimeout(timer); fn(arg); } };
+    // Google calls this on an invalid key / blocked referrer / billing problem.
+    window.gm_authFailure = () => finish(reject, new Error('Maps auth failed — check the key, its website restriction, billing, and that both APIs are enabled.'));
+    const timer = setTimeout(() => finish(reject, new Error('Timed out — usually a key, referrer, or billing issue.')), 12000);
+    try {
+      const svc = new window.google.maps.DistanceMatrixService();
+      svc.getDistanceMatrix({
+        origins: [originZip + ', USA'],
+        destinations: [destZip + ', USA'],
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        unitSystem: window.google.maps.UnitSystem.IMPERIAL,
+      }, (res, status) => {
+        if (status !== 'OK') return finish(reject, new Error(status));
+        const el = res.rows && res.rows[0] && res.rows[0].elements && res.rows[0].elements[0];
+        if (!el || el.status !== 'OK') return finish(reject, new Error(el ? el.status : 'NO_RESULT'));
+        finish(resolve, el.distance.value / 1609.344);
+      });
+    } catch (e) {
+      finish(reject, e);
+    }
   });
 }
 // Creates a driver's auth account WITHOUT signing the admin out,
