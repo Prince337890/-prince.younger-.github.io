@@ -124,6 +124,7 @@ export default function App() {
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
       case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
+      case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
       default: return <DashboardView />;
     }
@@ -173,6 +174,7 @@ export default function App() {
               <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
               <div className="mt-6" />
             </>
@@ -2438,6 +2440,188 @@ function CarriersView() {
                   <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min</div>
                 </div>
                 <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg shrink-0">Remove</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- ADMIN: LANE INTEL ----------
+const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+const INTEL_CATEGORIES = ['Market / Lane', 'Shipper', 'Receiver', 'Route Hazard'];
+
+function LaneIntelView() {
+  // --- Transit estimator (pure math, no API needed) ---
+  const [t, setT] = useState({ origin: '', dest: '', miles: '', perDay: '500', pickup: '' });
+  const setTf = (k) => (e) => setT((s) => ({ ...s, [k]: e.target.value }));
+  const num = (x) => parseFloat(x) || 0;
+  const miles = num(t.miles);
+  const perDay = num(t.perDay) || 500;
+  const transitDays = miles > 0 ? miles / perDay : 0;
+  const daysCeil = Math.ceil(transitDays);
+  const deliveryEst = (() => {
+    if (!t.pickup || transitDays <= 0) return '';
+    const d = new Date(t.pickup + 'T00:00:00');
+    d.setDate(d.getDate() + daysCeil);
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  })();
+
+  // --- Facility & lane intel notes (Firestore) ---
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [form, setForm] = useState({ location: '', category: 'Market / Lane', note: '' });
+  const setFf = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const fetchNotes = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'lane_intel'));
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+      setNotes(rows);
+    } catch (e) {
+      console.error('Error loading lane intel:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchNotes(); }, []);
+
+  const addNote = async (e) => {
+    e.preventDefault();
+    if (!form.location.trim() || !form.note.trim()) return;
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'lane_intel'), {
+        location: form.location.trim(),
+        category: form.category,
+        note: form.note.trim(),
+        createdAtMs: Date.now(),
+        createdAt: serverTimestamp(),
+      });
+      setForm({ location: '', category: 'Market / Lane', note: '' });
+      fetchNotes();
+    } catch (e) {
+      console.error('Error saving intel:', e);
+      alert('Error saving — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeNote = async (id) => {
+    if (!window.confirm('Delete this note?')) return;
+    try {
+      await deleteDoc(doc(db, 'lane_intel', id));
+      setNotes((p) => p.filter((x) => x.id !== id));
+    } catch (e) {
+      console.error('Error deleting intel:', e);
+    }
+  };
+
+  const catStyle = (c) => {
+    if (c === 'Market / Lane') return 'bg-blue-500/15 text-blue-400';
+    if (c === 'Shipper') return 'bg-emerald-500/15 text-emerald-400';
+    if (c === 'Receiver') return 'bg-amber-500/15 text-amber-400';
+    if (c === 'Route Hazard') return 'bg-red-500/15 text-red-400';
+    return 'bg-slate-700 text-slate-300';
+  };
+
+  const filtered = notes.filter((nt) =>
+    `${nt.location} ${nt.note} ${nt.category}`.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Lane Intel</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400">Know the business of the road — transit days and the facility/market intel your team learns one load at a time.</p>
+
+      {/* TRANSIT ESTIMATOR */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h3 className="font-bold">Transit Day Estimator</h3>
+        <p className="text-xs text-slate-500">Turn miles into realistic transit days so you never overpromise a broker on delivery time.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Origin State</label>
+            <select className={field} value={t.origin} onChange={setTf('origin')}>
+              <option value="">—</option>
+              {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Dest State</label>
+            <select className={field} value={t.dest} onChange={setTf('dest')}>
+              <option value="">—</option>
+              {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div><label className="block text-xs text-slate-400 mb-1">Total Miles</label><input className={field} type="number" inputMode="decimal" value={t.miles} onChange={setTf('miles')} placeholder="1200" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Miles / Day</label><input className={field} type="number" inputMode="decimal" value={t.perDay} onChange={setTf('perDay')} /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Pickup Date</label><input className={field} type="date" value={t.pickup} onChange={setTf('pickup')} /></div>
+        </div>
+        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex flex-wrap items-center gap-x-8 gap-y-2">
+          <div>
+            <div className="text-xs text-slate-400">{t.origin || '—'} → {t.dest || '—'} · {miles > 0 ? miles.toLocaleString() + ' mi' : '— mi'}</div>
+            <div className="text-2xl font-bold text-white">
+              {transitDays > 0 ? `${transitDays.toFixed(1)} days` : '—'}
+              {transitDays > 0 && <span className="text-sm text-slate-400 font-normal"> (plan for {daysCeil})</span>}
+            </div>
+          </div>
+          {deliveryEst && (
+            <div>
+              <div className="text-xs text-slate-400">Realistic delivery by</div>
+              <div className="text-lg font-bold text-emerald-400">{deliveryEst}</div>
+            </div>
+          )}
+        </div>
+        <p className="text-[11px] text-slate-600">~500 mi/day is a safe solo-driver assumption once you factor HOS, fuel, and loading. Auto-distance from state selection arrives when the maps API is connected.</p>
+      </div>
+
+      {/* INTEL NOTES */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h3 className="font-bold">Facility & Market Intel</h3>
+        <p className="text-xs text-slate-500">Log what your team learns: cold markets, slow shippers, no-parking receivers, rough routes. Searchable for the whole team.</p>
+
+        <form onSubmit={addNote} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <input className={`${field} sm:col-span-3`} value={form.location} onChange={setFf('location')} placeholder="City / facility (e.g. Miami, FL)" />
+          <select className={`${field} sm:col-span-3`} value={form.category} onChange={setFf('category')}>
+            {INTEL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input className={`${field} sm:col-span-4`} value={form.note} onChange={setFf('note')} placeholder="e.g. Cold flatbed market — cover deadhead out" />
+          <button type="submit" disabled={saving} className="sm:col-span-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
+            {saving ? '…' : 'Add'}
+          </button>
+        </form>
+
+        <input className={field} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search intel…" />
+
+        {loading ? (
+          <div className="text-slate-400 text-sm">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-slate-500 text-sm py-4 text-center">{notes.length === 0 ? 'No intel logged yet. Add your first note above.' : 'No notes match that search.'}</div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((nt) => (
+              <div key={nt.id} className="flex items-start justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-white">{nt.location}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded ${catStyle(nt.category)}`}>{nt.category}</span>
+                  </div>
+                  <div className="text-sm text-slate-300 mt-1">{nt.note}</div>
+                </div>
+                <button onClick={() => removeNote(nt.id)} className="text-xs text-slate-500 hover:text-red-400 shrink-0">Delete</button>
               </div>
             ))}
           </div>
