@@ -50,10 +50,29 @@
                 Forward&nbsp;Motion <span class="text-[#FF5722]">Freight</span>
             </span>
         </a>
-        <a href="https://forward-motion-app-bdim.vercel.app"
-           class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold tracking-wide text-slate-200 backdrop-blur-sm transition hover:border-white/30 hover:bg-white/10 sm:text-sm">
-            Open Portal
-        </a>
+        <!-- desktop nav -->
+        <nav class="hidden items-center gap-7 md:flex">
+            <a href="dispatcher-portal.html" aria-current="page" class="text-sm font-semibold text-white">Dispatcher</a>
+            <a href="driver-portal.html" class="text-sm font-medium text-slate-300 transition hover:text-white">Driver</a>
+            <a href="partnership.html" class="text-sm font-medium text-slate-300 transition hover:text-white">Partnership</a>
+            <a href="https://forward-motion-app-bdim.vercel.app"
+               class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold tracking-wide text-slate-200 backdrop-blur-sm transition hover:border-white/30 hover:bg-white/10">
+                Open Portal
+            </a>
+        </nav>
+        <!-- mobile menu -->
+        <details class="group relative md:hidden">
+            <summary class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-white/15 bg-white/5 [&::-webkit-details-marker]:hidden">
+                <svg class="h-5 w-5 text-white group-open:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <svg class="hidden h-5 w-5 text-white group-open:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
+            </summary>
+            <div class="absolute right-0 top-12 z-50 w-60 rounded-xl border border-white/10 bg-[#0e1626] p-2 shadow-2xl shadow-black/50">
+                <a href="dispatcher-portal.html" class="block rounded-lg bg-white/5 px-4 py-2.5 text-sm font-semibold text-white">Dispatcher Portal</a>
+                <a href="driver-portal.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Driver Portal</a>
+                <a href="partnership.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Partnership</a>
+                <a href="https://forward-motion-app-bdim.vercel.app" class="mt-1 block rounded-lg bg-[#FF5722] px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-[#ff6a3c]">Open Portal</a>
+            </div>
+        </details>
     </header>
 
     <!-- ===================== HERO ===================== -->
