@@ -13,6 +13,7 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword
 } from 'firebase/auth';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
@@ -27,6 +28,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
 // --- Google Maps (client-side distance lookup) ---
@@ -167,6 +169,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
   const [needsPwChange, setNeedsPwChange] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [viewAs, setViewAs] = useState(null);
   const [carrierOpts, setCarrierOpts] = useState([]);
 
@@ -201,6 +204,7 @@ export default function App() {
           { merge: true }
         );
         setNeedsPwChange(!admin && data && data.mustChangePassword === true);
+        setNeedsOnboarding(!admin && !(data && data.onboardingComplete === true));
         setUser(u);
         setAccessDenied(false);
       } catch (e) {
@@ -263,6 +267,9 @@ export default function App() {
   }
   if (needsPwChange) {
     return <ChangePasswordView onDone={() => setNeedsPwChange(false)} />;
+  }
+  if (needsOnboarding) {
+    return <OnboardingWizard onDone={() => setNeedsOnboarding(false)} />;
   }
 
   return (
@@ -3116,6 +3123,307 @@ function LaneIntelView() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- ONBOARDING WIZARD (first carrier login) ----------
+function OnboardingWizard({ onDone }) {
+  const uid = auth.currentUser?.uid;
+  const email = auth.currentUser?.email || '';
+  const STORAGE_KEY = 'fm_onboarding_' + (uid || 'anon');
+
+  const REGIONS = ['Northeast', 'Southeast', 'Midwest', 'South Central', 'Mountain West', 'West Coast', 'Pacific Northwest'];
+  const EQUIPMENT = ['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Power Only', 'Box Truck', 'Tanker', 'Hotshot'];
+  const ENDORSEMENTS = ['Hazmat', 'Tanker', 'TWIC', 'Doubles/Triples', 'Oversize/Overweight'];
+  const TRAILER_LENGTHS = ["53'", "48'", "26'", "Other"];
+  const HOME_TIME = ['Every weekend', 'Every 2 weeks', 'OTR 3+ weeks', 'Flexible'];
+
+  const blank = {
+    companyName: '', dba: '', mcNumber: '', dotNumber: '',
+    dispatchName: '', dispatchPhone: '', dispatchEmail: email,
+    emergencyName: '', emergencyPhone: '',
+    equipmentType: 'Dry Van', trailerLength: "53'", maxWeight: '', endorsements: [],
+    targetRate: '', preferredRegions: [], avoidRegions: [], homeTime: 'Flexible',
+    usesFactoring: 'yes', factorName: '', factorEmail: '', factorPhone: '',
+    achRouting: '', achAccount: '',
+  };
+
+  const loadSaved = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (_) { return {}; } };
+  const [step, setStep] = useState(0);
+  const [f, setF] = useState(() => ({ ...blank, ...(loadSaved().f || {}) }));
+  const [docs, setDocs] = useState(() => loadSaved().docs || {});
+  const [uploading, setUploading] = useState({});
+  const [uploadErr, setUploadErr] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitErr, setSubmitErr] = useState('');
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ f, docs })); } catch (_) {}
+  }, [f, docs]);
+
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const toggleArr = (k, val) => setF((s) => {
+    const arr = s[k] || [];
+    return { ...s, [k]: arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val] };
+  });
+
+  const uploadDoc = (key) => async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setUploadErr((u) => ({ ...u, [key]: '' }));
+    setUploading((u) => ({ ...u, [key]: true }));
+    try {
+      const path = `carrier_docs/${uid}/${key}_${Date.now()}_${file.name}`;
+      const r = storageRef(storage, path);
+      await uploadBytes(r, file);
+      const url = await getDownloadURL(r);
+      setDocs((d) => ({ ...d, [key]: { name: file.name, url } }));
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setUploadErr((u) => ({ ...u, [key]: err.code === 'storage/unauthorized' ? 'Upload blocked — enable Firebase Storage + rules.' : (err.message || 'Upload failed') }));
+    } finally {
+      setUploading((u) => ({ ...u, [key]: false }));
+    }
+  };
+
+  const STEPS = ['Profile', 'Documents', 'Equipment', 'Lanes', 'Payment'];
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  const next = () => setStep((s) => Math.min(s + 1, 6));
+  const back = () => setStep((s) => Math.max(s - 1, 0));
+  const canProceed = () => (step === 1 ? (f.companyName.trim() && f.mcNumber.trim()) : true);
+
+  const submit = async () => {
+    setSubmitErr('');
+    setSubmitting(true);
+    try {
+      await setDoc(doc(db, 'users', uid), {
+        email,
+        onboardingComplete: true,
+        onboardingStatus: 'under_review',
+        onboardingSubmittedAt: serverTimestamp(),
+        carrierProfile: { ...f, documents: docs },
+      }, { merge: true });
+      try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+      onDone();
+    } catch (err) {
+      console.error('Onboarding submit failed:', err);
+      setSubmitErr(err.message || 'Could not save. Please try again.');
+      setSubmitting(false);
+    }
+  };
+
+  const DocRow = ({ k, label, hint, templateUrl }) => (
+    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white flex items-center gap-2">
+            {label}
+            {docs[k] && <CheckCircle2 size={16} className="text-emerald-400" />}
+          </div>
+          {hint && <div className="text-xs text-slate-400 mt-0.5">{hint}</div>}
+          {docs[k] && <div className="text-xs text-emerald-400 mt-1 truncate">✓ {docs[k].name}</div>}
+          {uploadErr[k] && <div className="text-xs text-red-400 mt-1">{uploadErr[k]}</div>}
+          {templateUrl && <a href={templateUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline mt-1 inline-block">Download blank template →</a>}
+        </div>
+        <label className="shrink-0 text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-3 py-2 rounded-lg cursor-pointer">
+          {uploading[k] ? 'Uploading…' : (docs[k] ? 'Replace' : 'Upload')}
+          <input type="file" className="hidden" onChange={uploadDoc(k)} disabled={uploading[k]} />
+        </label>
+      </div>
+    </div>
+  );
+
+  const Chips = ({ list, selKey, onCls, mark }) => (
+    <div className="flex flex-wrap gap-2">
+      {list.map((x) => {
+        const on = (f[selKey] || []).includes(x);
+        return (
+          <button key={x} type="button" onClick={() => toggleArr(selKey, x)}
+            className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${on ? onCls : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>
+            {on ? mark + ' ' : ''}{x}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
+      <div className="border-b border-slate-800 px-4 md:px-8 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold tracking-wider text-white">FORWARD MOTION</h1>
+          <p className="text-[10px] text-amber-500 tracking-widest font-semibold">VIP FREIGHT</p>
+        </div>
+        <button onClick={() => signOut(auth)} className="text-xs text-slate-400 hover:text-white">Sign out</button>
+      </div>
+
+      {step >= 1 && step <= 5 && (
+        <div className="px-4 md:px-8 py-4 border-b border-slate-800">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            {STEPS.map((label, i) => {
+              const num = i + 1;
+              const done = step > num;
+              const cur = step === num;
+              return (
+                <div key={label} className="flex-1 flex flex-col items-center">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${cur ? 'bg-amber-500 text-slate-950' : done ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
+                    {done ? '✓' : num}
+                  </div>
+                  <span className={`text-[10px] mt-1 ${cur ? 'text-amber-400' : 'text-slate-500'}`}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8">
+        <div className="max-w-2xl mx-auto">
+          {step === 0 && (
+            <div className="text-center py-10">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-6"><Navigation size={32} /></div>
+              <h2 className="text-3xl font-bold text-white mb-3">Welcome to the Fleet. Let's Get You Moving.</h2>
+              <p className="text-slate-400 max-w-md mx-auto mb-8">Complete this quick 5-step setup so we can start aggressively negotiating your rates and securing your preferred lanes.</p>
+              <button onClick={() => setStep(1)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors">Start Setup →</button>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-5">
+              <div><h2 className="text-2xl font-bold">Carrier Profile &amp; Verification</h2><p className="text-slate-400 text-sm mt-1">Confirm your identity and operating authority.</p></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-xs text-slate-400 mb-1">Legal Company Name *</label><input className={field} value={f.companyName} onChange={set('companyName')} /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">DBA (if any)</label><input className={field} value={f.dba} onChange={set('dba')} /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">MC Number *</label><input className={field} value={f.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">USDOT Number</label><input className={field} value={f.dotNumber} onChange={set('dotNumber')} /></div>
+              </div>
+              <div className="bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2 text-[11px] text-slate-500">Automatic FMCSA lookup by MC# is coming soon — for now, enter your details manually.</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div><label className="block text-xs text-slate-400 mb-1">Dispatch Contact Name</label><input className={field} value={f.dispatchName} onChange={set('dispatchName')} /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">Dispatch Phone</label><input className={field} value={f.dispatchPhone} onChange={set('dispatchPhone')} /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">Dispatch Email</label><input className={field} value={f.dispatchEmail} onChange={set('dispatchEmail')} /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-xs text-slate-400 mb-1">Emergency Contact Name</label><input className={field} value={f.emergencyName} onChange={set('emergencyName')} /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">Emergency Contact Phone</label><input className={field} value={f.emergencyPhone} onChange={set('emergencyPhone')} /></div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-5">
+              <div><h2 className="text-2xl font-bold">The Document Vault</h2><p className="text-slate-400 text-sm mt-1">Upload your compliance paperwork so we can build your carrier packet.</p></div>
+              <div className="space-y-3">
+                <DocRow k="w9" label="W-9 Form" hint="IRS taxpayer ID form." templateUrl="https://www.irs.gov/pub/irs-pdf/fw9.pdf" />
+                <DocRow k="coi" label="Certificate of Insurance (COI)" hint="Proof of active cargo & liability coverage." />
+                <DocRow k="noa" label="Notice of Assignment / Voided Check" hint="From your factoring company, or a voided check for direct pay." />
+              </div>
+              <p className="text-[11px] text-slate-500">Documents are optional to continue — you can add them later, but we can't book loads until they're on file.</p>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-5">
+              <div><h2 className="text-2xl font-bold">Equipment &amp; Capacity</h2><p className="text-slate-400 text-sm mt-1">Tell us exactly what you can haul so we never pitch you dead-end loads.</p></div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div><label className="block text-xs text-slate-400 mb-1">Equipment Type</label><select className={field} value={f.equipmentType} onChange={set('equipmentType')}>{EQUIPMENT.map((x) => <option key={x}>{x}</option>)}</select></div>
+                <div><label className="block text-xs text-slate-400 mb-1">Trailer Length</label><select className={field} value={f.trailerLength} onChange={set('trailerLength')}>{TRAILER_LENGTHS.map((x) => <option key={x}>{x}</option>)}</select></div>
+                <div><label className="block text-xs text-slate-400 mb-1">Max Weight Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={f.maxWeight} onChange={set('maxWeight')} placeholder="45000" /></div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Specialized Endorsements</label>
+                <div className="flex flex-wrap gap-2">
+                  {ENDORSEMENTS.map((x) => {
+                    const on = f.endorsements.includes(x);
+                    return (
+                      <button key={x} type="button" onClick={() => toggleArr('endorsements', x)}
+                        className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${on ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>
+                        {on ? '✓ ' : ''}{x}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-5">
+              <div><h2 className="text-2xl font-bold">Lane &amp; Rate Preferences</h2><p className="text-slate-400 text-sm mt-1">How you want to run — so we negotiate the freight that fits you.</p></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-xs text-slate-400 mb-1">Target Minimum Rate ($/mile)</label><input className={field} type="number" inputMode="decimal" value={f.targetRate} onChange={set('targetRate')} placeholder="2.50" /></div>
+                <div><label className="block text-xs text-slate-400 mb-1">Home Time Preference</label><select className={field} value={f.homeTime} onChange={set('homeTime')}>{HOME_TIME.map((x) => <option key={x}>{x}</option>)}</select></div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Preferred Regions</label>
+                <Chips list={REGIONS} selKey="preferredRegions" onCls="bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-semibold" mark="✓" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Areas to Avoid</label>
+                <Chips list={REGIONS} selKey="avoidRegions" onCls="bg-red-500/20 text-red-300 border-red-500/50 font-semibold" mark="✕" />
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div className="space-y-5">
+              <div><h2 className="text-2xl font-bold">Factoring &amp; Payment Setup</h2><p className="text-slate-400 text-sm mt-1">How our back office handles your money.</p></div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Are you using a factoring company?</label>
+                <div className="flex gap-2">
+                  {['yes', 'no'].map((opt) => (
+                    <button key={opt} type="button" onClick={() => setF((s) => ({ ...s, usesFactoring: opt }))}
+                      className={`px-5 py-2 rounded-lg border text-sm font-semibold ${f.usesFactoring === opt ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
+                      {opt === 'yes' ? 'Yes' : 'No'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {f.usesFactoring === 'yes' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div><label className="block text-xs text-slate-400 mb-1">Factoring Company</label><input className={field} value={f.factorName} onChange={set('factorName')} /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Contact Email</label><input className={field} value={f.factorEmail} onChange={set('factorEmail')} /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Contact Phone</label><input className={field} value={f.factorPhone} onChange={set('factorPhone')} /></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label className="block text-xs text-slate-400 mb-1">ACH Routing Number</label><input className={field} value={f.achRouting} onChange={set('achRouting')} /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">ACH Account Number</label><input className={field} value={f.achAccount} onChange={set('achAccount')} /></div>
+                </div>
+              )}
+              <p className="text-[11px] text-slate-500">Your banking details are stored with your carrier profile for settlement only.</p>
+            </div>
+          )}
+
+          {step === 6 && (
+            <div className="text-center py-10">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-6"><CheckCircle2 size={32} /></div>
+              <h2 className="text-3xl font-bold text-white mb-3">You're Ready to Roll.</h2>
+              <p className="text-slate-400 max-w-md mx-auto mb-8">Your profile is under review by our dispatch team. You'll be notified the moment you're cleared for your first load.</p>
+              {submitErr && <p className="text-red-400 text-sm mb-4">{submitErr}</p>}
+              <div className="flex items-center justify-center gap-3">
+                <button onClick={() => setStep(5)} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
+                <button onClick={submit} disabled={submitting} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors disabled:opacity-50">
+                  {submitting ? 'Saving…' : 'Go to Dashboard →'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {step >= 1 && step <= 5 && (
+        <div className="border-t border-slate-800 px-4 md:px-8 py-4">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <button onClick={back} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
+            <button onClick={next} disabled={!canProceed()} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+              {step < 5 ? 'Continue' : 'Review & Finish'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
