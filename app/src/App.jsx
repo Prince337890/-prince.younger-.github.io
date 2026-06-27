@@ -328,39 +328,43 @@ export default function App() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4">
-          {isAdmin && !viewAs && (
+          {isAdmin && !viewAs ? (
+            /* ----- ADMIN sees only dispatch tools ----- */
             <>
-              <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">ADMIN</div>
+              <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">DISPATCH</div>
+              <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
-              <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
-              <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
-              <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
-              <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
+              <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
+              <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
+              <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
-              <div className="mt-6" />
             </>
-          )}
-
-          <div className="px-4 mb-2 text-xs font-semibold text-slate-500 tracking-wider">OVERVIEW</div>
-          <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
-          <NavItem icon={<Navigation size={18} />} label="New Authority" isActive={activeTab === 'newauthority'} onClick={() => go('newauthority')} />
-          <NavItem icon={<User size={18} />} label="My Profile" isActive={activeTab === 'profile'} onClick={() => go('profile')} />
-          <NavItem icon={<Calendar size={18} />} label="Schedule & Calendar" isActive={activeTab === 'schedule'} onClick={() => go('schedule')} />
-
-          <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">LOGISTICS CORE</div>
-          <NavItem icon={<Map size={18} />} label="Lane Management" isActive={activeTab === 'lanes'} onClick={() => go('lanes')} />
-          <NavItem icon={<MapPin size={18} />} label="Safe Parking" isActive={activeTab === 'parking'} onClick={() => go('parking')} />
-          <NavItem icon={<ShieldCheck size={18} />} label="Compliance" isActive={activeTab === 'compliance'} onClick={() => go('compliance')} />
-          <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
-          <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
-
-          {(isAdmin || vipOn) && (
+          ) : (
+            /* ----- CARRIER / driver tools (and admin "view as") ----- */
             <>
-              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-amber-500/80 tracking-wider">VIP CONCIERGE</div>
-              <NavItem icon={<HeartPulse size={18} />} label="Wellness & Diet" isActive={activeTab === 'wellness'} onClick={() => go('wellness')} />
-              <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => go('pets')} />
+              <div className="px-4 mb-2 text-xs font-semibold text-slate-500 tracking-wider">OVERVIEW</div>
+              <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
+              <NavItem icon={<Navigation size={18} />} label="New Authority" isActive={activeTab === 'newauthority'} onClick={() => go('newauthority')} />
+              <NavItem icon={<User size={18} />} label="My Profile" isActive={activeTab === 'profile'} onClick={() => go('profile')} />
+              <NavItem icon={<Calendar size={18} />} label="Schedule & Calendar" isActive={activeTab === 'schedule'} onClick={() => go('schedule')} />
+
+              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">LOGISTICS CORE</div>
+              <NavItem icon={<Map size={18} />} label="Lane Management" isActive={activeTab === 'lanes'} onClick={() => go('lanes')} />
+              <NavItem icon={<MapPin size={18} />} label="Safe Parking" isActive={activeTab === 'parking'} onClick={() => go('parking')} />
+              <NavItem icon={<ShieldCheck size={18} />} label="Compliance" isActive={activeTab === 'compliance'} onClick={() => go('compliance')} />
+              <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
+              <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
+
+              {vipOn && (
+                <>
+                  <div className="px-4 mt-6 mb-2 text-xs font-semibold text-amber-500/80 tracking-wider">VIP CONCIERGE</div>
+                  <NavItem icon={<HeartPulse size={18} />} label="Wellness & Diet" isActive={activeTab === 'wellness'} onClick={() => go('wellness')} />
+                  <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => go('pets')} />
+                </>
+              )}
             </>
           )}
         </nav>
@@ -1187,30 +1191,84 @@ function LaneManagementView({ uid }) {
 
 // ---------- SAFE PARKING ----------
 function SafeParkingView() {
+  const admin = ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((auth.currentUser?.email || '').toLowerCase());
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const blank = { name: '', highway_exit: '', state: '', security_level: '', has_showers: false, notes: '' };
+  const [form, setForm] = useState(blank);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  useEffect(() => {
-    const fetchSpots = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'safe_parking'));
-        setSpots(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      } catch (err) {
-        console.error('Error loading parking spots:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSpots();
-  }, []);
+  const fetchSpots = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'safe_parking'));
+      setSpots(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error('Error loading parking spots:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { fetchSpots(); }, []);
+
+  const add = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const ref = await addDoc(collection(db, 'safe_parking'), { ...form, createdAt: serverTimestamp() });
+      setSpots((p) => [{ id: ref.id, ...form }, ...p]);
+      setForm(blank); setShowForm(false);
+    } catch (err) {
+      console.error('Error adding spot:', err);
+      alert('Could not save — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async (id) => {
+    if (!window.confirm('Remove this parking spot?')) return;
+    try {
+      await deleteDoc(doc(db, 'safe_parking', id));
+      setSpots((p) => p.filter((s) => s.id !== id));
+    } catch (err) { console.error('Error removing spot:', err); }
+  };
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h2 className="text-2xl font-bold mb-2">Trusted Safe Parking</h2>
-      <p className="text-slate-400 mb-6">Pre-verified, high-security stops for your route.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Trusted Safe Parking</h2>
+          <p className="text-slate-400">Pre-verified, high-security stops for your route.</p>
+        </div>
+        {admin && (
+          <button onClick={() => setShowForm((s) => !s)} className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg flex items-center gap-2 shrink-0"><Plus size={18} /> Add Spot</button>
+        )}
+      </div>
+
+      {admin && showForm && (
+        <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">New Parking Spot</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="TA Travel Center" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Highway / Exit</label><input className={field} value={form.highway_exit} onChange={set('highway_exit')} placeholder="I-75 Exit 201" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">State</label><input className={field} value={form.state} onChange={set('state')} placeholder="GA" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Security Level</label><input className={field} value={form.security_level} onChange={set('security_level')} placeholder="High / Gated" /></div>
+            <div className="sm:col-span-2"><label className="block text-xs text-slate-400 mb-1">Notes</label><input className={field} value={form.notes} onChange={set('notes')} placeholder="Lighting, fuel, restaurant, etc." /></div>
+            <label className="flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" className="w-4 h-4 accent-amber-500" checked={form.has_showers} onChange={(e) => setForm((f) => ({ ...f, has_showers: e.target.checked }))} /> Showers available</label>
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save Spot'}</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+          </div>
+        </form>
+      )}
 
       {loading && <div className="text-slate-400">Loading parking spots…</div>}
-      {!loading && spots.length === 0 && <div className="text-slate-400">No parking spots available yet.</div>}
+      {!loading && spots.length === 0 && <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">No parking spots yet.{admin ? ' Tap "Add Spot" to enter your trusted stops.' : ''}</div>}
 
       {spots.map((spot) => (
         <div key={spot.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -1219,13 +1277,18 @@ function SafeParkingView() {
             <div>
               <h3 className="text-xl font-bold text-white">{spot.name}</h3>
               <p className="text-slate-400 text-sm">{spot.highway_exit} • {spot.state}</p>
+              {spot.notes && <p className="text-slate-500 text-xs mt-1">{spot.notes}</p>}
               <div className="flex flex-wrap gap-2 mt-2">
                 {spot.security_level && <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">{spot.security_level} Security</span>}
                 {spot.has_showers && <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">Showers</span>}
               </div>
             </div>
           </div>
-          <button className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">Reserve Spot</button>
+          {admin ? (
+            <button onClick={() => remove(spot.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-2 rounded-lg shrink-0">Remove</button>
+          ) : (
+            <button className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">Reserve Spot</button>
+          )}
         </div>
       ))}
     </div>
@@ -1235,56 +1298,107 @@ function SafeParkingView() {
 // ---------- COMPLIANCE ----------
 function ComplianceView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
+  const admin = ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((auth.currentUser?.email || '').toLowerCase());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const blank = { cdl_expiration_date: '', medical_card_expiration: '', insurance_status: '', insurance_expiration: '' };
+  const [form, setForm] = useState(blank);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  useEffect(() => {
-    const fetchCompliance = async () => {
-      try {
-        const snap = await getDoc(doc(db, 'compliance', targetUid));
-        if (snap.exists()) setData(snap.data());
-      } catch (err) {
-        console.error('Error loading compliance:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCompliance();
-  }, []);
+  const fetchCompliance = async () => {
+    try {
+      const snap = await getDoc(doc(db, 'compliance', targetUid));
+      if (snap.exists()) setData(snap.data());
+      else setData(null);
+    } catch (err) {
+      console.error('Error loading compliance:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { fetchCompliance(); }, []);
 
-  const formatDate = (str) =>
-    str ? new Date(str + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
-  const isValid = (str) => str && new Date(str + 'T00:00:00') > new Date();
+  const openEdit = () => { setForm({ ...blank, ...(data || {}) }); setEditing(true); };
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await setDoc(doc(db, 'compliance', targetUid), { ...form, updatedAt: serverTimestamp() }, { merge: true });
+      setData((d) => ({ ...(d || {}), ...form }));
+      setEditing(false);
+    } catch (err) {
+      console.error('Error saving compliance:', err);
+      alert('Could not save — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatDate = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+  const status = (str) => {
+    if (!str) return { label: 'Not on file', cls: 'text-slate-500' };
+    const days = (new Date(str + 'T00:00:00') - new Date()) / 86400000;
+    if (days < 0) return { label: 'Expired', cls: 'text-red-400' };
+    if (days <= 30) return { label: `Expiring in ${Math.ceil(days)} days`, cls: 'text-amber-400' };
+    return { label: 'Valid', cls: 'text-emerald-400' };
+  };
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
 
   if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading compliance data…</div>;
-  if (!data) return <div className="max-w-4xl mx-auto text-slate-400">No compliance record found yet.</div>;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h2 className="text-2xl font-bold mb-2">Compliance Dashboard</h2>
-      <p className="text-slate-400 mb-6">Stay ahead of expiration dates and keep your status green.</p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div className="text-slate-400 mb-2">CDL Expiration</div>
-          <div className="text-2xl font-bold text-white">{formatDate(data.cdl_expiration_date)}</div>
-          <div className={`text-sm mt-2 ${isValid(data.cdl_expiration_date) ? 'text-emerald-400' : 'text-red-400'}`}>
-            {isValid(data.cdl_expiration_date) ? 'Valid' : 'Expired'}
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Compliance Dashboard</h2>
+          <p className="text-slate-400">Stay ahead of expiration dates and keep your status green.</p>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div className="text-slate-400 mb-2">Medical Card</div>
-          <div className="text-2xl font-bold text-white">{formatDate(data.medical_card_expiration)}</div>
-          <div className={`text-sm mt-2 ${isValid(data.medical_card_expiration) ? 'text-emerald-400' : 'text-red-400'}`}>
-            {isValid(data.medical_card_expiration) ? 'Valid' : 'Expired'}
-          </div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div className="text-slate-400 mb-2">Insurance Status</div>
-          <div className="text-2xl font-bold text-white">{data.insurance_status}</div>
-          <div className="text-emerald-400 text-sm mt-2">On file</div>
-        </div>
+        {admin && !editing && (
+          <button onClick={openEdit} className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">{data ? 'Edit Dates' : 'Add Record'}</button>
+        )}
       </div>
+
+      {editing ? (
+        <form onSubmit={save} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">Edit Compliance Record</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">CDL Expiration</label><input className={field} type="date" value={form.cdl_expiration_date} onChange={set('cdl_expiration_date')} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Medical Card Expiration</label><input className={field} type="date" value={form.medical_card_expiration} onChange={set('medical_card_expiration')} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Insurance Status</label><input className={field} value={form.insurance_status} onChange={set('insurance_status')} placeholder="Active / Lapsed" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Insurance Expiration</label><input className={field} type="date" value={form.insurance_expiration} onChange={set('insurance_expiration')} /></div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
+            <button type="button" onClick={() => setEditing(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+          </div>
+        </form>
+      ) : !data ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">
+          No compliance record yet.{admin ? ' Tap "Add Record" to enter CDL, medical, and insurance dates.' : ' Your dispatcher will add this shortly.'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="text-slate-400 mb-2">CDL Expiration</div>
+            <div className="text-2xl font-bold text-white">{formatDate(data.cdl_expiration_date)}</div>
+            <div className={`text-sm mt-2 ${status(data.cdl_expiration_date).cls}`}>{status(data.cdl_expiration_date).label}</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="text-slate-400 mb-2">Medical Card</div>
+            <div className="text-2xl font-bold text-white">{formatDate(data.medical_card_expiration)}</div>
+            <div className={`text-sm mt-2 ${status(data.medical_card_expiration).cls}`}>{status(data.medical_card_expiration).label}</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="text-slate-400 mb-2">Insurance</div>
+            <div className="text-2xl font-bold text-white">{data.insurance_status || '—'}</div>
+            <div className={`text-sm mt-2 ${data.insurance_expiration ? status(data.insurance_expiration).cls : 'text-emerald-400'}`}>
+              {data.insurance_expiration ? `Renews ${formatDate(data.insurance_expiration)} · ${status(data.insurance_expiration).label}` : 'On file'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1785,14 +1899,12 @@ function AllLoadsView() {
     return null;
   };
 
+  // Offers are created from the Rate Calculator; here admins can only cancel a pending one.
   const OfferButton = ({ l }) => (
     l.offerStatus === 'pending' ? (
       <button onClick={() => setOffer(l.id, 'cancelled', { status: 'Dispatched' })} disabled={updatingId === l.id}
         className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">Cancel Offer</button>
-    ) : (
-      <button onClick={() => setOffer(l.id, 'pending', { status: 'Offered', offerSentAt: serverTimestamp() })} disabled={updatingId === l.id}
-        className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50" title="Notify the carrier — they accept or decline in their portal">📣 Send Offer</button>
-    )
+    ) : null
   );
 
   const openEdit = (l) => {
@@ -2470,7 +2582,7 @@ function NegotiationCalcView() {
     originCity: '', originZip: '', destCity: '', destZip: '',
     pickupAt: '', deliveryAt: '',
     brokerOffer: '', finalOffer: '', loadedMiles: '', deadheadMiles: '', tolls: '',
-    mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '',
+    mpg: '6.5', fuelPrice: '3.80', weight: '', maxCapacity: '', minRpm: '', marketRpm: '',
     driveAvail: '', commodity: 'General Dry Freight',
   };
   const STORAGE_KEY = 'fm_ratecalc_v1';
@@ -2585,7 +2697,7 @@ function NegotiationCalcView() {
 
   const [assigning, setAssigning] = useState(false);
   const [assignMsg, setAssignMsg] = useState('');
-  const assignLoad = async () => {
+  const assignLoad = async (asOffer = false) => {
     setAssignMsg('');
     if (!selectedCarrierObj) { setAssignMsg('Pick a saved carrier first.'); return; }
     if (!selectedCarrierObj.linkedDriverUid) { setAssignMsg('This carrier has no linked driver login — set one in the Carriers tab.'); return; }
@@ -2621,10 +2733,13 @@ function NegotiationCalcView() {
         pickup_time: v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '',
         delivery_time: v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '',
         delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
-        status: 'Dispatched',
+        status: asOffer ? 'Offered' : 'Dispatched',
+        ...(asOffer ? { offerStatus: 'pending', offerSentAt: serverTimestamp() } : {}),
         createdAt: serverTimestamp(),
       });
-      setAssignMsg(`Load ${loadId} assigned to ${selectedCarrierObj.name} ✓`);
+      setAssignMsg(asOffer
+        ? `Offer ${loadId} sent to ${selectedCarrierObj.name} — awaiting their accept/decline ✓`
+        : `Load ${loadId} assigned to ${selectedCarrierObj.name} ✓`);
     } catch (e) {
       console.error('Error assigning load:', e);
       setAssignMsg('Error assigning — check the console.');
@@ -2648,6 +2763,7 @@ function NegotiationCalcView() {
   const mpg = n(v.mpg);
   const fuelPrice = n(v.fuelPrice);
   const minRpm = n(v.minRpm);
+  const marketRpm = n(v.marketRpm);
   const maxCap = n(v.maxCapacity);
   const weight = n(v.weight);
   const totalMiles = n(v.loadedMiles) + n(v.deadheadMiles);
@@ -2657,6 +2773,10 @@ function NegotiationCalcView() {
   const targetOffer = minRpm * totalMiles + tolls + surcharge;
   const gap = targetOffer - brokerOffer;
   const weightFactor = maxCap > 0 ? (weight / maxCap) * 100 : 0;
+  // Market comparison (manual rate now; live data later).
+  const marketTarget = marketRpm > 0 ? marketRpm * totalMiles + tolls + surcharge : 0;
+  const vsMarket = marketRpm > 0 ? trueRpm - marketRpm : 0;
+  const marketGap = marketTarget > 0 ? marketTarget - brokerOffer : 0;
 
   const ready = brokerOffer > 0 && totalMiles > 0 && minRpm > 0;
 
@@ -2666,11 +2786,14 @@ function NegotiationCalcView() {
     else if (trueRpm < minRpm && gap > 0.15 * brokerOffer) status = 'red';
     else status = 'yellow';
   }
+  // Market downgrade: clears your floor but sits below market → push for more.
+  let belowMarket = false;
+  if (status === 'green' && marketRpm > 0 && trueRpm < marketRpm) { status = 'yellow'; belowMarket = true; }
 
   const money = (x) => '$' + (x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const rpm = (x) => '$' + (x || 0).toFixed(2);
 
-  const banner = {
+  let banner = {
     idle: { cls: 'bg-slate-800 border-slate-700 text-slate-300', title: 'Enter load details to analyze', sub: 'Fill in the broker offer, miles, and carrier minimum RPM to see the math.' },
     green: { cls: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300', title: '🟢 Profitable Load — Proceed', sub: 'The numbers work. Book it — or push for a little extra.' },
     yellow: {
@@ -2680,6 +2803,9 @@ function NegotiationCalcView() {
     },
     red: { cls: 'bg-red-500/15 border-red-500/40 text-red-300', title: '🔴 Unprofitable — Walk Away', sub: `This offer is well below your floor — you'd need ${money(gap)} more. Politely pass.` },
   }[status];
+  if (belowMarket) {
+    banner = { cls: 'bg-amber-500/15 border-amber-500/40 text-amber-300', title: `🟡 Clears your floor — but BELOW market`, sub: `Market is ${rpm(marketRpm)}/mi; you're at ${rpm(trueRpm)}. Push toward ${money(marketTarget)}.` };
+  }
 
   const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
 
@@ -2722,6 +2848,24 @@ function NegotiationCalcView() {
             </select>
             {carriers.length === 0 && <p className="text-[11px] text-amber-400 mt-1">No saved carriers yet — add them in the Carriers tab.</p>}
           </div>
+
+          {selectedCarrierObj && (
+            <div className="bg-slate-800/40 border border-slate-700 rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-white truncate">{selectedCarrierObj.name}{selectedCarrierObj.mcNumber ? <span className="text-slate-500 font-normal"> · {selectedCarrierObj.mcNumber}</span> : null}</div>
+                {selectedCarrierObj.availability && <span className={`text-[10px] px-2 py-0.5 rounded shrink-0 ${selectedCarrierObj.availability === 'Available' ? 'bg-emerald-500/15 text-emerald-400' : selectedCarrierObj.availability === 'On Break' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}`}>{selectedCarrierObj.availability}</span>}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-400">
+                <span>{selectedCarrierObj.trailerType || '—'}</span>
+                <span>· {selectedCarrierObj.maxCapacity ? Number(selectedCarrierObj.maxCapacity).toLocaleString() + ' lbs' : '—'}</span>
+                <span>· {selectedCarrierObj.mpg || '—'} mpg</span>
+                <span>· min ${Number(selectedCarrierObj.minRpm || 0).toFixed(2)}/mi</span>
+                <span>· {selectedCarrierObj.currentDriveHours ?? '—'} drive hrs</span>
+                {selectedCarrierObj.vipConcierge && <span className="text-amber-400">· VIP</span>}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Origin City, State</label><input ref={originRef} className={field} value={v.originCity} onChange={set('originCity')} placeholder="Start typing a city…" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Origin Zip Code</label><input className={field} inputMode="numeric" value={v.originZip} onChange={set('originZip')} onBlur={() => fillCityFromZip(v.originZip, 'originCity', v.originCity)} placeholder="30301" /></div>
@@ -2756,6 +2900,7 @@ function NegotiationCalcView() {
             <div><label className="block text-xs text-slate-400 mb-1">Delivery Date &amp; Time</label><input className={field} type="datetime-local" value={v.deliveryAt} onChange={set('deliveryAt')} /></div>
             <div><label className="block text-xs text-amber-300 font-semibold mb-1">Broker Offer ($)</label><input className={`${field} border-amber-500/60 bg-amber-500/5 text-base font-semibold`} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={v.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Current Market Rate ($/mi)</label><input className={field} type="number" inputMode="decimal" value={v.marketRpm} onChange={set('marketRpm')} placeholder="2.45" /><p className="text-[10px] text-slate-500 mt-1">Manual now — live market data later.</p></div>
             <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Deadhead Miles</label><input className={field} type="number" inputMode="decimal" value={v.deadheadMiles} onChange={set('deadheadMiles')} placeholder="50" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Estimated Tolls ($)</label><input className={field} type="number" inputMode="decimal" value={v.tolls} onChange={set('tolls')} placeholder="40" /></div>
@@ -2795,6 +2940,11 @@ function NegotiationCalcView() {
             <Metric label="The Gap (Counter By)" value={money(gap)} accent="text-amber-400"
               guide="Ask the broker for exactly this much more to make the load viable." />
           )}
+          {marketRpm > 0 && (
+            <Metric label="vs. Market" value={(vsMarket >= 0 ? '+' : '') + rpm(vsMarket) + '/mi'}
+              accent={vsMarket >= 0 ? 'text-emerald-400' : 'text-amber-400'}
+              guide={`Market is ${rpm(marketRpm)}/mi (${money(marketTarget)} for this trip). ${vsMarket >= 0 ? 'You’re at or above market — strong.' : `You’re below market — push toward ${money(marketTarget)}.`}`} />
+          )}
           <Metric label="Weight Factor" value={weightFactor.toFixed(0) + '%'}
             accent={weightFactor >= 85 ? 'text-amber-400' : 'text-white'}
             guide="Over 85% means heavy freight that burns more fuel. Use it to justify asking for a higher rate." />
@@ -2809,9 +2959,13 @@ function NegotiationCalcView() {
               <input className={`${field} text-base font-semibold`} type="number" inputMode="decimal" value={v.finalOffer} onChange={set('finalOffer')} placeholder={v.brokerOffer ? `${v.brokerOffer} (broker offer)` : 'e.g. 2200'} />
               <p className="text-[10px] text-slate-500 mt-1">What the load actually pays the carrier. Leave blank to use the broker offer.</p>
             </div>
-            <button type="button" onClick={assignLoad} disabled={assigning || !selectedCarrierObj}
+            <button type="button" onClick={() => assignLoad(true)} disabled={assigning || !selectedCarrierObj}
               className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50">
-              {assigning ? 'Assigning…' : '➕ Assign This Load to Carrier'}
+              {assigning ? 'Working…' : '📣 Send as Offer (carrier accepts/declines)'}
+            </button>
+            <button type="button" onClick={() => assignLoad(false)} disabled={assigning || !selectedCarrierObj}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+              ➕ Assign Directly (no offer)
             </button>
             <p className="text-[11px] text-slate-500">
               {selectedCarrierObj ? `Creates a dispatched load for ${selectedCarrierObj.name} and sends it to their portal.` : 'Pick a saved carrier above to enable.'}
@@ -3018,7 +3172,7 @@ function CarriersView() {
   const blank = {
     name: '', mcNumber: '', driverName: '', phone: '', homeBase: '', trailerType: '',
     mpg: '', maxCapacity: '', minRpm: '', preferredLanes: '', noGo: '', multiStop: '',
-    linkedDriverUid: '', currentDriveHours: '', feePct: '10', vipConcierge: false,
+    linkedDriverUid: '', currentDriveHours: '', feePct: '10', vipConcierge: false, availability: 'Available',
   };
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -3121,6 +3275,7 @@ function CarriersView() {
         currentDriveHours: Number(form.currentDriveHours) || 0,
         feePct: Number(form.feePct) || DEFAULT_FEE_PCT,
         vipConcierge: !!form.vipConcierge,
+        availability: form.availability || 'Available',
         verification: verify,
         verified: allVerified,
         createdAt: serverTimestamp(),
@@ -3167,6 +3322,13 @@ function CarriersView() {
       await updateDoc(doc(db, 'carriers', id), { feePct: v });
       setList((p) => p.map((c) => (c.id === id ? { ...c, feePct: v } : c)));
     } catch (e) { console.error('Error updating fee:', e); }
+  };
+
+  const updateAvailability = async (id, value) => {
+    try {
+      await updateDoc(doc(db, 'carriers', id), { availability: value });
+      setList((p) => p.map((c) => (c.id === id ? { ...c, availability: value } : c)));
+    } catch (e) { console.error('Error updating availability:', e); }
   };
 
   // Toggle VIP for a carrier AND mirror it onto their linked driver login.
@@ -3300,6 +3462,13 @@ function CarriersView() {
                     className={`ml-2 text-[11px] px-2 py-1 rounded border transition-colors ${c.vipConcierge ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
                     VIP {c.vipConcierge ? 'On' : 'Off'}
                   </button>
+                  <span className="text-[11px] text-slate-400 ml-2">Status:</span>
+                  <select className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200"
+                    value={c.availability || 'Available'} onChange={(e) => updateAvailability(c.id, e.target.value)}>
+                    <option>Available</option>
+                    <option>On Break</option>
+                    <option>Off Duty</option>
+                  </select>
                 </div>
               </div>
             ))}
