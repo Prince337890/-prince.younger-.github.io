@@ -568,17 +568,21 @@
         <!-- Top bar: logo + portal -->
         <div class="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
             <a href="#main" class="flex items-center gap-2.5">
-                <svg viewBox="0 0 48 48" class="h-9 w-9" aria-hidden="true">
-                    <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
-                    <circle cx="16" cy="24" r="3" fill="#FF5722"/>
-                    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
-                        <line x1="16" y1="24" x2="16" y2="13"/>
-                        <line x1="16" y1="24" x2="25.5" y2="29.5"/>
-                        <line x1="16" y1="24" x2="6.5" y2="29.5"/>
+                <svg viewBox="0 0 48 48" class="logo-mark h-9 w-9 overflow-visible" aria-hidden="true">
+                    <!-- spinning wheel hub -->
+                    <g class="logo-hub">
+                        <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+                        <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                        <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
+                            <line x1="16" y1="24" x2="16" y2="13"/>
+                            <line x1="16" y1="24" x2="25.5" y2="29.5"/>
+                            <line x1="16" y1="24" x2="6.5" y2="29.5"/>
+                        </g>
                     </g>
+                    <!-- forward-motion chevrons sweep outward -->
                     <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="31,16 38,24 31,32"/>
-                        <polyline points="37,16 44,24 37,32"/>
+                        <polyline class="chev c1" points="31,16 38,24 31,32"/>
+                        <polyline class="chev c2" points="37,16 44,24 37,32"/>
                     </g>
                 </svg>
                 <span class="font-display text-sm font-extrabold uppercase tracking-[0.18em] text-white sm:text-base">
@@ -591,7 +595,7 @@
                     <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/>
                     <rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
                 </svg>
-                Driver&nbsp;Portal
+                Dispatcher&nbsp;Portal
             </a>
         </div>
 
@@ -644,7 +648,7 @@
                 <div class="mt-12 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-slate-400">
                     <span class="inline-flex items-center gap-2">
                         <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                        24/7 Dispatch
+                        Real-Time Load Tracking
                     </span>
                     <span class="inline-flex items-center gap-2">
                         <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
