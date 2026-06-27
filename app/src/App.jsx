@@ -11,7 +11,8 @@ import {
 } from 'firebase/firestore';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword
+  createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -165,6 +166,9 @@ const ADMIN_EMAILS = [
 // Phone the "Call Dispatcher" button dials from a pending load offer.
 const DISPATCHER_PHONE = '';
 
+// Default dispatch fee % when a load/carrier doesn't specify one.
+const DEFAULT_FEE_PCT = 10;
+
 // "Guided Mode" (training wheels) — when on, the UI nudges new dispatchers
 // through workflows with checklists and contextual hints. Read app-wide.
 const GuidedModeContext = React.createContext(false);
@@ -192,6 +196,7 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [viewAs, setViewAs] = useState(null);
   const [carrierOpts, setCarrierOpts] = useState([]);
+  const [vipOn, setVipOn] = useState(true); // driver sees VIP Concierge unless their carrier turns it off
   const [guidedMode, setGuidedMode] = useState(() => { try { return localStorage.getItem('fm_guided') === '1'; } catch (_) { return false; } });
   const toggleGuided = () => setGuidedMode((g) => { const nv = !g; try { localStorage.setItem('fm_guided', nv ? '1' : '0'); } catch (_) {} return nv; });
 
@@ -227,6 +232,7 @@ export default function App() {
         );
         setNeedsPwChange(!admin && data && data.mustChangePassword === true);
         setNeedsOnboarding(!admin && !(data && data.onboardingComplete === true));
+        setVipOn(admin || !data || data.vipConcierge !== false); // off only when explicitly disabled
         setUser(u);
         setAccessDenied(false);
       } catch (e) {
@@ -259,7 +265,7 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} />;
+      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} />;
       case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
       case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
@@ -350,9 +356,13 @@ export default function App() {
           <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
           <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
 
-          <div className="px-4 mt-6 mb-2 text-xs font-semibold text-amber-500/80 tracking-wider">VIP CONCIERGE</div>
-          <NavItem icon={<HeartPulse size={18} />} label="Wellness & Diet" isActive={activeTab === 'wellness'} onClick={() => go('wellness')} />
-          <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => go('pets')} />
+          {(isAdmin || vipOn) && (
+            <>
+              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-amber-500/80 tracking-wider">VIP CONCIERGE</div>
+              <NavItem icon={<HeartPulse size={18} />} label="Wellness & Diet" isActive={activeTab === 'wellness'} onClick={() => go('wellness')} />
+              <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => go('pets')} />
+            </>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -461,13 +471,17 @@ function AdminWeeklyGross() {
         const snap = await getDocs(collection(db, 'loads'));
         const rows = snap.docs.map((d) => d.data());
         const sow = startOfWeek();
-        let gross = 0, count = 0;
+        let gross = 0, fee = 0, count = 0;
         rows.forEach((l) => {
           const delivered = l.status === 'Delivered' || l.status === 'Cleared';
           const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
-          if (delivered && inWeek) { gross += Number(l.gross_pay) || 0; count += 1; }
+          if (delivered && inWeek) {
+            const g = Number(l.gross_pay) || 0;
+            gross += g;
+            fee += g * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100);
+            count += 1;
+          }
         });
-        const fee = gross * 0.10;
         setStats({ gross, fee, net: gross - fee, count });
       } catch (e) {
         console.error('Error loading admin weekly gross:', e);
@@ -502,7 +516,7 @@ function AdminWeeklyGross() {
           <div className="text-xl font-bold text-white">{money(stats.gross)}</div>
         </div>
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-          <div className="text-xs text-slate-500 mb-1">Your Dispatch Fee (10%)</div>
+          <div className="text-xs text-slate-500 mb-1">Your Dispatch Fee</div>
           <div className="text-xl font-bold text-amber-400">{money(stats.fee)}</div>
         </div>
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
@@ -515,7 +529,7 @@ function AdminWeeklyGross() {
 }
 
 // ---------- DASHBOARD ----------
-function DashboardView({ uid, displayName, isAdmin }) {
+function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
   const u = auth.currentUser;
   const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
@@ -632,6 +646,7 @@ function DashboardView({ uid, displayName, isAdmin }) {
             )}
           </div>
 
+          {vipOn && (
           <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
             <h3 className="text-lg font-semibold flex items-center gap-2 mb-6"><HeartPulse className="text-amber-500" size={20} /> VIP Concierge Updates</h3>
             <div className="space-y-3">
@@ -651,6 +666,7 @@ function DashboardView({ uid, displayName, isAdmin }) {
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
     </div>
@@ -1379,10 +1395,10 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
   }, []);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-  const FEE_RATE = 0.10;
+  const feeRateOf = (l) => (Number(l.feePct) || DEFAULT_FEE_PCT) / 100;
   const settled = loads.filter((l) => l.status === 'Delivered' || l.status === 'Cleared');
   const totalGross = settled.reduce((s, l) => s + (Number(l.gross_pay) || 0), 0);
-  const totalFee = totalGross * FEE_RATE;
+  const totalFee = settled.reduce((s, l) => s + (Number(l.gross_pay) || 0) * feeRateOf(l), 0);
   const totalNet = totalGross - totalFee;
   const fmtDate = (str) => str ? new Date(str + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
   const statusStyle = (s) => {
@@ -1404,11 +1420,11 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
           <div className="text-2xl font-bold text-white">{money(totalGross)}</div>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="text-xs text-slate-500 mb-1">Dispatch Fees (10%)</div>
+          <div className="text-xs text-slate-500 mb-1">Dispatch Fees</div>
           <div className="text-2xl font-bold text-amber-400">{money(totalFee)}</div>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="text-xs text-slate-500 mb-1">Your Net Payout (90%)</div>
+          <div className="text-xs text-slate-500 mb-1">Your Net Payout</div>
           <div className="text-2xl font-bold text-emerald-400">{money(totalNet)}</div>
         </div>
       </div>
@@ -1448,7 +1464,7 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
                 <th className="pb-3 font-medium">Load</th>
                 <th className="pb-3 font-medium">Delivery</th>
                 <th className="pb-3 font-medium">Gross</th>
-                <th className="pb-3 font-medium">Fee (10%)</th>
+                <th className="pb-3 font-medium">Fee</th>
                 <th className="pb-3 font-medium">Your Net</th>
                 <th className="pb-3 font-medium">Status</th>
               </tr>
@@ -1456,7 +1472,7 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
             <tbody className="text-sm">
               {loads.map((l) => {
                 const gross = Number(l.gross_pay) || 0;
-                const fee = gross * FEE_RATE;
+                const fee = gross * feeRateOf(l);
                 return (
                   <tr key={l.id} className="border-b border-slate-800/50">
                     <td className="py-4 font-mono text-amber-500">{l.loadId || '—'}</td>
@@ -1990,11 +2006,13 @@ function LoginView({ accessDenied }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
     setError('');
+    setNotice('');
     setBusy(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -2002,6 +2020,18 @@ function LoginView({ accessDenied }) {
       setError(err.message.replace('Firebase: ', ''));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setError('');
+    setNotice('');
+    if (!email.trim()) { setError('Enter your email above first, then tap "Forgot password".'); return; }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setNotice('Password reset link sent — check your email (and spam folder).');
+    } catch (err) {
+      setError(err.message.replace('Firebase: ', ''));
     }
   };
 
@@ -2028,9 +2058,13 @@ function LoginView({ accessDenied }) {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
           {error && <p className="text-red-400 text-sm">{error}</p>}
+          {notice && <p className="text-emerald-400 text-sm">{notice}</p>}
           <button type="submit" disabled={busy}
             className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
             {busy ? 'Please wait…' : 'Sign In'}
+          </button>
+          <button type="button" onClick={handleReset} className="w-full text-center text-xs text-slate-400 hover:text-amber-400 transition-colors">
+            Forgot password?
           </button>
         </form>
 
@@ -2550,6 +2584,7 @@ function NegotiationCalcView() {
         gross_pay: Number(v.finalOffer) || Number(v.brokerOffer) || 0,
         loadedMiles: Number(v.loadedMiles) || 0,
         deadheadMiles: Number(v.deadheadMiles) || 0,
+        feePct: Number(selectedCarrierObj.feePct) || DEFAULT_FEE_PCT,
         pickup_time: v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '',
         delivery_time: v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '',
         delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
@@ -2950,7 +2985,7 @@ function CarriersView() {
   const blank = {
     name: '', mcNumber: '', driverName: '', phone: '', homeBase: '', trailerType: '',
     mpg: '', maxCapacity: '', minRpm: '', preferredLanes: '', noGo: '', multiStop: '',
-    linkedDriverUid: '', currentDriveHours: '',
+    linkedDriverUid: '', currentDriveHours: '', feePct: '10', vipConcierge: false,
   };
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -3051,10 +3086,16 @@ function CarriersView() {
         multiStop: form.multiStop.trim(),
         linkedDriverUid: form.linkedDriverUid,
         currentDriveHours: Number(form.currentDriveHours) || 0,
+        feePct: Number(form.feePct) || DEFAULT_FEE_PCT,
+        vipConcierge: !!form.vipConcierge,
         verification: verify,
         verified: allVerified,
         createdAt: serverTimestamp(),
       });
+      // Mirror the VIP flag onto the linked driver's user doc so their portal reflects it.
+      if (form.linkedDriverUid) {
+        try { await setDoc(doc(db, 'users', form.linkedDriverUid), { vipConcierge: !!form.vipConcierge }, { merge: true }); } catch (_) {}
+      }
       setForm(blank);
       setVerify({ authority: false, w9: false, coi: false, noa: false });
       setPacket([]);
@@ -3085,6 +3126,26 @@ function CarriersView() {
     } catch (e) {
       console.error('Error updating hours:', e);
     }
+  };
+
+  const updateFee = async (id, pct) => {
+    const v = Number(pct) || DEFAULT_FEE_PCT;
+    try {
+      await updateDoc(doc(db, 'carriers', id), { feePct: v });
+      setList((p) => p.map((c) => (c.id === id ? { ...c, feePct: v } : c)));
+    } catch (e) { console.error('Error updating fee:', e); }
+  };
+
+  // Toggle VIP for a carrier AND mirror it onto their linked driver login.
+  const toggleVip = async (c) => {
+    const next = !c.vipConcierge;
+    try {
+      await updateDoc(doc(db, 'carriers', c.id), { vipConcierge: next });
+      if (c.linkedDriverUid) {
+        try { await setDoc(doc(db, 'users', c.linkedDriverUid), { vipConcierge: next }, { merge: true }); } catch (_) {}
+      }
+      setList((p) => p.map((x) => (x.id === c.id ? { ...x, vipConcierge: next } : x)));
+    } catch (e) { console.error('Error toggling VIP:', e); }
   };
 
   const driverEmail = (uid) => {
@@ -3133,6 +3194,14 @@ function CarriersView() {
           <div><label className="block text-xs text-slate-400 mb-1">Current Drive Hours Available</label><input className={field} type="number" inputMode="decimal" value={form.currentDriveHours} onChange={set('currentDriveHours')} placeholder="8" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Preferred Lanes / Regions</label><input className={field} value={form.preferredLanes} onChange={set('preferredLanes')} /></div>
           <div><label className="block text-xs text-slate-400 mb-1">No-Go States / Cities</label><input className={field} value={form.noGo} onChange={set('noGo')} /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Dispatch Fee (%)</label><input className={field} type="number" inputMode="decimal" value={form.feePct} onChange={set('feePct')} placeholder="10" /></div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => setForm((f) => ({ ...f, vipConcierge: !f.vipConcierge }))}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${form.vipConcierge ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+              <span className="flex items-center gap-1.5"><HeartPulse size={15} /> VIP Concierge</span>
+              <span className={`w-8 h-4 rounded-full relative transition-colors ${form.vipConcierge ? 'bg-amber-500' : 'bg-slate-600'}`}><span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${form.vipConcierge ? 'left-4' : 'left-0.5'}`} /></span>
+            </button>
+          </div>
           <div className="sm:col-span-2">
             <label className="block text-xs text-slate-400 mb-1">Linked Driver Login (for assigning loads)</label>
             <select className={field} value={form.linkedDriverUid} onChange={set('linkedDriverUid')}>
@@ -3141,6 +3210,7 @@ function CarriersView() {
             </select>
           </div>
         </div>
+        <GuidedHint>VIP Concierge is a premium upsell: turn it on for carriers you've agreed to give white-glove service, and bump their <strong>Dispatch Fee</strong> 1–2% (e.g. 8% → 10%). That upcharge typically covers your monthly subscription — the platform pays for itself.</GuidedHint>
 
         {guided && (
           <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl p-4 space-y-3">
@@ -3181,16 +3251,22 @@ function CarriersView() {
                     <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min · {c.trailerType || '—'}</div>
                     <div className="text-xs text-slate-500 mt-0.5">Driver: {c.linkedDriverUid ? (driverEmail(c.linkedDriverUid) || 'linked') : <span className="text-amber-400">not linked</span>}</div>
                   </div>
-                  <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg shrink-0">Remove</button>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Remove</button>
+                    {c.vipConcierge && <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5"><HeartPulse size={10} /> VIP</span>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-[11px] text-slate-400">Current drive hrs:</span>
-                  <input
-                    className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
-                    type="number" defaultValue={c.currentDriveHours ?? ''}
-                    onBlur={(e) => updateHours(c.id, e.target.value)}
-                  />
-                  <span className="text-[10px] text-slate-600">saves on blur — keep fresh for accurate HOS</span>
+                  <span className="text-[11px] text-slate-400">Drive hrs:</span>
+                  <input className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
+                    type="number" defaultValue={c.currentDriveHours ?? ''} onBlur={(e) => updateHours(c.id, e.target.value)} />
+                  <span className="text-[11px] text-slate-400 ml-2">Fee %:</span>
+                  <input className="w-14 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
+                    type="number" defaultValue={c.feePct ?? DEFAULT_FEE_PCT} onBlur={(e) => updateFee(c.id, e.target.value)} />
+                  <button type="button" onClick={() => toggleVip(c)}
+                    className={`ml-2 text-[11px] px-2 py-1 rounded border transition-colors ${c.vipConcierge ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                    VIP {c.vipConcierge ? 'On' : 'Off'}
+                  </button>
                 </div>
               </div>
             ))}
