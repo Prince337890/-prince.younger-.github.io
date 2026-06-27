@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
-  MapPin, User, Calendar, Wrench, Plus
+  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -164,6 +164,23 @@ const ADMIN_EMAILS = [
 
 // Phone the "Call Dispatcher" button dials from a pending load offer.
 const DISPATCHER_PHONE = '';
+
+// "Guided Mode" (training wheels) — when on, the UI nudges new dispatchers
+// through workflows with checklists and contextual hints. Read app-wide.
+const GuidedModeContext = React.createContext(false);
+const useGuided = () => React.useContext(GuidedModeContext);
+
+// Contextual tip that only appears when Guided Mode is on.
+function GuidedHint({ children }) {
+  const guided = useGuided();
+  if (!guided) return null;
+  return (
+    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs rounded-lg px-3 py-2 flex gap-2 items-start">
+      <span className="shrink-0">💡</span>
+      <div>{children}</div>
+    </div>
+  );
+}
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [paymentMethod, setPaymentMethod] = useState('factoring');
@@ -175,6 +192,8 @@ export default function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [viewAs, setViewAs] = useState(null);
   const [carrierOpts, setCarrierOpts] = useState([]);
+  const [guidedMode, setGuidedMode] = useState(() => { try { return localStorage.getItem('fm_guided') === '1'; } catch (_) { return false; } });
+  const toggleGuided = () => setGuidedMode((g) => { const nv = !g; try { localStorage.setItem('fm_guided', nv ? '1' : '0'); } catch (_) {} return nv; });
 
   const isAdminEmail = (email) =>
     ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((email || '').toLowerCase());
@@ -258,6 +277,7 @@ export default function App() {
       case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
+      case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
       default: return <DashboardView />;
     }
   };
@@ -276,6 +296,7 @@ export default function App() {
   }
 
   return (
+    <GuidedModeContext.Provider value={isAdmin && guidedMode}>
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
@@ -311,6 +332,7 @@ export default function App() {
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
               <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
+              <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
               <div className="mt-6" />
             </>
           )}
@@ -382,6 +404,19 @@ export default function App() {
                 {carrierOpts.map((c) => <option key={c.id} value={c.id}>View: {c.name}</option>)}
               </select>
             )}
+            {isAdmin && (
+              <button
+                onClick={toggleGuided}
+                title="Guided Mode walks new dispatchers through workflows step-by-step"
+                className={`flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${guidedMode ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'}`}
+              >
+                <GraduationCap size={15} />
+                <span className="hidden sm:inline">Guided Mode</span>
+                <span className={`w-8 h-4 rounded-full relative transition-colors ${guidedMode ? 'bg-amber-500' : 'bg-slate-600'}`}>
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${guidedMode ? 'left-4' : 'left-0.5'}`} />
+                </span>
+              </button>
+            )}
             <a href="https://forwardmotionfreight.com" target="_blank" rel="noopener noreferrer"
               className="text-sm flex items-center gap-1.5 hover:text-white transition-colors">
               ← <span className="hidden sm:inline">Back to Website</span>
@@ -403,6 +438,7 @@ export default function App() {
         </div>
       </main>
     </div>
+    </GuidedModeContext.Provider>
   );
 }
 
@@ -2361,6 +2397,7 @@ function FleetView() {
 }
 // ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
 function NegotiationCalcView() {
+  const guided = useGuided();
   const DEFAULTS = {
     selectedCarrier: '',
     originCity: '', originZip: '', destCity: '', destZip: '',
@@ -2485,6 +2522,21 @@ function NegotiationCalcView() {
     setAssignMsg('');
     if (!selectedCarrierObj) { setAssignMsg('Pick a saved carrier first.'); return; }
     if (!selectedCarrierObj.linkedDriverUid) { setAssignMsg('This carrier has no linked driver login — set one in the Carriers tab.'); return; }
+    // Guided Mode (Workflow C): RateCon pre-send checklist + minimum-rate guard.
+    if (guided) {
+      const finalRate = Number(v.finalOffer) || Number(v.brokerOffer) || 0;
+      const miles = (Number(v.loadedMiles) || 0) + (Number(v.deadheadMiles) || 0);
+      const minRpm = Number(v.minRpm) || 0;
+      const rpm = miles > 0 ? finalRate / miles : 0;
+      const belowMin = minRpm > 0 && rpm > 0 && rpm < minRpm;
+      const msg = 'RateCon check before you send this load:\n\n'
+        + '• Does the rate match what you agreed with the broker?\n'
+        + '• Are the pickup & delivery times correct?\n'
+        + '• Hidden fees / lumper / detention accounted for?\n'
+        + `• $${finalRate.toLocaleString()} = $${rpm.toFixed(2)}/mi vs carrier min $${minRpm.toFixed(2)}/mi` + (belowMin ? '  ⚠️ BELOW MINIMUM' : '  ✓')
+        + '\n\nSend this load to the carrier?';
+      if (!window.confirm(msg)) return;
+    }
     setAssigning(true);
     try {
       const loadId = 'FM-' + Math.floor(1000 + Math.random() * 9000);
@@ -2580,6 +2632,10 @@ function NegotiationCalcView() {
         <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
       </div>
       <p className="text-slate-400">Punch in the broker's numbers live on the call — see instantly if the load works and exactly what to counter.</p>
+
+      <GuidedHint>
+        <strong>Negotiation tip:</strong> never accept the broker's first number. Counter toward your <strong>Target Offer (floor)</strong> below. If they're ~20¢/mi under the carrier's minimum, anchor to a real number: <em>"My carrier's floor on this lane is $___/mi; after deadhead I can do it at $____ all-in and keep your pickup on time."</em> See the <strong>Training → Negotiation Scripts</strong> tab for full talk-tracks.
+      </GuidedHint>
 
       <div className="flex flex-wrap gap-2 items-center">
         <button type="button" onClick={clearAll} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">Clear (New Load)</button>
@@ -2899,6 +2955,17 @@ function CarriersView() {
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Guided Mode: soft carrier-verification checklist (Workflow A).
+  const guided = useGuided();
+  const [verify, setVerify] = useState({ authority: false, w9: false, coi: false, noa: false });
+  const VERIFY_ITEMS = [
+    ['authority', 'MC/DOT active authority verified (FMCSA SAFER)'],
+    ['w9', 'W-9 on file'],
+    ['coi', 'Certificate of Insurance (COI) on file'],
+    ['noa', 'Notice of Assignment / voided check on file'],
+  ];
+  const allVerified = VERIFY_ITEMS.every(([k]) => verify[k]);
+
   const [packet, setPacket] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
@@ -2960,6 +3027,13 @@ function CarriersView() {
   const add = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
+    // Guided Mode: soft nudge if verification isn't complete (never a hard block).
+    if (guided && !allVerified) {
+      const missing = VERIFY_ITEMS.filter(([k]) => !verify[k]).map(([, l]) => '• ' + l).join('\n');
+      if (!window.confirm('Some verification steps aren’t checked yet:\n\n' + missing + '\n\nSave this carrier anyway? (You can verify later.)')) {
+        return;
+      }
+    }
     setSaving(true);
     try {
       await addDoc(collection(db, 'carriers'), {
@@ -2977,9 +3051,12 @@ function CarriersView() {
         multiStop: form.multiStop.trim(),
         linkedDriverUid: form.linkedDriverUid,
         currentDriveHours: Number(form.currentDriveHours) || 0,
+        verification: verify,
+        verified: allVerified,
         createdAt: serverTimestamp(),
       });
       setForm(blank);
+      setVerify({ authority: false, w9: false, coi: false, noa: false });
       setPacket([]);
       setImportMsg('');
       fetchCarriers();
@@ -3064,6 +3141,25 @@ function CarriersView() {
             </select>
           </div>
         </div>
+
+        {guided && (
+          <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-300"><ShieldCheck size={16} /> Verification Checklist <span className="text-[10px] font-normal text-slate-400">(Guided Mode)</span></div>
+            <p className="text-[11px] text-slate-400">Confirm each before clearing a carrier for loads. This is a soft check — you can still save, but verifying protects you from fraud and uninsured freight.</p>
+            <div className="space-y-2">
+              {VERIFY_ITEMS.map(([k, label]) => (
+                <label key={k} className="flex items-center gap-3 text-sm text-slate-200 cursor-pointer">
+                  <input type="checkbox" checked={verify[k]} onChange={(e) => setVerify((v) => ({ ...v, [k]: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-amber-500" />
+                  {label}
+                  {k === 'authority' && <a href="https://safer.fmcsa.dot.gov/CompanySnapshot.aspx" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[11px] text-amber-400 hover:underline">open SAFER ↗</a>}
+                </label>
+              ))}
+            </div>
+            <div className={`text-xs font-semibold ${allVerified ? 'text-emerald-400' : 'text-slate-500'}`}>{allVerified ? '✓ All verifications complete — carrier will be marked Verified' : 'Verification incomplete'}</div>
+          </div>
+        )}
+
         <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
           {saving ? 'Saving…' : 'Save Carrier'}
         </button>
@@ -3081,7 +3177,7 @@ function CarriersView() {
               <div key={c.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{c.name} {c.mcNumber ? <span className="text-slate-500 font-normal">· {c.mcNumber}</span> : null}</div>
+                    <div className="text-sm font-semibold text-white truncate flex items-center gap-2">{c.name} {c.mcNumber ? <span className="text-slate-500 font-normal">· {c.mcNumber}</span> : null}{c.verified && <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 shrink-0"><CheckCircle2 size={11} /> Verified</span>}</div>
                     <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min · {c.trailerType || '—'}</div>
                     <div className="text-xs text-slate-500 mt-0.5">Driver: {c.linkedDriverUid ? (driverEmail(c.linkedDriverUid) || 'linked') : <span className="text-amber-400">not linked</span>}</div>
                   </div>
@@ -3619,6 +3715,177 @@ function OnboardingWizard({ onDone }) {
               {step < 3 ? 'Continue' : 'Review & Finish'}
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- ADMIN: TRAINING / RESOURCE LIBRARY ----------
+const GLOSSARY = [
+  ['RPM (Rate Per Mile)', 'The load’s gross pay divided by total miles. The single most important number — it’s how you compare loads apples-to-apples.'],
+  ['Deadhead', 'Empty miles driven to reach a pickup with no freight on the trailer. Deadhead burns fuel for $0, so always factor it into the true RPM.'],
+  ['Detention', 'Pay owed when a facility holds the driver beyond the free window (usually 2 hours) to load or unload. Document time in/out to collect it.'],
+  ['TONU (Truck Order Not Used)', 'A flat fee owed when a load is canceled after the driver was already dispatched/en route. Compensates for the wasted trip.'],
+  ['Lumper', 'A third-party worker (or fee) that loads/unloads freight at a warehouse. The broker/shipper typically reimburses the lumper fee — get it in writing.'],
+  ['Factoring', 'Selling your unpaid invoices to a factoring company for quick cash (usually 90–97%) instead of waiting 30–60 days for the broker to pay.'],
+  ['NOA (Notice of Assignment)', 'A legal document telling brokers to pay the factoring company directly instead of the carrier. Required when a carrier factors their invoices.'],
+  ['BOL (Bill of Lading)', 'The legal receipt and contract for the freight — signed at pickup and delivery. The signed BOL is proof of delivery and key to getting paid.'],
+  ['RateCon (Rate Confirmation)', 'The binding agreement between broker and carrier for a specific load — rate, stops, times, and terms. Always verify it before the driver signs.'],
+  ['Broker', 'The middleman who connects shippers with carriers. You negotiate the rate with the broker, not the shipper.'],
+  ['Headhaul vs. Backhaul', 'Headhaul is a high-demand, well-paying lane out. Backhaul is the return trip back toward home base — usually cheaper. Aim to book strong headhauls.'],
+  ['Reefer', 'A refrigerated trailer for temperature-controlled freight (produce, frozen, pharma). Pays more but adds fuel and washout costs.'],
+  ['Accessorials', 'Extra charges beyond linehaul — detention, layover, lumper, tarps, extra stops, TONU. Always ask which accessorials the broker will cover.'],
+  ['Spot Market / Spot Rate', 'The day-to-day load board pricing that fluctuates with supply and demand — where most new-authority carriers live. Contrast with contract freight.'],
+  ['MC Number / Authority', 'The FMCSA operating license (Motor Carrier number) that lets a carrier haul for hire. “Active authority” means they’re legal to run today.'],
+];
+
+const SOPS = [
+  {
+    title: 'SOP — Vet a New Carrier’s Authority & Insurance',
+    intro: 'Run this every time before you assign a carrier their first load. It protects you from double-brokering, fraud, and uninsured freight.',
+    steps: [
+      'Get the carrier’s MC and USDOT numbers and their company name.',
+      'Look them up on the FMCSA SAFER snapshot (safer.fmcsa.dot.gov). Confirm Operating Authority is ACTIVE and Operation Classification allows for-hire.',
+      'Check the authority age. Brand-new (<90–180 days) is normal — just be aware some shippers won’t accept it yet.',
+      'Confirm the company name and address on SAFER match what the carrier gave you. Mismatches are a fraud red flag.',
+      'Collect the Certificate of Insurance (COI). Verify cargo coverage (typically $100k+) and auto-liability ($1M) are active and not expired.',
+      'Confirm you are listed (or can be added) as a certificate holder so you’re notified if coverage lapses.',
+      'Collect a W-9 for tax/payment records.',
+      'If they factor: collect the Notice of Assignment (NOA) so payments route correctly. If not: collect a voided check / ACH info.',
+      'Only after all of the above checks pass, mark the carrier verified and clear them for loads.',
+    ],
+  },
+  {
+    title: 'SOP — Verify a Rate Confirmation Before Sending',
+    intro: 'A 30-second check that prevents the most common (and expensive) dispatch mistakes. Do it before every RateCon goes to the driver to sign.',
+    steps: [
+      'Confirm the gross rate on the RateCon matches the number you verbally agreed with the broker — to the dollar.',
+      'Verify pickup and delivery dates AND times. A wrong appointment time can cause a missed load or a late fee.',
+      'Check pickup and drop-off addresses against what the driver expects — watch for the right city when a broker has multiple warehouses.',
+      'Confirm the commodity and weight are correct and within the carrier’s equipment limits.',
+      'Scan for hidden terms: detention policy, lumper responsibility, late penalties, and any “quick pay” fee deductions.',
+      'Confirm the rate still clears the carrier’s minimum RPM after deadhead and accessorials.',
+      'Make sure the broker’s MC and your carrier’s MC are both correct on the document.',
+      'Only once it all matches, send it to the driver to sign — and save the executed copy to their Document Vault.',
+    ],
+  },
+];
+
+const TALK_TRACKS = [
+  {
+    title: 'Rate is below the carrier’s minimum',
+    when: 'Broker’s offer is ~20¢/mile under your driver’s floor.',
+    script: '“I appreciate the offer, but I can’t move my truck for that. My carrier’s operating cost puts the floor at $___ /mile on this lane, and after deadhead this doesn’t cover it. I can do this load at $____ all-in — that keeps my driver on schedule for your pickup window. Can you make that work?”',
+    tip: 'Anchor to a specific number and a benefit to the broker (on-time pickup). Never just say “it’s too low.”',
+  },
+  {
+    title: 'Requesting detention pay',
+    when: 'Driver has been held at a facility past the 2-hour free window.',
+    script: '“My driver checked in at ___ and is still not loaded — that’s over 2 hours past the appointment. I have the in-time documented on the BOL. Per standard terms I’m putting in for detention at $__/hour starting now. Can you open a detention case on your end so we’re aligned when the invoice comes through?”',
+    tip: 'Lead with documented times. Detention is far easier to collect when you flag it live, not after delivery.',
+  },
+  {
+    title: 'Requesting a TONU',
+    when: 'Load is canceled after the driver was already dispatched.',
+    script: '“Understood that the load fell through, but my driver was already dispatched and is en route / on-site. I’ll need a TONU to cover the truck I committed to you. Standard on a dispatched cancellation is $___ — can you get that on a confirmation so we keep things clean for next time?”',
+    tip: 'Stay professional — you want repeat freight from this broker. Frame the TONU as standard, not a penalty.',
+  },
+];
+
+function TrainingView() {
+  const [tab, setTab] = useState('guided');
+  const TABS = [
+    ['guided', 'Guided Mode'],
+    ['glossary', 'Freight Glossary'],
+    ['sops', 'SOPs'],
+    ['scripts', 'Negotiation Scripts'],
+  ];
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <GraduationCap className="text-amber-500" size={26} />
+        <h2 className="text-2xl font-bold">Dispatcher Training</h2>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+      </div>
+      <p className="text-slate-400">Your onboarding playbook — reference it anytime, and flip on <span className="text-amber-300 font-semibold">Guided Mode</span> in the header to get walked through workflows live.</p>
+
+      <div className="flex flex-wrap gap-2">
+        {TABS.map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`text-sm px-4 py-2 rounded-full border transition-colors ${tab === k ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'guided' && (
+        <div className="space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h3 className="text-lg font-bold flex items-center gap-2 mb-3"><GraduationCap className="text-amber-500" size={20} /> What Guided Mode does</h3>
+            <p className="text-sm text-slate-300 leading-relaxed mb-4">Toggle <span className="text-amber-300 font-semibold">Guided Mode</span> in the top header. When it’s on, the portal adds soft checklists and contextual tips to the trickiest workflows — so new dispatchers build good habits without slowing down. It never hard-blocks you; it nudges.</p>
+            <div className="space-y-3">
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                <div className="font-semibold text-white text-sm">Workflow A — Carrier Verification</div>
+                <div className="text-xs text-slate-400 mt-1">Adds a verification checklist to the Carriers tab (active authority, W-9, COI, NOA) and flags a carrier as “Verified” once everything’s confirmed.</div>
+              </div>
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                <div className="font-semibold text-white text-sm">Workflow B — Load Negotiation</div>
+                <div className="text-xs text-slate-400 mt-1">The Rate Calculator surfaces your Target Floor and negotiation scripts, and reminds you to clear the carrier’s minimum before assigning.</div>
+              </div>
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+                <div className="font-semibold text-white text-sm">Workflow C — RateCon Check</div>
+                <div className="text-xs text-slate-400 mt-1">Before a load is sent, a quick checklist confirms the rate, times, and fees match what was agreed.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'glossary' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><BookOpen className="text-amber-500" size={20} /> Freight Glossary — 15 Terms to Know</h3>
+          <div className="space-y-3">
+            {GLOSSARY.map(([term, def]) => (
+              <div key={term} className="border-b border-slate-800 last:border-0 pb-3 last:pb-0">
+                <div className="text-sm font-semibold text-amber-400">{term}</div>
+                <div className="text-sm text-slate-300 mt-0.5">{def}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'sops' && (
+        <div className="space-y-6">
+          {SOPS.map((sop) => (
+            <div key={sop.title} className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-lg font-bold flex items-center gap-2 mb-1"><ShieldCheck className="text-amber-500" size={20} /> {sop.title}</h3>
+              <p className="text-sm text-slate-400 mb-4">{sop.intro}</p>
+              <ol className="space-y-2">
+                {sop.steps.map((s, i) => (
+                  <li key={i} className="flex gap-3 text-sm text-slate-300">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'scripts' && (
+        <div className="space-y-4">
+          {TALK_TRACKS.map((t) => (
+            <div key={t.title} className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-base font-bold text-white">{t.title}</h3>
+              <div className="text-xs text-slate-500 mt-0.5 mb-3">Use when: {t.when}</div>
+              <div className="bg-slate-800/50 border-l-2 border-amber-500 rounded-r-lg p-4 text-sm text-slate-200 italic leading-relaxed">{t.script}</div>
+              <div className="text-xs text-emerald-400 mt-3">Tip: {t.tip}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>
