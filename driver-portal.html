@@ -27,6 +27,22 @@
             100% { opacity: 0; transform: translateX(5px); }
         }
         @media (prefers-reduced-motion: reduce) { .logo-hub, .chev { animation: none !important; } .chev { opacity: 1; } }
+
+        /* earnings bar chart reveal */
+        .earnings-chart .bar { transform-origin: bottom; }
+        .earnings-chart.js-anim .bar { transform: scaleY(0); }
+        .earnings-chart.js-anim.in-view .bar { animation: growBar .85s cubic-bezier(.2,.8,.2,1) forwards; }
+        @keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+        .earnings-chart.js-anim.in-view > div:nth-child(1) .bar { animation-delay: 0s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(2) .bar { animation-delay: .07s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(3) .bar { animation-delay: .14s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(4) .bar { animation-delay: .21s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(5) .bar { animation-delay: .28s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(6) .bar { animation-delay: .35s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(7) .bar { animation-delay: .42s; }
+        @media (prefers-reduced-motion: reduce) {
+            .earnings-chart.js-anim .bar { transform: scaleY(1) !important; animation: none !important; }
+        }
     </style>
 </head>
 <body class="font-sans bg-[#0a0f1a] text-white antialiased">
@@ -133,41 +149,41 @@
 
                     <!-- bar chart -->
                     <div class="mt-9">
-                        <div class="flex h-44 items-end justify-between gap-2 sm:gap-4">
+                        <div class="earnings-chart flex h-44 items-end justify-between gap-2 sm:gap-4">
                             <!-- each bar: label $ on top, bar, day under -->
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$760</span>
-                                <div class="w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:64%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:64%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Mon</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$890</span>
-                                <div class="w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:75%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:75%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Tue</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$705</span>
-                                <div class="w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:60%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:60%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Wed</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-white">$1,180</span>
-                                <div class="w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722] ring-2 ring-[#FF5722]/40" style="height:100%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722] ring-2 ring-[#FF5722]/40" style="height:100%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Thu</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$980</span>
-                                <div class="w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:83%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:83%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Fri</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$840</span>
-                                <div class="w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:71%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:71%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Sat</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-500">Reset</span>
-                                <div class="w-full rounded-t-md bg-white/10" style="height:5%"></div>
+                                <div class="bar w-full rounded-t-md bg-white/10" style="height:5%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Sun</span>
                             </div>
                         </div>
@@ -273,6 +289,25 @@
         </nav>
         <p class="mt-6 text-xs text-slate-600">&copy; 2026 Forward Motion Freight LLC. All rights reserved.</p>
     </footer>
+
+    <script>
+    // Reveal earnings bars when the chart scrolls into view
+    (function () {
+        var charts = document.querySelectorAll('.earnings-chart');
+        if (!charts.length) return;
+        for (var i = 0; i < charts.length; i++) charts[i].classList.add('js-anim');
+        if (!('IntersectionObserver' in window)) {
+            for (var j = 0; j < charts.length; j++) charts[j].classList.add('in-view');
+            return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+            });
+        }, { threshold: 0.35 });
+        for (var k = 0; k < charts.length; k++) io.observe(charts[k]);
+    })();
+    </script>
 
 </body>
 </html>

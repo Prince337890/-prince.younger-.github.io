@@ -488,6 +488,21 @@
             .beam { opacity: 0.12; }
             .chev { opacity: 1; }
         }
+        /* earnings bar chart reveal */
+        .earnings-chart .bar { transform-origin: bottom; }
+        .earnings-chart.js-anim .bar { transform: scaleY(0); }
+        .earnings-chart.js-anim.in-view .bar { animation: growBar .85s cubic-bezier(.2,.8,.2,1) forwards; }
+        @keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+        .earnings-chart.js-anim.in-view > div:nth-child(1) .bar { animation-delay: 0s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(2) .bar { animation-delay: .07s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(3) .bar { animation-delay: .14s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(4) .bar { animation-delay: .21s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(5) .bar { animation-delay: .28s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(6) .bar { animation-delay: .35s; }
+        .earnings-chart.js-anim.in-view > div:nth-child(7) .bar { animation-delay: .42s; }
+        @media (prefers-reduced-motion: reduce) {
+            .earnings-chart.js-anim .bar { transform: scaleY(1) !important; animation: none !important; }
+        }
     </style>
     <!-- Tailwind + fonts for the redesigned hero -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -878,6 +893,99 @@
     </section>
 
     <!-- ============================================================= -->
+    <!-- EARNINGS SNAPSHOT (proof)                                     -->
+    <!-- ============================================================= -->
+    <section class="font-sans bg-[#070b14] px-5 py-16 sm:px-8 sm:py-20" style="background:#070b14;">
+        <div class="mx-auto max-w-5xl">
+            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#FF5722]">See Your Money, Not Just Your Miles</p>
+            <h2 class="mx-auto mt-3 max-w-2xl text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Drivers See Every Dollar, Every Week</h2>
+
+            <!-- Dashboard card -->
+            <div class="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0e1626] to-[#070b14] shadow-2xl shadow-black/40">
+                <div class="flex items-center gap-2 border-b border-white/10 px-5 py-3.5">
+                    <span class="h-3 w-3 rounded-full bg-[#FF5722]/70"></span>
+                    <span class="h-3 w-3 rounded-full bg-white/20"></span>
+                    <span class="h-3 w-3 rounded-full bg-white/20"></span>
+                    <span class="ml-3 text-xs font-medium text-slate-400">Driver Portal — Earnings</span>
+                </div>
+
+                <div class="p-6 sm:p-9">
+                    <div class="flex flex-wrap items-end justify-between gap-4">
+                        <div>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Net Pay · This Week</p>
+                            <p class="mt-1 font-display text-4xl font-extrabold tracking-tight text-white sm:text-5xl">$4,820</p>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-400">
+                            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                            +12% vs last week
+                        </span>
+                    </div>
+
+                    <div class="mt-9">
+                        <div class="earnings-chart flex h-44 items-end justify-between gap-2 sm:gap-4">
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-slate-300">$760</span>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:64%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Mon</span>
+                            </div>
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-slate-300">$890</span>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:75%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Tue</span>
+                            </div>
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-slate-300">$705</span>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:60%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Wed</span>
+                            </div>
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-white">$1,180</span>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722] ring-2 ring-[#FF5722]/40" style="height:100%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Thu</span>
+                            </div>
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-slate-300">$980</span>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:83%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Fri</span>
+                            </div>
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-slate-300">$840</span>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:71%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Sat</span>
+                            </div>
+                            <div class="flex h-full w-full flex-col items-center justify-end gap-2">
+                                <span class="text-[11px] font-semibold text-slate-500">Reset</span>
+                                <div class="bar w-full rounded-t-md bg-white/10" style="height:5%"></div>
+                                <span class="text-[11px] font-medium text-slate-500">Sun</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-4">
+                        <div class="bg-[#0b1220] p-5 text-center">
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Gross</p>
+                            <p class="mt-1 font-display text-xl font-bold text-white">$5,355</p>
+                        </div>
+                        <div class="bg-[#0b1220] p-5 text-center">
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Dispatch Fee</p>
+                            <p class="mt-1 font-display text-xl font-bold text-white">$535</p>
+                        </div>
+                        <div class="bg-[#0b1220] p-5 text-center">
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Miles</p>
+                            <p class="mt-1 font-display text-xl font-bold text-white">2,940</p>
+                        </div>
+                        <div class="bg-[#0b1220] p-5 text-center">
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Avg RPM</p>
+                            <p class="mt-1 font-display text-xl font-bold text-[#FF5722]">$1.82</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="mt-4 text-center text-xs text-slate-600">Illustrative example. Each driver's dashboard reflects their real loads and pay.</p>
+        </div>
+    </section>
+
+    <!-- ============================================================= -->
     <!-- PARTNERSHIP / WHITE-LABEL BAND                                -->
     <!-- ============================================================= -->
     <section class="font-sans bg-[#0a0f1a] px-5 py-16 sm:px-8 sm:py-20" style="background:#0a0f1a;">
@@ -976,6 +1084,25 @@
             }
             c.appendChild(frag);
         })();
+    </script>
+
+    <script>
+    // Reveal earnings bars when the chart scrolls into view
+    (function () {
+        var charts = document.querySelectorAll('.earnings-chart');
+        if (!charts.length) return;
+        for (var i = 0; i < charts.length; i++) charts[i].classList.add('js-anim');
+        if (!('IntersectionObserver' in window)) {
+            for (var j = 0; j < charts.length; j++) charts[j].classList.add('in-view');
+            return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); }
+            });
+        }, { threshold: 0.35 });
+        for (var k = 0; k < charts.length; k++) io.observe(charts[k]);
+    })();
     </script>
 
 </body>
