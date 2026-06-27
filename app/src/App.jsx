@@ -161,6 +161,9 @@ async function createDriverAccount(email, password) {
 const ADMIN_EMAILS = [
   'prince.younger3@gmail.com',
 ];
+
+// Phone the "Call Dispatcher" button dials from a pending load offer.
+const DISPATCHER_PHONE = '';
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [paymentMethod, setPaymentMethod] = useState('factoring');
@@ -481,6 +484,7 @@ function DashboardView({ uid, displayName, isAdmin }) {
   const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
   const [active, setActive] = useState(null);
+  const [pendingOffer, setPendingOffer] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
   const prettyName = (handle) =>
@@ -499,30 +503,32 @@ function DashboardView({ uid, displayName, isAdmin }) {
     return d;
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
-        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const pending = rows
-          .filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared')
-          .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
-        setActive(pending[0] || null);
-        const sow = startOfWeek();
-        const total = rows.reduce((sum, l) => {
-          const delivered = l.status === 'Delivered' || l.status === 'Cleared';
-          const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
-          return delivered && inWeek ? sum + (Number(l.gross_pay) || 0) : sum;
-        }, 0);
-        setEarnings(total);
-      } catch (e) {
-        console.error('Error loading dashboard:', e);
-      } finally {
-        setLoaded(true);
-      }
-    };
-    if (targetUid && !isAdmin) fetchData();
+  const fetchData = React.useCallback(async () => {
+    if (!targetUid || isAdmin) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // A load awaiting the driver's accept/decline overrides the dashboard.
+      setPendingOffer(rows.find((l) => l.offerStatus === 'pending') || null);
+      const pending = rows
+        .filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared' && l.offerStatus !== 'pending' && l.offerStatus !== 'declined')
+        .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
+      setActive(pending[0] || null);
+      const sow = startOfWeek();
+      const total = rows.reduce((sum, l) => {
+        const delivered = l.status === 'Delivered' || l.status === 'Cleared';
+        const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
+        return delivered && inWeek ? sum + (Number(l.gross_pay) || 0) : sum;
+      }, 0);
+      setEarnings(total);
+    } catch (e) {
+      console.error('Error loading dashboard:', e);
+    } finally {
+      setLoaded(true);
+    }
   }, [targetUid, isAdmin]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
@@ -531,6 +537,11 @@ function DashboardView({ uid, displayName, isAdmin }) {
     if (s === 'Delivered' || s === 'Cleared') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
     return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
   };
+
+  // A pending offer takes over the driver's whole dashboard until they respond.
+  if (!isAdmin && pendingOffer) {
+    return <PendingOfferScreen offer={pendingOffer} onResolved={fetchData} />;
+  }
 
   return (
     <div className="space-y-6">
@@ -609,6 +620,109 @@ function DashboardView({ uid, displayName, isAdmin }) {
     </div>
   );
 }
+// ---------- DRIVER: PENDING LOAD OFFER ----------
+function PendingOfferScreen({ offer, onResolved }) {
+  const [busy, setBusy] = useState(false);
+  const [showDecline, setShowDecline] = useState(false);
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const loadedMi = Number(offer.loadedMiles) || 0;
+  const deadMi = Number(offer.deadheadMiles) || 0;
+  const totalMi = loadedMi + deadMi;
+  const gross = Number(offer.gross_pay) || 0;
+  const rpm = totalMi > 0 ? gross / totalMi : (loadedMi > 0 ? gross / loadedMi : 0);
+  const REASONS = ['Rate too low', 'Bad location', 'Weight too high'];
+
+  const accept = async () => {
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, 'loads', offer.id), {
+        offerStatus: 'accepted', status: 'Dispatched', offerRespondedAt: serverTimestamp(),
+      });
+      onResolved && onResolved();
+    } catch (e) { console.error('Accept failed:', e); alert('Could not accept — please try again.'); setBusy(false); }
+  };
+  const decline = async (reason) => {
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, 'loads', offer.id), {
+        offerStatus: 'declined', status: 'Declined', declineReason: reason, offerRespondedAt: serverTimestamp(),
+      });
+      onResolved && onResolved();
+    } catch (e) { console.error('Decline failed:', e); alert('Could not decline — please try again.'); setBusy(false); }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto">
+      <div className="text-center mb-5">
+        <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full uppercase">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> Pending Offer
+        </span>
+        <h2 className="text-2xl font-bold text-white mt-3">Review Your Load Offer</h2>
+        <p className="text-slate-400 text-sm mt-1">Your dispatcher is holding this load for you. Respond to lock it in.</p>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+        <div className="bg-gradient-to-r from-amber-500/10 to-transparent px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+          <span className="font-mono text-amber-500 font-bold">{offer.loadId || 'New Load'}</span>
+          <div className="text-right">
+            <div className="text-xs text-slate-500">Gross Rate</div>
+            <div className="text-xl font-bold text-emerald-400">{money(gross)}</div>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+              <div className="text-[10px] text-emerald-400 font-semibold">PICKUP</div>
+              <div className="font-bold text-white text-sm">{offer.origin || '—'}</div>
+            </div>
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+              <div className="text-[10px] text-amber-400 font-semibold">DROP-OFF</div>
+              <div className="font-bold text-white text-sm">{offer.destination || '—'}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div><div className="text-[10px] text-slate-500">LOADED</div><div className="font-bold text-white text-sm">{loadedMi ? loadedMi.toLocaleString() + ' mi' : '—'}</div></div>
+            <div><div className="text-[10px] text-slate-500">DEADHEAD</div><div className="font-bold text-white text-sm">{deadMi ? deadMi.toLocaleString() + ' mi' : '—'}</div></div>
+            <div><div className="text-[10px] text-slate-500">RPM</div><div className="font-bold text-amber-400 text-sm">{rpm > 0 ? '$' + rpm.toFixed(2) : '—'}</div></div>
+            <div><div className="text-[10px] text-slate-500">WEIGHT</div><div className="font-bold text-white text-sm">{offer.weight || '—'}</div></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><div className="text-[10px] text-slate-500">COMMODITY</div><div className="text-sm text-slate-200">{offer.commodity || '—'}</div></div>
+            <div><div className="text-[10px] text-slate-500">DELIVERY</div><div className="text-sm text-slate-200">{offer.delivery_date || offer.delivery_time || '—'}</div></div>
+          </div>
+        </div>
+        <div className="p-4 border-t border-slate-800 space-y-2">
+          <button onClick={accept} disabled={busy} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+            {busy ? 'Working…' : '✓ Accept Offer'}
+          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setShowDecline(true)} disabled={busy} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50">Decline</button>
+            <a href={DISPATCHER_PHONE ? `tel:${DISPATCHER_PHONE}` : undefined}
+              className={`text-center border border-slate-700 text-slate-300 font-semibold py-2.5 rounded-lg transition-colors ${DISPATCHER_PHONE ? 'hover:bg-slate-800' : 'opacity-50 pointer-events-none'}`}>
+              Call Dispatcher
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {showDecline && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => !busy && setShowDecline(false)}>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-white mb-1">Why are you declining?</h3>
+            <p className="text-xs text-slate-400 mb-4">One tap — this helps us find you better freight.</p>
+            <div className="space-y-2">
+              {REASONS.map((r) => (
+                <button key={r} onClick={() => decline(r)} disabled={busy} className="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-3 rounded-lg transition-colors disabled:opacity-50">{r}</button>
+              ))}
+            </div>
+            <button onClick={() => setShowDecline(false)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm mt-3">Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- QUOTE OF THE DAY ----------
 const QUOTES = [
   { text: "The road to success is always under construction.", author: "Lily Tomlin" },
@@ -1565,6 +1679,37 @@ function AllLoadsView() {
     }
   };
 
+  // Send / cancel a pending offer the carrier must accept or decline.
+  const setOffer = async (id, val, extra = {}) => {
+    setUpdatingId(id);
+    try {
+      const patch = { offerStatus: val, ...extra };
+      await updateDoc(doc(db, 'loads', id), patch);
+      setLoads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    } catch (e) {
+      console.error('Error setting offer:', e);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const offerBadge = (s) => {
+    if (s === 'pending') return <span className="text-[10px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded">● Offer sent</span>;
+    if (s === 'accepted') return <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded">✓ Accepted</span>;
+    if (s === 'declined') return <span className="text-[10px] bg-red-500/15 text-red-400 px-2 py-0.5 rounded">✕ Declined</span>;
+    return null;
+  };
+
+  const OfferButton = ({ l }) => (
+    l.offerStatus === 'pending' ? (
+      <button onClick={() => setOffer(l.id, 'cancelled', { status: 'Dispatched' })} disabled={updatingId === l.id}
+        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">Cancel Offer</button>
+    ) : (
+      <button onClick={() => setOffer(l.id, 'pending', { status: 'Offered', offerSentAt: serverTimestamp() })} disabled={updatingId === l.id}
+        className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50" title="Notify the carrier — they accept or decline in their portal">📣 Send Offer</button>
+    )
+  );
+
   const openEdit = (l) => {
     setEditing(l);
     setForm({
@@ -1580,6 +1725,8 @@ function AllLoadsView() {
       delivery_time: l.delivery_time || '',
       delivery_date: l.delivery_date || '',
       gross_pay: l.gross_pay ?? '',
+      loadedMiles: l.loadedMiles ?? '',
+      deadheadMiles: l.deadheadMiles ?? '',
       status: l.status || 'Dispatched',
     });
   };
@@ -1591,7 +1738,7 @@ function AllLoadsView() {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload = { ...form, uid: form.driverUid, gross_pay: Number(form.gross_pay) || 0 };
+      const payload = { ...form, uid: form.driverUid, gross_pay: Number(form.gross_pay) || 0, loadedMiles: Number(form.loadedMiles) || 0, deadheadMiles: Number(form.deadheadMiles) || 0 };
       delete payload.driverUid;
       await updateDoc(doc(db, 'loads', editing.id), payload);
       setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...payload } : l)));
@@ -1706,9 +1853,12 @@ function AllLoadsView() {
                     <td className="p-4 text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</td>
                     <td className="p-4 text-slate-400">{l.delivery_date || '—'}</td>
                     <td className="p-4 font-semibold text-white">{money(l.gross_pay)}</td>
-                    <td className="p-4"><StatusSelect l={l} /></td>
+                    <td className="p-4"><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</td>
                     <td className="p-4">
-                      <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>
+                      <div className="flex items-center gap-2">
+                        <OfferButton l={l} />
+                        <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1726,8 +1876,10 @@ function AllLoadsView() {
                 <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
                 <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
                 <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
+                {offerBadge(l.offerStatus) && <div>{offerBadge(l.offerStatus)}{l.offerStatus === 'declined' && l.declineReason ? <span className="text-[10px] text-slate-500 ml-2">({l.declineReason})</span> : null}</div>}
                 <div className="flex gap-2 items-center">
                   <div className="flex-1"><StatusSelect l={l} full /></div>
+                  <OfferButton l={l} />
                   <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors shrink-0">Edit</button>
                 </div>
               </div>
@@ -1767,6 +1919,8 @@ function AllLoadsView() {
               </div>
               <div><label className="block text-xs text-slate-400 mb-2">Gross Pay ($)</label><input className={field} type="number" value={form.gross_pay} onChange={(e) => setField('gross_pay', e.target.value)} /></div>
               <div><label className="block text-xs text-slate-400 mb-2">Delivery Date</label><input className={field} type="date" value={form.delivery_date} onChange={(e) => setField('delivery_date', e.target.value)} /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Loaded Miles</label><input className={field} type="number" value={form.loadedMiles} onChange={(e) => setField('loadedMiles', e.target.value)} placeholder="for offer RPM" /></div>
+              <div><label className="block text-xs text-slate-400 mb-2">Deadhead Miles</label><input className={field} type="number" value={form.deadheadMiles} onChange={(e) => setField('deadheadMiles', e.target.value)} /></div>
               <div><label className="block text-xs text-slate-400 mb-2">Origin (Pickup)</label><input className={field} value={form.origin} onChange={(e) => setField('origin', e.target.value)} /></div>
               <div><label className="block text-xs text-slate-400 mb-2">Destination (Delivery)</label><input className={field} value={form.destination} onChange={(e) => setField('destination', e.target.value)} /></div>
               <div><label className="block text-xs text-slate-400 mb-2">Commodity</label><input className={field} value={form.commodity} onChange={(e) => setField('commodity', e.target.value)} /></div>
@@ -2342,6 +2496,8 @@ function NegotiationCalcView() {
         commodity: v.commodity,
         weight: v.weight,
         gross_pay: Number(v.finalOffer) || Number(v.brokerOffer) || 0,
+        loadedMiles: Number(v.loadedMiles) || 0,
+        deadheadMiles: Number(v.deadheadMiles) || 0,
         pickup_time: v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '',
         delivery_time: v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '',
         delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
