@@ -15,8 +15,8 @@
         :root {
             --navy: #0B192C;
             --navy-2: #14253B;
-            --orange: #FF5722;
-            --orange-deep: #E64A19;
+            --orange: #7FB6DA;
+            --orange-deep: #5E97BE;
             --light-gray: #F4F6F8;
             --white: #FFFFFF;
             --muted: #A0B3C6;
@@ -127,7 +127,7 @@
             0%, 60% { background-position: 220% 0; }
             85%, 100% { background-position: -120% 0; }
         }
-        .logo:hover .logo-mark { filter: drop-shadow(0 0 8px rgba(255,87,34,0.8)); }
+        .logo:hover .logo-mark { filter: drop-shadow(0 0 8px rgba(127,182,218,0.8)); }
         .logo:hover .chev { animation-duration: 1.2s; }
 
         /* ---------- HEADER: DRIVER PORTAL LINK ---------- */
@@ -196,7 +196,7 @@
         }
         .sun {
             background: radial-gradient(circle at 50% 50%, #FFD27A 0%, #FF8A3D 55%, var(--orange) 100%);
-            box-shadow: 0 0 60px 18px rgba(255,138,61,0.55), 0 0 120px 50px rgba(255,87,34,0.25);
+            box-shadow: 0 0 60px 18px rgba(255,138,61,0.55), 0 0 120px 50px rgba(127,182,218,0.25);
             animation: sunPath var(--cycle) linear infinite;
         }
         .moon {
@@ -355,7 +355,7 @@
             font-size: 1.1rem;
             border-radius: 5px;
             display: inline-block;
-            box-shadow: 0 8px 24px rgba(255,87,34,0.35);
+            box-shadow: 0 8px 24px rgba(127,182,218,0.35);
             transition: background-color 0.3s ease, transform 0.2s ease;
         }
         .btn:hover { background-color: var(--orange-deep); transform: translateY(-2px); }
@@ -423,7 +423,7 @@
         }
         .vip-card:hover {
             transform: translateY(-6px);
-            border-color: rgba(255,87,34,0.55);
+            border-color: rgba(127,182,218,0.55);
             box-shadow: 0 18px 40px rgba(0,0,0,0.4);
         }
         .vip-card .tag {
@@ -434,14 +434,14 @@
             letter-spacing: 1.5px;
             text-transform: uppercase;
             color: var(--orange);
-            border: 1px solid rgba(255,87,34,0.45);
+            border: 1px solid rgba(127,182,218,0.45);
             padding: 3px 9px;
             border-radius: 20px;
         }
         .vip-icon {
             width: 56px; height: 56px;
             border-radius: 12px;
-            background: rgba(255,87,34,0.12);
+            background: rgba(127,182,218,0.12);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -522,7 +522,7 @@
                 <!-- spinning wheel hub -->
                 <g class="logo-hub">
                     <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
-                    <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                    <circle cx="16" cy="24" r="3" fill="#7FB6DA"/>
                     <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
                         <line x1="16" y1="24" x2="16" y2="13"/>
                         <line x1="16" y1="24" x2="25.5" y2="29.5"/>
@@ -530,7 +530,7 @@
                     </g>
                 </g>
                 <!-- forward motion chevrons -->
-                <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                <g fill="none" stroke="#7FB6DA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
                     <polyline class="chev c1" points="31,16 38,24 31,32"/>
                     <polyline class="chev c2" points="37,16 44,24 37,32"/>
                     <polyline class="chev c3" points="43,16 50,24 43,32"/>
@@ -576,8 +576,8 @@
             <div class="absolute inset-0 opacity-[0.07]"
                  style="background-image:linear-gradient(#ffffff 1px,transparent 1px),linear-gradient(90deg,#ffffff 1px,transparent 1px);background-size:56px 56px;"></div>
             <!-- subtle orange glow accent -->
-            <div class="pointer-events-none absolute -top-24 right-0 h-96 w-96 rounded-full bg-[#FF5722]/20 blur-[120px]"></div>
-            <div class="pointer-events-none absolute bottom-0 left-1/4 h-64 w-64 rounded-full bg-[#FF5722]/10 blur-[100px]"></div>
+            <div class="pointer-events-none absolute -top-24 right-0 h-96 w-96 rounded-full bg-[#7FB6DA]/20 blur-[120px]"></div>
+            <div class="pointer-events-none absolute bottom-0 left-1/4 h-64 w-64 rounded-full bg-[#7FB6DA]/10 blur-[100px]"></div>
         </div>
 
         <!-- Top bar: logo + portal -->
@@ -587,7 +587,7 @@
                     <!-- spinning wheel hub -->
                     <g class="logo-hub">
                         <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
-                        <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                        <circle cx="16" cy="24" r="3" fill="#7FB6DA"/>
                         <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
                             <line x1="16" y1="24" x2="16" y2="13"/>
                             <line x1="16" y1="24" x2="25.5" y2="29.5"/>
@@ -595,13 +595,13 @@
                         </g>
                     </g>
                     <!-- forward-motion chevrons sweep outward -->
-                    <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                    <g fill="none" stroke="#7FB6DA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
                         <polyline class="chev c1" points="31,16 38,24 31,32"/>
                         <polyline class="chev c2" points="37,16 44,24 37,32"/>
                     </g>
                 </svg>
                 <span class="font-display text-sm font-extrabold uppercase tracking-[0.18em] text-white sm:text-base">
-                    Forward&nbsp;Motion <span class="text-[#FF5722]">Freight</span>
+                    Forward&nbsp;Motion <span class="text-[#7FB6DA]">Freight</span>
                 </span>
             </a>
             <!-- desktop nav -->
@@ -625,7 +625,7 @@
                     <a href="dispatcher-portal.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Dispatcher Portal</a>
                     <a href="driver-portal.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Driver Portal</a>
                     <a href="partnership.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Partnership</a>
-                    <a href="https://forward-motion-app-bdim.vercel.app" class="mt-1 block rounded-lg bg-[#FF5722] px-4 py-2.5 text-center text-sm font-bold text-white hover:bg-[#ff6a3c]">Open Portal</a>
+                    <a href="https://forward-motion-app-bdim.vercel.app" class="mt-1 block rounded-lg bg-[#7FB6DA] px-4 py-2.5 text-center text-sm font-bold text-[#06141f] hover:bg-[#A6D2EC]">Open Portal</a>
                 </div>
             </details>
         </div>
@@ -635,8 +635,8 @@
             <div class="max-w-3xl">
 
                 <!-- VOSB outlined pill -->
-                <span class="mb-7 inline-flex items-center gap-2 rounded-full border border-[#FF5722]/40 bg-[#FF5722]/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-200 sm:text-xs">
-                    <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-[#FF5722]" fill="currentColor" aria-hidden="true">
+                <span class="mb-7 inline-flex items-center gap-2 rounded-full border border-[#7FB6DA]/40 bg-[#7FB6DA]/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-200 sm:text-xs">
+                    <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-[#7FB6DA]" fill="currentColor" aria-hidden="true">
                         <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/>
                     </svg>
                     Veteran-Owned Small Business
@@ -663,7 +663,7 @@
                 <!-- CTAs -->
                 <div class="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <a href="carrier-packet.html"
-                       class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5722] px-7 py-4 text-base font-bold text-white shadow-[0_10px_30px_-8px_rgba(255,87,34,0.6)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ff6a3c] hover:shadow-[0_16px_40px_-10px_rgba(255,87,34,0.7)]">
+                       class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] shadow-[0_14px_30px_-8px_rgba(127,182,218,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#A6D2EC] hover:shadow-[0_16px_40px_-10px_rgba(127,182,218,0.7)]">
                         Request a Carrier Packet
                         <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
@@ -678,15 +678,15 @@
                 <!-- Trust row (monoline icons) -->
                 <div class="mt-12 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-slate-400">
                     <span class="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                         Real-Time Load Tracking
                     </span>
                     <span class="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                         Aggressive Rate Negotiation
                     </span>
                     <span class="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg viewBox="0 0 24 24" class="h-4 w-4 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                         Full Back-Office Support
                     </span>
                 </div>
@@ -731,9 +731,9 @@
             <!-- trailer -->
             <rect x="150" y="22" width="162" height="68" rx="6" fill="url(#trailerGrad)" stroke="#A9B4C0" stroke-width="1.5"/>
             <line x1="150" y1="40" x2="312" y2="40" stroke="#C2CCD6" stroke-width="1.4"/>
-            <rect x="150" y="74" width="162" height="6" fill="#FF5722"/>
+            <rect x="150" y="74" width="162" height="6" fill="#7FB6DA"/>
             <!-- subtle FM chevron badge on the trailer -->
-            <g fill="none" stroke="#FF5722" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+            <g fill="none" stroke="#7FB6DA" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
                 <polyline points="222,46 230,54 222,62"/>
                 <polyline points="232,46 240,54 232,62"/>
             </g>
@@ -779,31 +779,31 @@
     <!-- ============================================================= -->
     <section class="font-sans bg-[#0a0f1a] px-5 py-20 sm:px-8 sm:py-28" aria-labelledby="features-heading" style="background:#0a0f1a;">
         <div class="mx-auto max-w-6xl">
-            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#FF5722]">Why Owner-Operators Choose Us</p>
+            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Why Owner-Operators Choose Us</p>
             <h2 id="features-heading" class="mt-3 text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
                 Discipline on the Road. Leverage at the Desk.
             </h2>
 
             <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <!-- card -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]">
+                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     </div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Aggressive Negotiation</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">We don't settle for the broker's first offer. We calculate your break-even RPM and fight for every cent your truck deserves.</p>
                 </div>
                 <!-- card -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]">
+                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 11 22 2 13 21 11 13 3 11"/></svg>
                     </div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Strategic Routing</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">No more getting stuck in dead zones. We use the triangle method to book high-paying headhauls and keep your profit margins wide.</p>
                 </div>
                 <!-- card -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05] sm:col-span-2 lg:col-span-1">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]">
+                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05] sm:col-span-2 lg:col-span-1">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/><line x1="9" y1="11" x2="12" y2="11"/></svg>
                     </div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Total Back-Office</h3>
@@ -817,10 +817,10 @@
     <!-- THE PORTAL — dispatcher + carrier capabilities                -->
     <!-- ============================================================= -->
     <section class="font-sans relative overflow-hidden bg-[#070b14] px-5 py-20 sm:px-8 sm:py-28" style="background:#070b14;">
-        <div class="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-[#FF5722]/10 blur-[120px]"></div>
+        <div class="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-[#7FB6DA]/10 blur-[120px]"></div>
         <div class="relative mx-auto max-w-6xl">
             <div class="mx-auto max-w-2xl text-center">
-                <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#FF5722]">One Platform, Two Logins</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">One Platform, Two Logins</p>
                 <h2 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
                     Built to Run the Whole Operation
                 </h2>
@@ -836,7 +836,7 @@
                 <!-- DISPATCHER -->
                 <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 sm:p-10">
                     <div class="flex items-center gap-3">
-                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]">
+                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]">
                             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
                         </span>
                         <div>
@@ -845,13 +845,13 @@
                         </div>
                     </div>
                     <ul class="mt-7 space-y-3.5 text-[15px] text-slate-300">
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Rate &amp; profit calculator</strong> — break-even RPM, broker target, and final agreed rate in seconds.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">HOS feasibility check</strong> — confirm a load is legal on the driver's clock before booking it.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Live mileage &amp; multi-stop routing</strong> — Google Maps distance, deadhead, and lane intel.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Carrier management</strong> — profiles, packet import, and one-click load assignment.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Financials dashboard</strong> — gross, dispatch fee, and net across every load.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Rate &amp; profit calculator</strong> — break-even RPM, broker target, and final agreed rate in seconds.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">HOS feasibility check</strong> — confirm a load is legal on the driver's clock before booking it.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Live mileage &amp; multi-stop routing</strong> — Google Maps distance, deadhead, and lane intel.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Carrier management</strong> — profiles, packet import, and one-click load assignment.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Financials dashboard</strong> — gross, dispatch fee, and net across every load.</span></li>
                     </ul>
-                    <a href="dispatcher-portal.html" class="group mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[#FF5722] hover:text-[#ff6a3c]">
+                    <a href="dispatcher-portal.html" class="group mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[#7FB6DA] hover:text-[#A6D2EC]">
                         Explore the Dispatcher Portal
                         <svg viewBox="0 0 24 24" class="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                     </a>
@@ -860,7 +860,7 @@
                 <!-- CARRIER -->
                 <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 sm:p-10">
                     <div class="flex items-center gap-3">
-                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]">
+                        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]">
                             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
                         </span>
                         <div>
@@ -869,13 +869,13 @@
                         </div>
                     </div>
                     <ul class="mt-7 space-y-3.5 text-[15px] text-slate-300">
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Secure invite-only login</strong> — your loads, your numbers, no one else's.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Assigned loads &amp; live status</strong> — pickup, delivery, and pay on one clean dashboard.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Compliance vault</strong> — CDL, medical card, and insurance dates tracked so nothing lapses.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Earnings at a glance</strong> — what you grossed, the fee, and your net per load.</span></li>
-                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#FF5722]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">VIP concierge</strong> — provisions, safe-parking scouting, and layover guides on every run.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Secure invite-only login</strong> — your loads, your numbers, no one else's.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Assigned loads &amp; live status</strong> — pickup, delivery, and pay on one clean dashboard.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Compliance vault</strong> — CDL, medical card, and insurance dates tracked so nothing lapses.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">Earnings at a glance</strong> — what you grossed, the fee, and your net per load.</span></li>
+                        <li class="flex gap-3"><svg viewBox="0 0 24 24" class="mt-0.5 h-4 w-4 flex-shrink-0 text-[#7FB6DA]" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span><strong class="font-semibold text-white">VIP concierge</strong> — provisions, safe-parking scouting, and layover guides on every run.</span></li>
                     </ul>
-                    <a href="driver-portal.html" class="group mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[#FF5722] hover:text-[#ff6a3c]">
+                    <a href="driver-portal.html" class="group mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[#7FB6DA] hover:text-[#A6D2EC]">
                         Explore the Driver Portal
                         <svg viewBox="0 0 24 24" class="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                     </a>
@@ -884,7 +884,7 @@
 
             <div class="mt-12 text-center">
                 <a href="https://forward-motion-app-bdim.vercel.app"
-                   class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5722] px-7 py-4 text-base font-bold text-white shadow-[0_10px_30px_-8px_rgba(255,87,34,0.6)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ff6a3c]">
+                   class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] shadow-[0_14px_30px_-8px_rgba(127,182,218,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#A6D2EC]">
                     Open the Driver Portal
                     <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </a>
@@ -897,13 +897,13 @@
     <!-- ============================================================= -->
     <section class="font-sans bg-[#070b14] px-5 py-16 sm:px-8 sm:py-20" style="background:#070b14;">
         <div class="mx-auto max-w-5xl">
-            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#FF5722]">See Your Money, Not Just Your Miles</p>
+            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">See Your Money, Not Just Your Miles</p>
             <h2 class="mx-auto mt-3 max-w-2xl text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Drivers See Every Dollar, Every Week</h2>
 
             <!-- Dashboard card -->
             <div class="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0e1626] to-[#070b14] shadow-2xl shadow-black/40">
                 <div class="flex items-center gap-2 border-b border-white/10 px-5 py-3.5">
-                    <span class="h-3 w-3 rounded-full bg-[#FF5722]/70"></span>
+                    <span class="h-3 w-3 rounded-full bg-[#7FB6DA]/70"></span>
                     <span class="h-3 w-3 rounded-full bg-white/20"></span>
                     <span class="h-3 w-3 rounded-full bg-white/20"></span>
                     <span class="ml-3 text-xs font-medium text-slate-400">Driver Portal — Earnings</span>
@@ -925,32 +925,32 @@
                         <div class="earnings-chart flex h-44 items-end justify-between gap-2 sm:gap-4">
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$760</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:64%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:64%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Mon</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$890</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:75%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:75%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Tue</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$705</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:60%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:60%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Wed</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-white">$1,180</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722] ring-2 ring-[#FF5722]/40" style="height:100%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA] ring-2 ring-[#7FB6DA]/40" style="height:100%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Thu</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$980</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:83%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:83%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Fri</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$840</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#FF5722]/40 to-[#FF5722]" style="height:71%"></div>
+                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:71%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Sat</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
@@ -976,7 +976,7 @@
                         </div>
                         <div class="bg-[#0b1220] p-5 text-center">
                             <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Avg RPM</p>
-                            <p class="mt-1 font-display text-xl font-bold text-[#FF5722]">$1.82</p>
+                            <p class="mt-1 font-display text-xl font-bold text-[#7FB6DA]">$1.82</p>
                         </div>
                     </div>
                 </div>
@@ -989,10 +989,10 @@
     <!-- PARTNERSHIP / WHITE-LABEL BAND                                -->
     <!-- ============================================================= -->
     <section class="font-sans bg-[#0a0f1a] px-5 py-16 sm:px-8 sm:py-20" style="background:#0a0f1a;">
-        <div class="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-[#FF5722]/25 bg-gradient-to-br from-[#1a1008] to-[#070b14] p-8 sm:p-14">
+        <div class="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-[#7FB6DA]/25 bg-gradient-to-br from-[#1a1008] to-[#070b14] p-8 sm:p-14">
             <div class="grid items-center gap-8 lg:grid-cols-[1.3fr_1fr]">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#FF5722]">For Dispatch Owners</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">For Dispatch Owners</p>
                     <h2 class="mt-3 font-display text-2xl font-extrabold tracking-tight text-white sm:text-4xl">Want This Platform Under Your Own Brand?</h2>
                     <p class="mt-4 max-w-xl text-base leading-relaxed text-slate-400">
                         Run your own dispatch service? Get a fully white-labeled dispatcher &amp; driver portal —
@@ -1002,7 +1002,7 @@
                 </div>
                 <div class="flex flex-col gap-3 lg:items-end">
                     <a href="partnership.html"
-                       class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5722] px-7 py-4 text-base font-bold text-white shadow-[0_10px_30px_-8px_rgba(255,87,34,0.6)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ff6a3c]">
+                       class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] shadow-[0_14px_30px_-8px_rgba(127,182,218,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#A6D2EC]">
                         Explore the Partnership
                         <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                     </a>
@@ -1020,7 +1020,7 @@
             <div class="vip-card">
                 <span class="tag">Free</span>
                 <div class="vip-icon">
-                    <svg viewBox="0 0 32 32" fill="none" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="#7FB6DA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M5 12 h22 l-2.2 13.5 a2 2 0 0 1 -2 1.7 H9.2 a2 2 0 0 1 -2 -1.7 z"/>
                         <path d="M11 12 l4.5 -7 M21 12 l-4.5 -7"/>
                         <path d="M13 17 v5 M19 17 v5"/>
@@ -1033,7 +1033,7 @@
             <div class="vip-card">
                 <span class="tag">Free</span>
                 <div class="vip-icon">
-                    <svg viewBox="0 0 32 32" fill="none" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="#7FB6DA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <rect x="5" y="4" width="22" height="24" rx="4"/>
                         <path d="M12.5 23 V9 h5.5 a4 4 0 0 1 0 8 H12.5"/>
                     </svg>
@@ -1045,7 +1045,7 @@
             <div class="vip-card">
                 <span class="tag">Free</span>
                 <div class="vip-icon">
-                    <svg viewBox="0 0 32 32" fill="none" stroke="#FF5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none" stroke="#7FB6DA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M16 28 C16 28 25 19.5 25 12 a9 9 0 0 0 -18 0 c0 7.5 9 16 9 16 z"/>
                         <circle cx="16" cy="12" r="3.4"/>
                     </svg>

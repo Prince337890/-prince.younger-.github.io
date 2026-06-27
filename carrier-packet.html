@@ -11,8 +11,8 @@
     <style>
         :root {
             --navy: #0B192C;
-            --orange: #FF5722;
-            --orange-deep: #E64A19;
+            --orange: #7FB6DA;
+            --orange-deep: #5E97BE;
             --light-gray: #F4F6F8;
             --white: #FFFFFF;
             --muted: #A0B3C6;
@@ -86,7 +86,7 @@
             100% { opacity: 0; transform: translateX(5px); }
         }
         .logo-text span { color: var(--orange); }
-        .logo:hover .logo-mark { filter: drop-shadow(0 0 8px rgba(255,87,34,0.8)); }
+        .logo:hover .logo-mark { filter: drop-shadow(0 0 8px rgba(127,182,218,0.8)); }
         .logo:hover .chev { animation-duration: 1.2s; }
         .nav-home {
             color: var(--muted);
@@ -157,7 +157,7 @@
             flex-shrink: 0;
             width: 24px; height: 24px;
             border-radius: 50%;
-            background: rgba(255,87,34,0.12);
+            background: rgba(127,182,218,0.12);
             color: var(--orange);
             display: flex;
             align-items: center;
@@ -179,7 +179,7 @@
             font-weight: 700;
             font-size: 1.1rem;
             border-radius: 6px;
-            box-shadow: 0 8px 24px rgba(255,87,34,0.3);
+            box-shadow: 0 8px 24px rgba(127,182,218,0.3);
             transition: background-color 0.25s ease, transform 0.2s ease;
         }
         .btn:hover { background-color: var(--orange-deep); transform: translateY(-2px); }
@@ -239,14 +239,14 @@
             <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
                 <g class="logo-hub">
                     <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
-                    <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                    <circle cx="16" cy="24" r="3" fill="#7FB6DA"/>
                     <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
                         <line x1="16" y1="24" x2="16" y2="13"/>
                         <line x1="16" y1="24" x2="25.5" y2="29.5"/>
                         <line x1="16" y1="24" x2="6.5" y2="29.5"/>
                     </g>
                 </g>
-                <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                <g fill="none" stroke="#7FB6DA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
                     <polyline class="chev c1" points="31,16 38,24 31,32"/>
                     <polyline class="chev c2" points="37,16 44,24 37,32"/>
                     <polyline class="chev c3" points="43,16 50,24 43,32"/>
