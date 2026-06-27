@@ -490,7 +490,7 @@ export default function App() {
               className="text-sm flex items-center gap-1.5 hover:text-white transition-colors">
               ← <span className="hidden sm:inline">Back to Website</span>
             </a>
-            <button className="hover:text-white transition-colors"><Bell size={20} /></button>
+            <NotificationsBell isAdmin={isAdmin && !viewAs} uid={viewUid} onNavigate={go} />
             <button className="hover:text-white transition-colors"><Settings size={20} /></button>
           </div>
         </header>
@@ -4760,6 +4760,122 @@ function Th({ children, className = '' }) {
 }
 function Td({ children, className = '' }) {
   return <td className={`px-4 py-3 text-sm text-slate-300 align-middle ${className}`}>{children}</td>;
+}
+
+// ---------- NOTIFICATIONS BELL ----------
+// Live header alerts built entirely from existing Firestore data (no new
+// collections, rules, or Storage). Admin sees fleet-wide signals; a driver
+// sees their own. Each item deep-links to the relevant tab.
+function NotificationsBell({ isAdmin, uid, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const wrapRef = useRef(null);
+
+  const daysUntil = (str) => str ? Math.ceil((new Date(str + 'T00:00:00') - new Date()) / 86400000) : null;
+  const complianceItems = (c, who, idPrefix) => {
+    const out = [];
+    [['CDL', c.cdl_expiration_date], ['Medical card', c.medical_card_expiration], ['Insurance', c.insurance_expiration]].forEach(([label, date]) => {
+      const dd = daysUntil(date);
+      if (dd === null || dd > 30) return;
+      out.push({
+        id: `${idPrefix}-${label}`, tone: dd < 0 ? 'red' : 'amber', icon: '🛡',
+        text: `${who} ${label} ${dd < 0 ? 'has expired' : `expires in ${dd} day${dd === 1 ? '' : 's'}`}`,
+        tab: 'compliance',
+      });
+    });
+    return out;
+  };
+
+  const build = React.useCallback(async () => {
+    setLoaded(false);
+    const out = [];
+    try {
+      if (isAdmin) {
+        const [loadSnap, carrierSnap, compSnap, userSnap] = await Promise.all([
+          getDocs(collection(db, 'loads')),
+          getDocs(collection(db, 'carriers')),
+          getDocs(collection(db, 'compliance')),
+          getDocs(collection(db, 'users')),
+        ]);
+        const emailByUid = {};
+        userSnap.docs.forEach((d) => { emailByUid[d.id] = d.data().email || d.id; });
+        const loads = loadSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        loads.filter((l) => l.offerStatus === 'pending').forEach((l) => {
+          out.push({ id: 'offer-' + l.id, tone: 'amber', icon: '📣', text: `Offer ${l.loadId || ''} awaiting ${emailByUid[l.uid] || 'carrier'}`, tab: 'allloads' });
+        });
+        loads.filter((l) => l.offerStatus === 'declined').forEach((l) => {
+          out.push({ id: 'declined-' + l.id, tone: 'red', icon: '✕', text: `${emailByUid[l.uid] || 'Carrier'} declined ${l.loadId || ''}${l.declineReason ? ' — ' + l.declineReason : ''}`, tab: 'allloads' });
+        });
+        compSnap.docs.forEach((d) => { complianceItems(d.data(), (emailByUid[d.id] || 'Carrier') + ':', 'comp-' + d.id).forEach((x) => out.push(x)); });
+        carrierSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.availability && c.availability !== 'Available').forEach((c) => {
+          out.push({ id: 'avail-' + c.id, tone: 'slate', icon: '⏸', text: `${c.name || 'Carrier'} is ${c.availability}`, tab: 'carriers' });
+        });
+      } else if (uid) {
+        const [compSnap, loadSnap] = await Promise.all([
+          getDoc(doc(db, 'compliance', uid)),
+          getDocs(query(collection(db, 'loads'), where('uid', '==', uid))),
+        ]);
+        if (compSnap.exists()) complianceItems(compSnap.data(), 'Your', 'comp').forEach((x) => out.push(x));
+        const loads = loadSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const offer = loads.find((l) => l.offerStatus === 'pending');
+        if (offer) out.push({ id: 'pending-offer', tone: 'amber', icon: '📣', text: `New load offer ${offer.loadId || ''} — respond to lock it in`, tab: 'dashboard' });
+        const active = loads.find((l) => l.status !== 'Delivered' && l.status !== 'Cleared' && l.offerStatus !== 'pending' && l.offerStatus !== 'declined');
+        if (active) out.push({ id: 'active-' + active.id, tone: 'blue', icon: '🚚', text: `Active load ${active.loadId || ''}: ${active.status}`, tab: 'lanes' });
+      }
+    } catch (e) {
+      console.error('Notifications build failed:', e);
+    }
+    setItems(out);
+    setLoaded(true);
+  }, [isAdmin, uid]);
+
+  useEffect(() => { build(); }, [build]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const toneDot = { amber: 'bg-amber-400', red: 'bg-red-400', blue: 'bg-blue-400', emerald: 'bg-emerald-400', slate: 'bg-slate-500' };
+  const count = items.length;
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button onClick={() => setOpen((o) => !o)} className="relative hover:text-white transition-colors" aria-label="Notifications" title="Notifications">
+        <Bell size={20} />
+        {count > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold flex items-center justify-center">{count > 9 ? '9+' : count}</span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl shadow-black/40 z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+            <span className="text-sm font-semibold text-white">Notifications{count > 0 ? ` (${count})` : ''}</span>
+            <button onClick={() => build()} className="text-xs text-slate-400 hover:text-amber-400 transition-colors">Refresh</button>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            {!loaded ? (
+              <div className="px-4 py-6 text-sm text-slate-500 text-center">Loading…</div>
+            ) : items.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-slate-500 text-center">You're all caught up. 🎉</div>
+            ) : (
+              items.map((it) => (
+                <button key={it.id} onClick={() => { setOpen(false); onNavigate && onNavigate(it.tab); }}
+                  className="w-full text-left flex items-start gap-3 px-4 py-3 border-b border-slate-800/60 last:border-0 hover:bg-slate-800/50 transition-colors">
+                  <span className="text-base leading-none shrink-0">{it.icon}</span>
+                  <span className="text-sm text-slate-200 leading-snug flex-1">{it.text}</span>
+                  <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${toneDot[it.tone] || toneDot.slate}`} />
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 
