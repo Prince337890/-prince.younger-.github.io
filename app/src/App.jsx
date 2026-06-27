@@ -648,7 +648,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
 
           {vipOn && (
           <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-6"><HeartPulse className="text-amber-500" size={20} /> VIP Concierge Updates</h3>
+            <h3 className="text-lg font-semibold flex items-center gap-2 mb-6"><HeartPulse className="text-amber-500" size={20} /> VIP Concierge Updates <span className="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Examples</span></h3>
             <div className="space-y-3">
               <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700">
                 <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><Dog size={20} /></div>
@@ -857,17 +857,25 @@ function Info({ label, value }) {
 }
 
 // ---------- SCHEDULE ----------
-const SAMPLE_EVENTS = [
-  { id: 'm1', type: 'Maintenance', title: 'Oil change & DOT inspection', date: '2026-06-26' },
-  { id: 'm2', type: 'Maintenance', title: 'Tire rotation', date: '2026-06-30' },
-];
-
 function ScheduleView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
-  const [events, setEvents] = useState(SAMPLE_EVENTS);
+  const [events, setEvents] = useState([]);
   const [loadEvents, setLoadEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ title: '', type: 'Maintenance', date: '' });
+
+  const fetchEvents = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, 'schedule_events'), where('uid', '==', targetUid)));
+      setEvents(snap.docs.map((d) => ({ id: d.id, manual: true, ...d.data() })));
+    } catch (err) {
+      console.error('Error loading events:', err);
+    } finally {
+      setLoadingEvents(false);
+    }
+  };
 
   useEffect(() => {
     const fetchLoads = async () => {
@@ -888,6 +896,7 @@ function ScheduleView({ uid }) {
       }
     };
     fetchLoads();
+    fetchEvents();
   }, []);
 
   const all = [...events, ...loadEvents];
@@ -899,12 +908,32 @@ function ScheduleView({ uid }) {
   });
   const dateKeys = Object.keys(groups).sort();
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!form.title || !form.date) return;
-    setEvents([{ id: 'e' + Date.now(), ...form }, ...events]);
-    setForm({ title: '', type: 'Maintenance', date: '' });
-    setShowForm(false);
+    setSaving(true);
+    try {
+      const ref = await addDoc(collection(db, 'schedule_events'), {
+        uid: targetUid, title: form.title, type: form.type, date: form.date, createdAt: serverTimestamp(),
+      });
+      setEvents((prev) => [{ id: ref.id, manual: true, uid: targetUid, ...form }, ...prev]);
+      setForm({ title: '', type: 'Maintenance', date: '' });
+      setShowForm(false);
+    } catch (err) {
+      console.error('Error adding event:', err);
+      alert('Could not save event — check the console.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteEvent = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'schedule_events', id));
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      console.error('Error deleting event:', err);
+    }
   };
 
   const fmtDate = (str) => {
@@ -949,14 +978,15 @@ function ScheduleView({ uid }) {
               type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors">Add to Calendar</button>
+            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">{saving ? 'Saving…' : 'Add to Calendar'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
-            <span className="text-xs text-slate-500">Demo — added events reset on refresh.</span>
           </div>
         </form>
       )}
 
-      {dateKeys.length === 0 ? (
+      {loadingEvents ? (
+        <div className="text-slate-500 text-center py-12">Loading your schedule…</div>
+      ) : dateKeys.length === 0 ? (
         <div className="text-slate-500 text-center py-12">Nothing scheduled yet.</div>
       ) : (
         <div className="space-y-6">
@@ -973,6 +1003,9 @@ function ScheduleView({ uid }) {
                         <div className="font-semibold text-white truncate">{e.title}</div>
                         <div className="text-xs text-slate-400">{e.type}</div>
                       </div>
+                      {e.manual && (
+                        <button onClick={() => deleteEvent(e.id)} className="text-slate-500 hover:text-red-400 text-sm shrink-0" title="Remove event">✕</button>
+                      )}
                     </div>
                   );
                 })}
@@ -1509,8 +1542,8 @@ function PetLogisticsView() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Pet Logistics Dashboard</h2>
-          <p className="text-slate-400">Managing Lady's road life so you don't have to worry.</p>
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">Pet Logistics Dashboard <span className="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Example</span></h2>
+          <p className="text-slate-400">Managing Lady's road life so you don't have to worry. <span className="text-slate-500">(Sample data — full module coming soon.)</span></p>
         </div>
         <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0">
           <ShieldCheck size={18} /> Emergency Vet Connect
