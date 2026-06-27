@@ -3128,35 +3128,76 @@ function LaneIntelView() {
 }
 
 // ---------- ONBOARDING WIZARD (first carrier login) ----------
+// Pre-fills from the carrier profile the admin already created (Carriers tab,
+// linked by linkedDriverUid). The driver confirms it and adds only what the
+// dispatcher can't: documents + banking. Avoids re-asking for packet info.
 function OnboardingWizard({ onDone }) {
   const uid = auth.currentUser?.uid;
   const email = auth.currentUser?.email || '';
   const STORAGE_KEY = 'fm_onboarding_' + (uid || 'anon');
 
-  const REGIONS = ['Northeast', 'Southeast', 'Midwest', 'South Central', 'Mountain West', 'West Coast', 'Pacific Northwest'];
   const EQUIPMENT = ['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Power Only', 'Box Truck', 'Tanker', 'Hotshot'];
   const ENDORSEMENTS = ['Hazmat', 'Tanker', 'TWIC', 'Doubles/Triples', 'Oversize/Overweight'];
-  const TRAILER_LENGTHS = ["53'", "48'", "26'", "Other"];
   const HOME_TIME = ['Every weekend', 'Every 2 weeks', 'OTR 3+ weeks', 'Flexible'];
 
   const blank = {
-    companyName: '', dba: '', mcNumber: '', dotNumber: '',
+    companyName: '', mcNumber: '', dotNumber: '', homeBase: '',
     dispatchName: '', dispatchPhone: '', dispatchEmail: email,
     emergencyName: '', emergencyPhone: '',
-    equipmentType: 'Dry Van', trailerLength: "53'", maxWeight: '', endorsements: [],
-    targetRate: '', preferredRegions: [], avoidRegions: [], homeTime: 'Flexible',
+    equipmentType: '', maxWeight: '', endorsements: [],
+    targetRate: '', preferredLanesText: '', avoidText: '', homeTime: 'Flexible',
     usesFactoring: 'yes', factorName: '', factorEmail: '', factorPhone: '',
     achRouting: '', achAccount: '',
   };
 
   const loadSaved = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (_) { return {}; } };
+  const savedAtInit = loadSaved();
+  const hasSaved = !!savedAtInit.f;
+
   const [step, setStep] = useState(0);
-  const [f, setF] = useState(() => ({ ...blank, ...(loadSaved().f || {}) }));
-  const [docs, setDocs] = useState(() => loadSaved().docs || {});
+  const [f, setF] = useState(() => ({ ...blank, ...(savedAtInit.f || {}) }));
+  const [docs, setDocs] = useState(() => savedAtInit.docs || {});
+  const [carrierDoc, setCarrierDoc] = useState(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
   const [uploading, setUploading] = useState({});
   const [uploadErr, setUploadErr] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState('');
+
+  // Pull the carrier profile the dispatcher already created/imported.
+  useEffect(() => {
+    (async () => {
+      try {
+        if (uid) {
+          const snap = await getDocs(query(collection(db, 'carriers'), where('linkedDriverUid', '==', uid)));
+          if (!snap.empty) {
+            const c = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            setCarrierDoc(c);
+            if (!hasSaved) {
+              setF((prev) => ({
+                ...prev,
+                companyName: c.name || prev.companyName,
+                mcNumber: c.mcNumber || prev.mcNumber,
+                dispatchName: c.driverName || prev.dispatchName,
+                dispatchPhone: c.phone || prev.dispatchPhone,
+                homeBase: c.homeBase || prev.homeBase,
+                equipmentType: c.trailerType || prev.equipmentType,
+                maxWeight: c.maxCapacity ? String(c.maxCapacity) : prev.maxWeight,
+                targetRate: c.minRpm ? String(c.minRpm) : prev.targetRate,
+                preferredLanesText: c.preferredLanes || prev.preferredLanesText,
+                avoidText: c.noGo || prev.avoidText,
+              }));
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Carrier prefill failed:', e);
+      } finally {
+        setProfileLoaded(true);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ f, docs })); } catch (_) {}
@@ -3187,10 +3228,10 @@ function OnboardingWizard({ onDone }) {
     }
   };
 
-  const STEPS = ['Profile', 'Documents', 'Equipment', 'Lanes', 'Payment'];
+  const STEPS = ['Confirm', 'Documents', 'Payment'];
   const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
 
-  const next = () => setStep((s) => Math.min(s + 1, 6));
+  const next = () => setStep((s) => Math.min(s + 1, 4));
   const back = () => setStep((s) => Math.max(s - 1, 0));
   const canProceed = () => (step === 1 ? (f.companyName.trim() && f.mcNumber.trim()) : true);
 
@@ -3203,7 +3244,7 @@ function OnboardingWizard({ onDone }) {
         onboardingComplete: true,
         onboardingStatus: 'under_review',
         onboardingSubmittedAt: serverTimestamp(),
-        carrierProfile: { ...f, documents: docs },
+        carrierProfile: { ...f, documents: docs, carrierId: carrierDoc ? carrierDoc.id : null },
       }, { merge: true });
       try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
       onDone();
@@ -3235,17 +3276,10 @@ function OnboardingWizard({ onDone }) {
     </div>
   );
 
-  const Chips = ({ list, selKey, onCls, mark }) => (
-    <div className="flex flex-wrap gap-2">
-      {list.map((x) => {
-        const on = (f[selKey] || []).includes(x);
-        return (
-          <button key={x} type="button" onClick={() => toggleArr(selKey, x)}
-            className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${on ? onCls : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>
-            {on ? mark + ' ' : ''}{x}
-          </button>
-        );
-      })}
+  const SummaryRow = ({ label, value }) => (
+    <div className="flex justify-between gap-3 py-2 border-b border-slate-800 last:border-0">
+      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-sm text-slate-200 text-right">{value || <span className="text-slate-600">—</span>}</span>
     </div>
   );
 
@@ -3259,7 +3293,7 @@ function OnboardingWizard({ onDone }) {
         <button onClick={() => signOut(auth)} className="text-xs text-slate-400 hover:text-white">Sign out</button>
       </div>
 
-      {step >= 1 && step <= 5 && (
+      {step >= 1 && step <= 3 && (
         <div className="px-4 md:px-8 py-4 border-b border-slate-800">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             {STEPS.map((label, i) => {
@@ -3285,36 +3319,86 @@ function OnboardingWizard({ onDone }) {
             <div className="text-center py-10">
               <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mb-6"><Navigation size={32} /></div>
               <h2 className="text-3xl font-bold text-white mb-3">Welcome to the Fleet. Let's Get You Moving.</h2>
-              <p className="text-slate-400 max-w-md mx-auto mb-8">Complete this quick 5-step setup so we can start aggressively negotiating your rates and securing your preferred lanes.</p>
-              <button onClick={() => setStep(1)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors">Start Setup →</button>
+              <p className="text-slate-400 max-w-md mx-auto mb-8">
+                {carrierDoc
+                  ? "Your dispatcher already started your profile from your carrier packet. Confirm it's right and add your documents — takes about 2 minutes."
+                  : "Let's get a few details on file so we can start aggressively negotiating your rates and securing your preferred lanes."}
+              </p>
+              <button onClick={() => setStep(1)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors">
+                {profileLoaded ? 'Start →' : 'Loading…'}
+              </button>
             </div>
           )}
 
           {step === 1 && (
             <div className="space-y-5">
-              <div><h2 className="text-2xl font-bold">Carrier Profile &amp; Verification</h2><p className="text-slate-400 text-sm mt-1">Confirm your identity and operating authority.</p></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="block text-xs text-slate-400 mb-1">Legal Company Name *</label><input className={field} value={f.companyName} onChange={set('companyName')} /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">DBA (if any)</label><input className={field} value={f.dba} onChange={set('dba')} /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">MC Number *</label><input className={field} value={f.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">USDOT Number</label><input className={field} value={f.dotNumber} onChange={set('dotNumber')} /></div>
-              </div>
-              <div className="bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2 text-[11px] text-slate-500">Automatic FMCSA lookup by MC# is coming soon — for now, enter your details manually.</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div><label className="block text-xs text-slate-400 mb-1">Dispatch Contact Name</label><input className={field} value={f.dispatchName} onChange={set('dispatchName')} /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">Dispatch Phone</label><input className={field} value={f.dispatchPhone} onChange={set('dispatchPhone')} /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">Dispatch Email</label><input className={field} value={f.dispatchEmail} onChange={set('dispatchEmail')} /></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="block text-xs text-slate-400 mb-1">Emergency Contact Name</label><input className={field} value={f.emergencyName} onChange={set('emergencyName')} /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">Emergency Contact Phone</label><input className={field} value={f.emergencyPhone} onChange={set('emergencyPhone')} /></div>
+              <div><h2 className="text-2xl font-bold">Confirm Your Profile</h2><p className="text-slate-400 text-sm mt-1">{carrierDoc ? "Here's what we have on file. Make sure it's right." : "We don't have a profile on file yet — please fill in the basics."}</p></div>
+
+              {carrierDoc && !editProfile ? (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-amber-400 tracking-wide">FROM YOUR CARRIER PACKET</span>
+                    <button type="button" onClick={() => setEditProfile(true)} className="text-xs text-slate-400 hover:text-white underline">Something's wrong? Edit</button>
+                  </div>
+                  <SummaryRow label="Company" value={f.companyName} />
+                  <SummaryRow label="MC Number" value={f.mcNumber} />
+                  <SummaryRow label="Home Base" value={f.homeBase} />
+                  <SummaryRow label="Equipment" value={f.equipmentType} />
+                  <SummaryRow label="Max Capacity" value={f.maxWeight ? Number(f.maxWeight).toLocaleString() + ' lbs' : ''} />
+                  <SummaryRow label="Target Min Rate" value={f.targetRate ? '$' + f.targetRate + '/mi' : ''} />
+                  <SummaryRow label="Preferred Lanes" value={f.preferredLanesText} />
+                  <SummaryRow label="Avoid" value={f.avoidText} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label className="block text-xs text-slate-400 mb-1">Legal Company Name *</label><input className={field} value={f.companyName} onChange={set('companyName')} /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">MC Number *</label><input className={field} value={f.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Home Base (City, State)</label><input className={field} value={f.homeBase} onChange={set('homeBase')} /></div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Equipment Type</label>
+                    <select className={field} value={f.equipmentType} onChange={set('equipmentType')}>
+                      <option value="">Select…</option>
+                      {EQUIPMENT.map((x) => <option key={x}>{x}</option>)}
+                      {f.equipmentType && !EQUIPMENT.includes(f.equipmentType) && <option value={f.equipmentType}>{f.equipmentType}</option>}
+                    </select>
+                  </div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Max Weight Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={f.maxWeight} onChange={set('maxWeight')} placeholder="45000" /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Target Minimum Rate ($/mile)</label><input className={field} type="number" inputMode="decimal" value={f.targetRate} onChange={set('targetRate')} placeholder="2.50" /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs text-slate-400 mb-1">Preferred Lanes / Regions</label><input className={field} value={f.preferredLanesText} onChange={set('preferredLanesText')} placeholder="e.g. Southeast, Midwest" /></div>
+                  <div className="sm:col-span-2"><label className="block text-xs text-slate-400 mb-1">Areas to Avoid</label><input className={field} value={f.avoidText} onChange={set('avoidText')} placeholder="e.g. Northeast, NYC" /></div>
+                  {carrierDoc && <div className="sm:col-span-2"><button type="button" onClick={() => setEditProfile(false)} className="text-xs text-amber-400 hover:underline">Done editing — back to summary</button></div>}
+                </div>
+              )}
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="text-xs font-semibold text-slate-400 tracking-wide">A FEW MORE DETAILS WE NEED</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label className="block text-xs text-slate-400 mb-1">USDOT Number</label><input className={field} value={f.dotNumber} onChange={set('dotNumber')} /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Home Time Preference</label><select className={field} value={f.homeTime} onChange={set('homeTime')}>{HOME_TIME.map((x) => <option key={x}>{x}</option>)}</select></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Emergency Contact Name</label><input className={field} value={f.emergencyName} onChange={set('emergencyName')} /></div>
+                  <div><label className="block text-xs text-slate-400 mb-1">Emergency Contact Phone</label><input className={field} value={f.emergencyPhone} onChange={set('emergencyPhone')} /></div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-2">Specialized Endorsements</label>
+                  <div className="flex flex-wrap gap-2">
+                    {ENDORSEMENTS.map((x) => {
+                      const on = f.endorsements.includes(x);
+                      return (
+                        <button key={x} type="button" onClick={() => toggleArr('endorsements', x)}
+                          className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${on ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>
+                          {on ? '✓ ' : ''}{x}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-5">
-              <div><h2 className="text-2xl font-bold">The Document Vault</h2><p className="text-slate-400 text-sm mt-1">Upload your compliance paperwork so we can build your carrier packet.</p></div>
+              <div><h2 className="text-2xl font-bold">Your Documents</h2><p className="text-slate-400 text-sm mt-1">Upload your compliance paperwork so we can build your carrier packet and start booking.</p></div>
               <div className="space-y-3">
                 <DocRow k="w9" label="W-9 Form" hint="IRS taxpayer ID form." templateUrl="https://www.irs.gov/pub/irs-pdf/fw9.pdf" />
                 <DocRow k="coi" label="Certificate of Insurance (COI)" hint="Proof of active cargo & liability coverage." />
@@ -3326,50 +3410,7 @@ function OnboardingWizard({ onDone }) {
 
           {step === 3 && (
             <div className="space-y-5">
-              <div><h2 className="text-2xl font-bold">Equipment &amp; Capacity</h2><p className="text-slate-400 text-sm mt-1">Tell us exactly what you can haul so we never pitch you dead-end loads.</p></div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div><label className="block text-xs text-slate-400 mb-1">Equipment Type</label><select className={field} value={f.equipmentType} onChange={set('equipmentType')}>{EQUIPMENT.map((x) => <option key={x}>{x}</option>)}</select></div>
-                <div><label className="block text-xs text-slate-400 mb-1">Trailer Length</label><select className={field} value={f.trailerLength} onChange={set('trailerLength')}>{TRAILER_LENGTHS.map((x) => <option key={x}>{x}</option>)}</select></div>
-                <div><label className="block text-xs text-slate-400 mb-1">Max Weight Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={f.maxWeight} onChange={set('maxWeight')} placeholder="45000" /></div>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-2">Specialized Endorsements</label>
-                <div className="flex flex-wrap gap-2">
-                  {ENDORSEMENTS.map((x) => {
-                    const on = f.endorsements.includes(x);
-                    return (
-                      <button key={x} type="button" onClick={() => toggleArr('endorsements', x)}
-                        className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${on ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>
-                        {on ? '✓ ' : ''}{x}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-5">
-              <div><h2 className="text-2xl font-bold">Lane &amp; Rate Preferences</h2><p className="text-slate-400 text-sm mt-1">How you want to run — so we negotiate the freight that fits you.</p></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="block text-xs text-slate-400 mb-1">Target Minimum Rate ($/mile)</label><input className={field} type="number" inputMode="decimal" value={f.targetRate} onChange={set('targetRate')} placeholder="2.50" /></div>
-                <div><label className="block text-xs text-slate-400 mb-1">Home Time Preference</label><select className={field} value={f.homeTime} onChange={set('homeTime')}>{HOME_TIME.map((x) => <option key={x}>{x}</option>)}</select></div>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-2">Preferred Regions</label>
-                <Chips list={REGIONS} selKey="preferredRegions" onCls="bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-semibold" mark="✓" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-2">Areas to Avoid</label>
-                <Chips list={REGIONS} selKey="avoidRegions" onCls="bg-red-500/20 text-red-300 border-red-500/50 font-semibold" mark="✕" />
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="space-y-5">
-              <div><h2 className="text-2xl font-bold">Factoring &amp; Payment Setup</h2><p className="text-slate-400 text-sm mt-1">How our back office handles your money.</p></div>
+              <div><h2 className="text-2xl font-bold">Factoring &amp; Payment</h2><p className="text-slate-400 text-sm mt-1">How our back office handles your money.</p></div>
               <div>
                 <label className="block text-xs text-slate-400 mb-2">Are you using a factoring company?</label>
                 <div className="flex gap-2">
@@ -3397,14 +3438,14 @@ function OnboardingWizard({ onDone }) {
             </div>
           )}
 
-          {step === 6 && (
+          {step === 4 && (
             <div className="text-center py-10">
               <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-6"><CheckCircle2 size={32} /></div>
               <h2 className="text-3xl font-bold text-white mb-3">You're Ready to Roll.</h2>
               <p className="text-slate-400 max-w-md mx-auto mb-8">Your profile is under review by our dispatch team. You'll be notified the moment you're cleared for your first load.</p>
               {submitErr && <p className="text-red-400 text-sm mb-4">{submitErr}</p>}
               <div className="flex items-center justify-center gap-3">
-                <button onClick={() => setStep(5)} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
+                <button onClick={() => setStep(3)} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
                 <button onClick={submit} disabled={submitting} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors disabled:opacity-50">
                   {submitting ? 'Saving…' : 'Go to Dashboard →'}
                 </button>
@@ -3414,12 +3455,12 @@ function OnboardingWizard({ onDone }) {
         </div>
       </div>
 
-      {step >= 1 && step <= 5 && (
+      {step >= 1 && step <= 3 && (
         <div className="border-t border-slate-800 px-4 md:px-8 py-4">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <button onClick={back} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
             <button onClick={next} disabled={!canProceed()} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg transition-colors disabled:opacity-50">
-              {step < 5 ? 'Continue' : 'Review & Finish'}
+              {step < 3 ? 'Continue' : 'Review & Finish'}
             </button>
           </div>
         </div>
