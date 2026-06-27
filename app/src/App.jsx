@@ -147,6 +147,29 @@ async function geocodeZip(zip) {
   });
 }
 
+// Browser geolocation as a promise.
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Location not available on this device.'));
+    navigator.geolocation.getCurrentPosition((p) => resolve(p.coords), (e) => reject(e), { timeout: 12000, maximumAge: 60000 });
+  });
+}
+
+// Google Places text search near a lat/lng (needs the Places API enabled on the key).
+async function placesNear(queryText, lat, lng, radius = 40000) {
+  await loadGoogleMaps();
+  return new Promise((resolve, reject) => {
+    if (!(window.google && window.google.maps && window.google.maps.places)) return reject(new Error('Places library not available — enable the Places API.'));
+    const svc = new window.google.maps.places.PlacesService(document.createElement('div'));
+    svc.textSearch({ query: queryText, location: new window.google.maps.LatLng(lat, lng), radius }, (results, status) => {
+      const S = window.google.maps.places.PlacesServiceStatus;
+      if (status === S.OK) resolve(results || []);
+      else if (status === S.ZERO_RESULTS) resolve([]);
+      else reject(new Error(status));
+    });
+  });
+}
+
 async function createDriverAccount(email, password) {
   const secondary = initializeApp(firebaseConfig, 'driver-creator-' + Date.now());
   const secondaryAuth = getAuth(secondary);
@@ -276,6 +299,8 @@ export default function App() {
       case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
       case 'wellness': return <WellnessView />;
       case 'pets': return <PetLogisticsView />;
+      case 'upgrades': return <UpgradesView key={'upg-' + viewUid} uid={viewUid} />;
+      case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
@@ -336,6 +361,7 @@ export default function App() {
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
+              <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
               <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
@@ -357,6 +383,7 @@ export default function App() {
               <NavItem icon={<ShieldCheck size={18} />} label="Compliance" isActive={activeTab === 'compliance'} onClick={() => go('compliance')} />
               <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
               <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
+              <NavItem icon={<CreditCard size={18} />} label="Upgrades & Credentials" isActive={activeTab === 'upgrades'} onClick={() => go('upgrades')} />
 
               {vipOn && (
                 <>
@@ -1164,6 +1191,8 @@ function LaneManagementView({ uid }) {
         </div>
       </div>
 
+      <HealthyHubAndShower load={active} />
+
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <h3 className="text-lg font-bold mb-4">Upcoming Loads</h3>
         {upcoming.length === 0 ? (
@@ -1185,6 +1214,89 @@ function LaneManagementView({ uid }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- VIP: HEALTHY HUB + SHOWER (on the active load) ----------
+function HealthyHubAndShower({ load }) {
+  const [hub, setHub] = useState({ loading: false, err: '', items: null });
+  const [shower, setShower] = useState(load && load.showerRequested ? 'sent' : 'idle');
+
+  const findStops = async () => {
+    setHub({ loading: true, err: '', items: null });
+    try {
+      const dest = (load && load.destination) || '';
+      if (!dest) throw new Error('No destination on this load yet.');
+      const coords = await new Promise((resolve, reject) => {
+        loadGoogleMaps().then(() => {
+          const g = new window.google.maps.Geocoder();
+          g.geocode({ address: dest + ', USA' }, (res, status) => {
+            if (status === 'OK' && res && res[0]) {
+              const loc = res[0].geometry.location;
+              resolve({ lat: loc.lat(), lng: loc.lng() });
+            } else reject(new Error('Could not locate destination — enable the Geocoding API.'));
+          });
+        }).catch(reject);
+      });
+      const [gyms, grocers, dining] = await Promise.all([
+        placesNear('truck accessible gym fitness center', coords.lat, coords.lng, 30000),
+        placesNear('grocery store healthy food', coords.lat, coords.lng, 30000),
+        placesNear('healthy high protein restaurant', coords.lat, coords.lng, 30000),
+      ]);
+      const pick = (arr, n) => arr.slice(0, n).map((r) => ({ name: r.name, addr: r.formatted_address }));
+      setHub({ loading: false, err: '', items: { gyms: pick(gyms, 3), grocers: pick(grocers, 3), dining: pick(dining, 3) } });
+    } catch (e) {
+      setHub({ loading: false, err: e.message || 'Could not load stops — enable the Places + Geocoding APIs.', items: null });
+    }
+  };
+
+  const requestShower = async () => {
+    if (!load || !load.id) return;
+    setShower('sending');
+    try {
+      await updateDoc(doc(db, 'loads', load.id), { showerRequested: true, showerRequestedAt: serverTimestamp() });
+      setShower('sent');
+    } catch (e) { console.error('Shower request failed:', e); setShower('idle'); alert('Could not send request — try again.'); }
+  };
+
+  const Group = ({ title, items, icon }) => (
+    <div>
+      <div className="text-xs font-semibold text-amber-400 mb-2">{icon} {title}</div>
+      {(!items || items.length === 0) ? <div className="text-xs text-slate-500">None found nearby.</div> : (
+        <div className="space-y-1.5">
+          {items.map((x, i) => (
+            <a key={i} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(x.name + ' ' + (x.addr || ''))}`} target="_blank" rel="noopener noreferrer" className="block bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 hover:border-amber-500/40">
+              <div className="text-sm text-white truncate">{x.name}</div>
+              <div className="text-[11px] text-slate-400 truncate">{x.addr}</div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-lg font-bold flex items-center gap-2"><HeartPulse className="text-amber-500" size={20} /> Healthy Hub &amp; Wellness Stops</h3>
+        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">VIP</span>
+      </div>
+      <p className="text-sm text-slate-400">Premium stops near your delivery — gyms, grocers, and clean dining — so you don't waste time scrolling maps.</p>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={findStops} disabled={hub.loading} className="text-sm bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg disabled:opacity-50">{hub.loading ? 'Finding…' : '🧭 Find stops near my delivery'}</button>
+        <button onClick={requestShower} disabled={shower !== 'idle'} className={`text-sm px-3 py-2 rounded-lg border ${shower === 'sent' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'} disabled:opacity-70`}>
+          {shower === 'sent' ? '✓ Shower requested' : shower === 'sending' ? 'Sending…' : '🚿 Request a shower at next stop'}
+        </button>
+      </div>
+      {hub.err && <p className="text-xs text-red-400">{hub.err}</p>}
+      {hub.items && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Group title="Fitness" items={hub.items.gyms} icon="🏋️" />
+          <Group title="Grocers" items={hub.items.grocers} icon="🥗" />
+          <Group title="Clean Dining" items={hub.items.dining} icon="🍱" />
+        </div>
+      )}
     </div>
   );
 }
@@ -3487,6 +3599,26 @@ function LaneIntelView() {
   const [t, setT] = useState({ origin: '', dest: '', miles: '', perDay: '500', pickup: '' });
   const setTf = (k) => (e) => setT((s) => ({ ...s, [k]: e.target.value }));
   const num = (x) => parseFloat(x) || 0;
+
+  // Pull the current lane from the Rate Calculator (saved in localStorage).
+  const stateFrom = (cityStr) => {
+    const m = (cityStr || '').match(/,\s*([A-Za-z]{2})\b/);
+    return m ? m[1].toUpperCase() : '';
+  };
+  const pullFromCalc = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('fm_ratecalc_v1') || '{}');
+      const v = saved.v || {};
+      const totalMi = (num(v.loadedMiles) + num(v.deadheadMiles)) || num(v.loadedMiles);
+      setT((s) => ({
+        ...s,
+        origin: stateFrom(v.originCity) || s.origin,
+        dest: stateFrom(v.destCity) || s.dest,
+        miles: totalMi ? String(Math.round(totalMi)) : s.miles,
+        pickup: v.pickupAt ? v.pickupAt.slice(0, 10) : s.pickup,
+      }));
+    } catch (_) { /* ignore */ }
+  };
   const miles = num(t.miles);
   const perDay = num(t.perDay) || 500;
   const transitDays = miles > 0 ? miles / perDay : 0;
@@ -3576,7 +3708,10 @@ function LaneIntelView() {
       <p className="text-slate-400">Know the business of the road — transit days and the facility/market intel your team learns one load at a time.</p>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <h3 className="font-bold">Transit Day Estimator</h3>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="font-bold">Transit Day Estimator</h3>
+          <button type="button" onClick={pullFromCalc} className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg">⤵ Pull from Rate Calculator</button>
+        </div>
         <p className="text-xs text-slate-500">Turn miles into realistic transit days so you never overpromise a broker on delivery time.</p>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div>
@@ -4166,6 +4301,361 @@ function TrainingView() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- CARRIER: BUSINESS UPGRADES & CREDENTIALS ----------
+const CREDENTIALS = [
+  { key: 'TWIC', label: 'TWIC Card', find: true, steps: [
+    'Pre-enroll online at universalenroll.dhs.gov and book an appointment.',
+    'Visit a TSA enrollment center with ID/citizenship docs and the fee (~$125, valid 5 yrs).',
+    'Your card arrives in ~2–3 weeks — activate it and you can run port/secure facility loads.',
+  ] },
+  { key: 'Hazmat', label: 'Hazmat (H)', steps: [
+    'Apply for the Hazmat (H) endorsement on your CDL at your state DMV.',
+    'Complete the TSA Hazmat background check (fingerprints + fee).',
+    'Pass the hazmat knowledge test — the endorsement is added to your CDL.',
+  ] },
+  { key: 'Tanker', label: 'Tanker (N)', steps: [
+    'Study the tanker section of your state CDL manual.',
+    'Pass the tanker (N) knowledge test at the DMV.',
+    'Endorsement added — you can now haul liquid/gas in bulk for higher-paying loads.',
+  ] },
+  { key: 'SCAC', label: 'SCAC Code', steps: [
+    'A SCAC is a 2–4 letter carrier code from the NMFTA (not a TSA credential).',
+    'Apply at nmfta.org and pay the annual fee.',
+    'Receive your code — required for many intermodal, government, and EDI loads.',
+  ] },
+];
+
+function UpgradesView({ uid }) {
+  const targetUid = uid || auth.currentUser?.uid;
+  const [profile, setProfile] = useState(null);
+  const [creds, setCreds] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null); // credential key
+  const [tsa, setTsa] = useState({ loading: false, err: '', list: null });
+  const [uploading, setUploading] = useState({});
+  const [uploadErr, setUploadErr] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', targetUid));
+        const d = snap.exists() ? snap.data() : {};
+        setProfile(d.carrierProfile || {});
+        setCreds(d.credentials || {});
+      } catch (e) { console.error('Upgrades load failed:', e); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const endorsements = (profile && profile.endorsements) || [];
+  const hasCred = (key) => (key === 'SCAC' ? !!(profile && profile.scac) : endorsements.includes(key)) || !!creds[key];
+
+  const findTSA = async () => {
+    setTsa({ loading: true, err: '', list: null });
+    try {
+      const pos = await getPosition();
+      const results = await placesNear('TSA TWIC enrollment center', pos.latitude, pos.longitude, 80000);
+      setTsa({ loading: false, err: '', list: results.slice(0, 5) });
+    } catch (e) {
+      setTsa({ loading: false, err: e.message || 'Could not find centers (enable the Places API + allow location).', list: null });
+    }
+  };
+
+  const uploadCred = (key) => async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setUploadErr((u) => ({ ...u, [key]: '' }));
+    setUploading((u) => ({ ...u, [key]: true }));
+    try {
+      const path = `credentials/${targetUid}/${key}_${Date.now()}_${file.name}`;
+      const r = storageRef(storage, path);
+      await uploadBytes(r, file);
+      const url = await getDownloadURL(r);
+      const rec = { name: file.name, url };
+      await setDoc(doc(db, 'users', targetUid), { credentials: { [key]: rec } }, { merge: true });
+      setCreds((c) => ({ ...c, [key]: rec }));
+    } catch (err) {
+      setUploadErr((u) => ({ ...u, [key]: err.code === 'storage/unauthorized' ? 'Enable Firebase Storage + rules to upload.' : (err.message || 'Upload failed') }));
+    } finally {
+      setUploading((u) => ({ ...u, [key]: false }));
+    }
+  };
+
+  const copyDetails = () => {
+    const p = profile || {};
+    const txt = `Company: ${p.companyName || ''}\nMC: ${p.mcNumber || ''}\nUSDOT: ${p.dotNumber || ''}`;
+    try { navigator.clipboard.writeText(txt); alert('Copied your company details to the clipboard.'); } catch (_) {}
+  };
+
+  if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading upgrades…</div>;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Business Upgrades &amp; Credentials</h2>
+        <p className="text-slate-400">Unlock better fuel discounts and specialized, higher-paying freight.</p>
+      </div>
+
+      {/* B1 — Fuel Card Fast-Track */}
+      <div className="bg-gradient-to-r from-amber-500/10 to-slate-900 border border-amber-500/30 rounded-2xl p-6">
+        <div className="flex items-center gap-2 mb-2"><CreditCard className="text-amber-400" size={20} /><h3 className="text-lg font-bold">Fuel Card Fast-Track</h3></div>
+        <p className="text-sm text-slate-300 mb-4">No fuel card yet? A commercial card saves you cents-per-gallon on every fill. Apply with your saved details:</p>
+        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-sm grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+          <div><span className="text-slate-500 text-xs">Company</span><div className="text-white font-semibold">{(profile && profile.companyName) || '—'}</div></div>
+          <div><span className="text-slate-500 text-xs">MC</span><div className="text-white font-semibold">{(profile && profile.mcNumber) || '—'}</div></div>
+          <div><span className="text-slate-500 text-xs">USDOT</span><div className="text-white font-semibold">{(profile && profile.dotNumber) || '—'}</div></div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a href="https://www.atob.com" target="_blank" rel="noopener noreferrer" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm">Apply with AtoB ↗</a>
+          <a href="https://mudflapinc.com" target="_blank" rel="noopener noreferrer" className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2 rounded-lg text-sm">Apply with Mudflap ↗</a>
+          <button onClick={copyDetails} className="text-slate-300 hover:text-white px-3 py-2 text-sm">Copy my details</button>
+        </div>
+        <p className="text-[11px] text-slate-500 mt-3">Tip: keep your EIN handy — providers ask for it on the application.</p>
+      </div>
+
+      {/* B2 — Credential Checklist */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="text-lg font-bold mb-1">Credential Checklist</h3>
+        <p className="text-sm text-slate-400 mb-4">Green = on file. Tap a missing one for a quick how-to guide.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {CREDENTIALS.map((c) => {
+            const have = hasCred(c.key);
+            return (
+              <button key={c.key} onClick={() => { setModal(c.key); setTsa({ loading: false, err: '', list: null }); }}
+                className={`rounded-xl border p-4 text-left transition-colors ${have ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-slate-800/50 border-slate-700 hover:border-amber-500/40'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white text-sm">{c.label}</span>
+                  {have ? <CheckCircle2 size={16} className="text-emerald-400" /> : <span className="text-[10px] text-amber-400">Get it →</span>}
+                </div>
+                <div className={`text-[11px] mt-1 ${have ? 'text-emerald-400' : 'text-slate-500'}`}>{have ? 'On file' : 'Not yet'}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* B3 — Credential Document Uploads */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="text-lg font-bold mb-1">Upload Your Credential Docs</h3>
+        <p className="text-sm text-slate-400 mb-4">Store photos of your cards so dispatch can bid on specialized loads immediately.</p>
+        <div className="space-y-3">
+          {CREDENTIALS.filter((c) => c.key !== 'SCAC').map((c) => (
+            <div key={c.key} className="flex items-center justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white flex items-center gap-2">{c.label}{creds[c.key] && <CheckCircle2 size={14} className="text-emerald-400" />}</div>
+                {creds[c.key] && <div className="text-xs text-emerald-400 mt-0.5 truncate">✓ {creds[c.key].name}</div>}
+                {uploadErr[c.key] && <div className="text-xs text-red-400 mt-0.5">{uploadErr[c.key]}</div>}
+              </div>
+              <label className="shrink-0 text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 px-3 py-2 rounded-lg cursor-pointer">
+                {uploading[c.key] ? 'Uploading…' : (creds[c.key] ? 'Replace' : 'Upload')}
+                <input type="file" className="hidden" onChange={uploadCred(c.key)} disabled={uploading[c.key]} />
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Credential how-to modal */}
+      {modal && (() => {
+        const c = CREDENTIALS.find((x) => x.key === modal);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setModal(null)}>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-white">How to get your {c.label}</h3>
+                <button onClick={() => setModal(null)} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+              </div>
+              <ol className="space-y-3">
+                {c.steps.map((s, i) => (
+                  <li key={i} className="flex gap-3 text-sm text-slate-300">
+                    <span className="shrink-0 w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ol>
+              {c.find && (
+                <div className="mt-5">
+                  <button onClick={findTSA} disabled={tsa.loading} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg disabled:opacity-50">
+                    {tsa.loading ? 'Finding…' : '📍 Find nearest TSA enrollment center'}
+                  </button>
+                  {tsa.err && <p className="text-xs text-red-400 mt-2">{tsa.err}</p>}
+                  {tsa.list && tsa.list.length === 0 && <p className="text-xs text-slate-400 mt-2">No centers found nearby.</p>}
+                  {tsa.list && tsa.list.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {tsa.list.map((r, i) => (
+                        <a key={i} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.name + ' ' + (r.formatted_address || ''))}`} target="_blank" rel="noopener noreferrer"
+                          className="block bg-slate-800/50 border border-slate-700 rounded-lg p-3 hover:border-amber-500/40">
+                          <div className="text-sm font-semibold text-white">{r.name}</div>
+                          <div className="text-xs text-slate-400">{r.formatted_address}</div>
+                          <div className="text-[11px] text-amber-400 mt-1">Get directions ↗</div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ---------- ADMIN: EXPENSE TRACKER ----------
+const EXPENSE_CATEGORIES = ['Fuel', 'Tolls', 'Maintenance', 'Insurance', 'Subscriptions', 'Software', 'Office', 'Other'];
+
+function ExpensesView() {
+  const [expenses, setExpenses] = useState([]);
+  const [feesThisMonth, setFeesThisMonth] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+  const blank = { category: 'Fuel', amount: '', date: today, note: '' };
+  const [form, setForm] = useState(blank);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const startOfMonth = () => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; };
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [eSnap, lSnap] = await Promise.all([
+        getDocs(collection(db, 'expenses')),
+        getDocs(collection(db, 'loads')),
+      ]);
+      const rows = eSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setExpenses(rows);
+      const som = startOfMonth();
+      let fees = 0;
+      lSnap.docs.forEach((d) => {
+        const l = d.data();
+        const delivered = l.status === 'Delivered' || l.status === 'Cleared';
+        const inMonth = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= som;
+        if (delivered && inMonth) fees += (Number(l.gross_pay) || 0) * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100);
+      });
+      setFeesThisMonth(fees);
+    } catch (e) { console.error('Error loading expenses:', e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { fetchAll(); }, []);
+
+  const add = async (e) => {
+    e.preventDefault();
+    if (!form.amount || !form.date) return;
+    setSaving(true);
+    try {
+      const payload = { category: form.category, amount: Number(form.amount) || 0, date: form.date, note: form.note.trim(), createdAt: serverTimestamp() };
+      const ref = await addDoc(collection(db, 'expenses'), payload);
+      setExpenses((p) => [{ id: ref.id, ...payload }, ...p]);
+      setForm({ ...blank, date: form.date });
+      setShowForm(false);
+      fetchAll();
+    } catch (err) { console.error('Error adding expense:', err); alert('Could not save — check the console.'); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm('Delete this expense?')) return;
+    try { await deleteDoc(doc(db, 'expenses', id)); setExpenses((p) => p.filter((x) => x.id !== id)); fetchAll(); }
+    catch (e) { console.error('Error deleting expense:', e); }
+  };
+
+  const som = startOfMonth();
+  const monthExpenses = expenses.filter((x) => x.date && new Date(x.date + 'T00:00:00') >= som);
+  const totalMonth = monthExpenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const byCat = {};
+  monthExpenses.forEach((x) => { byCat[x.category] = (byCat[x.category] || 0) + (Number(x.amount) || 0); });
+  const profit = feesThisMonth - totalMonth;
+
+  const exportCsv = () => {
+    const header = 'Date,Category,Amount,Note\n';
+    const rows = expenses.map((x) => `${x.date || ''},${x.category || ''},${Number(x.amount) || 0},"${(x.note || '').replace(/"/g, '""')}"`).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'forward-motion-expenses.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">Expenses</h2>
+          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={exportCsv} className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg">Export CSV</button>
+          <button onClick={() => setShowForm((s) => !s)} className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg flex items-center gap-2"><Plus size={18} /> Add</button>
+        </div>
+      </div>
+      <p className="text-slate-400 text-sm">Track your business costs. Bank-feed auto-import (Plaid) comes in the backend phase — for now, log them here and export to QuickBooks.</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5"><div className="text-xs text-slate-500 mb-1">Dispatch Fees (this month)</div><div className="text-2xl font-bold text-emerald-400">{money(feesThisMonth)}</div></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5"><div className="text-xs text-slate-500 mb-1">Expenses (this month)</div><div className="text-2xl font-bold text-amber-400">{money(totalMonth)}</div></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 col-span-2 sm:col-span-1"><div className="text-xs text-slate-500 mb-1">Net Profit (this month)</div><div className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{money(profit)}</div></div>
+      </div>
+
+      {showForm && (
+        <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <h3 className="font-bold">New Expense</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div><label className="block text-xs text-slate-400 mb-1">Category</label><select className={field} value={form.category} onChange={set('category')}>{EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Amount ($)</label><input className={field} type="number" inputMode="decimal" value={form.amount} onChange={set('amount')} placeholder="0.00" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Date</label><input className={field} type="date" value={form.date} onChange={set('date')} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Note</label><input className={field} value={form.note} onChange={set('note')} placeholder="optional" /></div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Add Expense'}</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {Object.keys(byCat).length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h3 className="font-bold mb-3">This Month by Category</h3>
+          <div className="space-y-2">
+            {Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
+              <div key={cat} className="flex items-center justify-between text-sm">
+                <span className="text-slate-300">{cat}</span>
+                <span className="font-semibold text-white">{money(amt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h3 className="font-bold mb-4">All Expenses</h3>
+        {loading ? <div className="text-slate-400 text-sm">Loading…</div>
+          : expenses.length === 0 ? <div className="text-slate-500 text-sm">No expenses logged yet.</div>
+          : (
+            <div className="space-y-2">
+              {expenses.map((x) => (
+                <div key={x.id} className="flex items-center justify-between gap-3 bg-slate-800/50 border border-slate-700 rounded-xl p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">{money(x.amount)} <span className="text-slate-500 font-normal">· {x.category}</span></div>
+                    <div className="text-xs text-slate-400">{x.date}{x.note ? ` · ${x.note}` : ''}</div>
+                  </div>
+                  <button onClick={() => remove(x.id)} className="text-slate-500 hover:text-red-400 text-sm shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+      </div>
     </div>
   );
 }
