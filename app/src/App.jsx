@@ -553,12 +553,12 @@ function AdminWeeklyGross() {
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
   return (
-    <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/50 shadow-xl">
+    <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold text-white">Dispatch Overview</h2>
-            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+            <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
           </div>
           <p className="text-slate-400 mt-1">
             {loaded ? `${stats.count} load${stats.count === 1 ? '' : 's'} delivered this week across all carriers.` : 'Loading this week…'}
@@ -570,20 +570,11 @@ function AdminWeeklyGross() {
         </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5">
-        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-          <div className="text-xs text-slate-500 mb-1">Gross Booked</div>
-          <div className="text-xl font-bold text-white">{money(stats.gross)}</div>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-          <div className="text-xs text-slate-500 mb-1">Your Dispatch Fee</div>
-          <div className="text-xl font-bold text-amber-400">{money(stats.fee)}</div>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-          <div className="text-xs text-slate-500 mb-1">Net to Carriers</div>
-          <div className="text-xl font-bold text-emerald-400">{money(stats.net)}</div>
-        </div>
+        <StatTile label="Gross Booked" value={money(stats.gross)} />
+        <StatTile label="Your Dispatch Fee" value={money(stats.fee)} accent="amber" />
+        <StatTile label="Net to Carriers" value={money(stats.net)} accent="emerald" />
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -657,7 +648,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
       {isAdmin && <AdminWeeklyGross />}
 
       {!isAdmin && (
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700/50 shadow-xl flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">Safe travels, {name}.</h2>
             <p className="text-slate-400">Your next mandatory rest stop is in 3 hours. We've got everything handled.</p>
@@ -666,20 +657,21 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
             <div className="text-sm text-slate-400 mb-1">Gross Earnings (This Week)</div>
             <div className="text-3xl font-bold text-emerald-400">{money(earnings)}</div>
           </div>
-        </div>
+        </Card>
       )}
 
       <QuoteOfTheDay />
 
       {!isAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold flex items-center gap-2"><Map className="text-blue-400" size={20} /> Active Load</h3>
-              {active && (
-                <span className={`text-xs px-3 py-1 rounded-full border ${statusBadge(active.status)}`}>{active.status}</span>
-              )}
-            </div>
+          <Card className="p-6">
+            <PanelHeader
+              className="mb-6"
+              icon={<Map size={20} />}
+              accent="blue"
+              title="Active Load"
+              action={active ? <Badge tone={active.status === 'In Transit' ? 'blue' : (active.status === 'Delivered' || active.status === 'Cleared') ? 'emerald' : 'amber'}>{active.status}</Badge> : null}
+            />
 
             {!loaded ? (
               <div className="text-slate-500 text-sm">Loading…</div>
@@ -703,11 +695,16 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
                 </div>
               </div>
             )}
-          </div>
+          </Card>
 
           {vipOn && (
-          <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-6"><HeartPulse className="text-amber-500" size={20} /> VIP Concierge Updates <span className="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Examples</span></h3>
+          <Card className="p-6">
+            <PanelHeader
+              className="mb-6"
+              icon={<HeartPulse size={20} />}
+              title="VIP Concierge Updates"
+              badge={<Badge tone="slate" className="font-normal">Examples</Badge>}
+            />
             <div className="space-y-3">
               <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-800/50 border border-slate-700">
                 <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><Dog size={20} /></div>
@@ -724,7 +721,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
           )}
         </div>
       )}
@@ -765,14 +762,14 @@ function PendingOfferScreen({ offer, onResolved }) {
   return (
     <div className="max-w-xl mx-auto">
       <div className="text-center mb-5">
-        <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full uppercase">
+        <Badge tone="amber" className="font-bold tracking-widest uppercase">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" /> Pending Offer
-        </span>
+        </Badge>
         <h2 className="text-2xl font-bold text-white mt-3">Review Your Load Offer</h2>
         <p className="text-slate-400 text-sm mt-1">Your dispatcher is holding this load for you. Respond to lock it in.</p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="bg-gradient-to-r from-amber-500/10 to-transparent px-6 py-4 border-b border-slate-800 flex items-center justify-between">
           <span className="font-mono text-amber-500 font-bold">{offer.loadId || 'New Load'}</span>
           <div className="text-right">
@@ -803,22 +800,22 @@ function PendingOfferScreen({ offer, onResolved }) {
           </div>
         </div>
         <div className="p-4 border-t border-slate-800 space-y-2">
-          <button onClick={accept} disabled={busy} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+          <PrimaryButton onClick={accept} disabled={busy} className="w-full py-3">
             {busy ? 'Working…' : '✓ Accept Offer'}
-          </button>
+          </PrimaryButton>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setShowDecline(true)} disabled={busy} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50">Decline</button>
+            <GhostButton onClick={() => setShowDecline(true)} disabled={busy} className="py-2.5">Decline</GhostButton>
             <a href={DISPATCHER_PHONE ? `tel:${DISPATCHER_PHONE}` : undefined}
               className={`text-center border border-slate-700 text-slate-300 font-semibold py-2.5 rounded-lg transition-colors ${DISPATCHER_PHONE ? 'hover:bg-slate-800' : 'opacity-50 pointer-events-none'}`}>
               Call Dispatcher
             </a>
           </div>
         </div>
-      </div>
+      </Card>
 
       {showDecline && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => !busy && setShowDecline(false)}>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => !busy && setShowDecline(false)}>
+          <Card className="p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-white mb-1">Why are you declining?</h3>
             <p className="text-xs text-slate-400 mb-4">One tap — this helps us find you better freight.</p>
             <div className="space-y-2">
@@ -827,7 +824,7 @@ function PendingOfferScreen({ offer, onResolved }) {
               ))}
             </div>
             <button onClick={() => setShowDecline(false)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm mt-3">Cancel</button>
-          </div>
+          </Card>
         </div>
       )}
     </div>
@@ -865,14 +862,14 @@ function QuoteOfTheDay() {
   const q = QUOTES[dayOfYear % QUOTES.length];
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-start gap-4">
+    <Card className="p-5 flex items-start gap-4">
       <div className="text-amber-500 text-4xl leading-none font-serif select-none mt-[-4px]">&ldquo;</div>
       <div>
         <p className="text-slate-200 text-sm sm:text-base italic leading-relaxed">{q.text}</p>
         <p className="text-amber-500/80 text-xs font-semibold mt-2 tracking-wide">— {q.author}</p>
         <p className="text-[10px] text-slate-600 uppercase tracking-widest mt-1">Quote of the Day</p>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -885,7 +882,7 @@ function ProfileView({ uid, displayName }) {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold">{impersonating ? 'Carrier Profile' : 'My Profile'}</h2>
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold uppercase">
             {title ? title[0] : 'D'}
@@ -901,7 +898,7 @@ function ProfileView({ uid, displayName }) {
           <Info label="Role" value="Carrier / Driver" />
           <Info label="Member Since" value={impersonating ? '—' : (u?.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleDateString() : '—')} />
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -1013,34 +1010,33 @@ function ScheduleView({ uid }) {
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-2"><Calendar className="text-amber-500" size={24} /> Schedule & Calendar</h2>
           <p className="text-slate-400">Your agenda of upcoming loads and truck maintenance.</p>
         </div>
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0"
-        >
+        <PrimaryButton onClick={() => setShowForm((s) => !s)} className="shrink-0">
           <Plus size={18} /> Add Event
-        </button>
+        </PrimaryButton>
       </div>
 
       {showForm && (
-        <form onSubmit={handleAdd} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6">
+          <form onSubmit={handleAdd} className="space-y-4">
           <h3 className="font-bold">New Event</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 md:col-span-2"
+            <input className={`${INPUT_CLS} md:col-span-2`}
               placeholder="Event title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
-            <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+            <select className={SELECT_CLS}
               value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
               <option>Maintenance</option>
               <option>Load</option>
               <option>Other</option>
             </select>
-            <input className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500 md:col-span-3"
+            <input className={`${INPUT_CLS} md:col-span-3`}
               type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">{saving ? 'Saving…' : 'Add to Calendar'}</button>
+            <PrimaryButton type="submit" disabled={saving}>{saving ? 'Saving…' : 'Add to Calendar'}</PrimaryButton>
             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
           </div>
-        </form>
+          </form>
+        </Card>
       )}
 
       {loadingEvents ? (
@@ -1123,9 +1119,9 @@ function LaneManagementView({ uid }) {
     return (
       <div className="max-w-4xl mx-auto space-y-4">
         <h2 className="text-2xl font-bold">Lane Management</h2>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">
+        <Card className="p-10 text-center text-slate-400">
           No active load right now. Your dispatcher will assign one shortly.
-        </div>
+        </Card>
       </div>
     );
   }
@@ -1140,11 +1136,11 @@ function LaneManagementView({ uid }) {
         <p className="text-slate-400">Everything you need to execute your current load.</p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
+      <Card className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-mono text-amber-500 font-bold">{active.loadId}</span>
-            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full">Active Load</span>
+            <Badge tone="blue">Active Load</Badge>
           </div>
           <div className="text-right">
             <div className="text-xs text-slate-500">Gross Pay</div>
@@ -1198,9 +1194,9 @@ function LaneManagementView({ uid }) {
           </div>
           <p className="text-xs text-slate-500 mt-2">Current status: <span className="text-slate-300 font-semibold">{active.status}</span></p>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2"><Map className="text-blue-400" size={20} /> Route Map</h3>
           <span className="text-[11px] bg-slate-800 text-slate-400 px-2 py-1 rounded">Preview</span>
@@ -1217,11 +1213,11 @@ function LaneManagementView({ uid }) {
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Pickup</span>
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Delivery</span>
         </div>
-      </div>
+      </Card>
 
       <HealthyHubAndShower load={active} />
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="text-lg font-bold mb-4">Upcoming Loads</h3>
         {upcoming.length === 0 ? (
           <div className="text-slate-500 text-sm">No upcoming loads queued. Plan your hours of service freely.</div>
@@ -1241,7 +1237,7 @@ function LaneManagementView({ uid }) {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -1305,10 +1301,10 @@ function HealthyHubAndShower({ load }) {
   );
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+    <Card className="p-6 space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h3 className="text-lg font-bold flex items-center gap-2"><HeartPulse className="text-amber-500" size={20} /> Healthy Hub &amp; Wellness Stops</h3>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">VIP</span>
+        <Badge tone="amber" className="font-bold tracking-wide">VIP</Badge>
       </div>
       <p className="text-sm text-slate-400">Premium stops near your delivery — gyms, grocers, and clean dining — so you don't waste time scrolling maps.</p>
       <div className="flex flex-wrap gap-2">
@@ -1325,7 +1321,7 @@ function HealthyHubAndShower({ load }) {
           <Group title="Clean Dining" items={hub.items.dining} icon="🍱" />
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -1375,7 +1371,7 @@ function SafeParkingView() {
     } catch (err) { console.error('Error removing spot:', err); }
   };
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1385,33 +1381,35 @@ function SafeParkingView() {
           <p className="text-slate-400">Pre-verified, high-security stops for your route.</p>
         </div>
         {admin && (
-          <button onClick={() => setShowForm((s) => !s)} className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg flex items-center gap-2 shrink-0"><Plus size={18} /> Add Spot</button>
+          <PrimaryButton onClick={() => setShowForm((s) => !s)} className="text-sm shrink-0"><Plus size={18} /> Add Spot</PrimaryButton>
         )}
       </div>
 
       {admin && showForm && (
-        <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6">
+          <form onSubmit={add} className="space-y-4">
           <h3 className="font-bold">New Parking Spot</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="TA Travel Center" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Highway / Exit</label><input className={field} value={form.highway_exit} onChange={set('highway_exit')} placeholder="I-75 Exit 201" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">State</label><input className={field} value={form.state} onChange={set('state')} placeholder="GA" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Security Level</label><input className={field} value={form.security_level} onChange={set('security_level')} placeholder="High / Gated" /></div>
-            <div className="sm:col-span-2"><label className="block text-xs text-slate-400 mb-1">Notes</label><input className={field} value={form.notes} onChange={set('notes')} placeholder="Lighting, fuel, restaurant, etc." /></div>
+            <Field label="Name"><input className={field} value={form.name} onChange={set('name')} placeholder="TA Travel Center" /></Field>
+            <Field label="Highway / Exit"><input className={field} value={form.highway_exit} onChange={set('highway_exit')} placeholder="I-75 Exit 201" /></Field>
+            <Field label="State"><input className={field} value={form.state} onChange={set('state')} placeholder="GA" /></Field>
+            <Field label="Security Level"><input className={field} value={form.security_level} onChange={set('security_level')} placeholder="High / Gated" /></Field>
+            <Field label="Notes" className="sm:col-span-2"><input className={field} value={form.notes} onChange={set('notes')} placeholder="Lighting, fuel, restaurant, etc." /></Field>
             <label className="flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" className="w-4 h-4 accent-amber-500" checked={form.has_showers} onChange={(e) => setForm((f) => ({ ...f, has_showers: e.target.checked }))} /> Showers available</label>
           </div>
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save Spot'}</button>
+            <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">{saving ? 'Saving…' : 'Save Spot'}</PrimaryButton>
             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
           </div>
-        </form>
+          </form>
+        </Card>
       )}
 
       {loading && <div className="text-slate-400">Loading parking spots…</div>}
-      {!loading && spots.length === 0 && <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">No parking spots yet.{admin ? ' Tap "Add Spot" to enter your trusted stops.' : ''}</div>}
+      {!loading && spots.length === 0 && <Card className="p-10 text-center text-slate-400">No parking spots yet.{admin ? ' Tap "Add Spot" to enter your trusted stops.' : ''}</Card>}
 
       {spots.map((spot) => (
-        <div key={spot.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <Card key={spot.id} className="p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div className="flex gap-4 items-center">
             <div className="bg-emerald-500/20 text-emerald-400 p-3 rounded-xl"><MapPin size={24} /></div>
             <div>
@@ -1429,7 +1427,7 @@ function SafeParkingView() {
           ) : (
             <button className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">Reserve Spot</button>
           )}
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -1484,7 +1482,7 @@ function ComplianceView({ uid }) {
     if (days <= 30) return { label: `Expiring in ${Math.ceil(days)} days`, cls: 'text-amber-400' };
     return { label: 'Valid', cls: 'text-emerald-400' };
   };
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading compliance data…</div>;
 
@@ -1496,47 +1494,49 @@ function ComplianceView({ uid }) {
           <p className="text-slate-400">Stay ahead of expiration dates and keep your status green.</p>
         </div>
         {admin && !editing && (
-          <button onClick={openEdit} className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">{data ? 'Edit Dates' : 'Add Record'}</button>
+          <PrimaryButton onClick={openEdit} className="text-sm shrink-0">{data ? 'Edit Dates' : 'Add Record'}</PrimaryButton>
         )}
       </div>
 
       {editing ? (
-        <form onSubmit={save} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6">
+          <form onSubmit={save} className="space-y-4">
           <h3 className="font-bold">Edit Compliance Record</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">CDL Expiration</label><input className={field} type="date" value={form.cdl_expiration_date} onChange={set('cdl_expiration_date')} /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Medical Card Expiration</label><input className={field} type="date" value={form.medical_card_expiration} onChange={set('medical_card_expiration')} /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Insurance Status</label><input className={field} value={form.insurance_status} onChange={set('insurance_status')} placeholder="Active / Lapsed" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Insurance Expiration</label><input className={field} type="date" value={form.insurance_expiration} onChange={set('insurance_expiration')} /></div>
+            <Field label="CDL Expiration"><input className={field} type="date" value={form.cdl_expiration_date} onChange={set('cdl_expiration_date')} /></Field>
+            <Field label="Medical Card Expiration"><input className={field} type="date" value={form.medical_card_expiration} onChange={set('medical_card_expiration')} /></Field>
+            <Field label="Insurance Status"><input className={field} value={form.insurance_status} onChange={set('insurance_status')} placeholder="Active / Lapsed" /></Field>
+            <Field label="Insurance Expiration"><input className={field} type="date" value={form.insurance_expiration} onChange={set('insurance_expiration')} /></Field>
           </div>
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
+            <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">{saving ? 'Saving…' : 'Save'}</PrimaryButton>
             <button type="button" onClick={() => setEditing(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
           </div>
-        </form>
+          </form>
+        </Card>
       ) : !data ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">
+        <Card className="p-10 text-center text-slate-400">
           No compliance record yet.{admin ? ' Tap "Add Record" to enter CDL, medical, and insurance dates.' : ' Your dispatcher will add this shortly.'}
-        </div>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <Card className="p-6">
             <div className="text-slate-400 mb-2">CDL Expiration</div>
             <div className="text-2xl font-bold text-white">{formatDate(data.cdl_expiration_date)}</div>
             <div className={`text-sm mt-2 ${status(data.cdl_expiration_date).cls}`}>{status(data.cdl_expiration_date).label}</div>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          </Card>
+          <Card className="p-6">
             <div className="text-slate-400 mb-2">Medical Card</div>
             <div className="text-2xl font-bold text-white">{formatDate(data.medical_card_expiration)}</div>
             <div className={`text-sm mt-2 ${status(data.medical_card_expiration).cls}`}>{status(data.medical_card_expiration).label}</div>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          </Card>
+          <Card className="p-6">
             <div className="text-slate-400 mb-2">Insurance</div>
             <div className="text-2xl font-bold text-white">{data.insurance_status || '—'}</div>
             <div className={`text-sm mt-2 ${data.insurance_expiration ? status(data.insurance_expiration).cls : 'text-emerald-400'}`}>
               {data.insurance_expiration ? `Renews ${formatDate(data.insurance_expiration)} · ${status(data.insurance_expiration).label}` : 'On file'}
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>
@@ -1590,40 +1590,36 @@ function DigitalVaultView() {
           <h2 className="text-2xl font-bold mb-2">The Digital Vault</h2>
           <p className="text-slate-400">Your secure document cabinet — missing paperwork means missing pay.</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)}
-          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0">
+        <PrimaryButton onClick={() => setShowForm((s) => !s)} className="shrink-0">
           <Upload size={18} /> Upload
-        </button>
+        </PrimaryButton>
       </div>
 
       {showForm && (
-        <form onSubmit={handleUpload} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6">
+          <form onSubmit={handleUpload} className="space-y-4">
           <h3 className="font-bold">New Document</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-2">File</label>
+            <Field label="File">
               <input type="file" onChange={handleFile}
                 className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-slate-200 file:cursor-pointer hover:file:bg-slate-700" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-2">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+            </Field>
+            <Field label="Category">
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT_CLS}>
                 {VAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-2">Load ID</label>
-              <input type="text" value={loadId} onChange={(e) => setLoadId(e.target.value)} placeholder="e.g. FM-8831"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500" />
-            </div>
+            </Field>
+            <Field label="Load ID">
+              <input type="text" value={loadId} onChange={(e) => setLoadId(e.target.value)} placeholder="e.g. FM-8831" className={INPUT_CLS} />
+            </Field>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors">Add to Vault</button>
+            <PrimaryButton type="submit">Add to Vault</PrimaryButton>
             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
             <span className="text-xs text-slate-500">Demo — the file isn't stored yet; this adds the record only.</span>
           </div>
-        </form>
+          </form>
+        </Card>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -1642,7 +1638,7 @@ function DigitalVaultView() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((d) => (
-            <div key={d.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex items-start gap-4">
+            <Card key={d.id} className="p-5 flex items-start gap-4 hover:border-slate-700 transition-colors">
               <div className="p-3 bg-slate-800 text-amber-500 rounded-xl shrink-0"><FileText size={22} /></div>
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-white truncate">{d.name}</div>
@@ -1652,7 +1648,7 @@ function DigitalVaultView() {
                   <span className={`text-xs px-2 py-1 rounded ${statusStyle(d.status)}`}>{d.status}</span>
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -1702,18 +1698,9 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="text-xs text-slate-500 mb-1">Gross Earned (Delivered)</div>
-          <div className="text-2xl font-bold text-white">{money(totalGross)}</div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="text-xs text-slate-500 mb-1">Dispatch Fees</div>
-          <div className="text-2xl font-bold text-amber-400">{money(totalFee)}</div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="text-xs text-slate-500 mb-1">Your Net Payout</div>
-          <div className="text-2xl font-bold text-emerald-400">{money(totalNet)}</div>
-        </div>
+        <StatTile label="Gross Earned (Delivered)" value={money(totalGross)} className="p-5" />
+        <StatTile label="Dispatch Fees" value={money(totalFee)} accent="amber" className="p-5" />
+        <StatTile label="Your Net Payout" value={money(totalNet)} accent="emerald" className="p-5" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1738,7 +1725,7 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 overflow-x-auto">
+      <Card className="p-6 overflow-x-auto">
         <h3 className="text-lg font-bold mb-4">Settlements Ledger</h3>
         {loading ? (
           <div className="text-slate-400 text-sm">Loading…</div>
@@ -1747,34 +1734,29 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
         ) : (
           <table className="w-full text-left border-collapse min-w-[600px]">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 text-sm">
-                <th className="pb-3 font-medium">Load</th>
-                <th className="pb-3 font-medium">Delivery</th>
-                <th className="pb-3 font-medium">Gross</th>
-                <th className="pb-3 font-medium">Fee</th>
-                <th className="pb-3 font-medium">Your Net</th>
-                <th className="pb-3 font-medium">Status</th>
+              <tr className="border-b border-slate-800">
+                <Th>Load</Th><Th>Delivery</Th><Th>Gross</Th><Th>Fee</Th><Th>Your Net</Th><Th>Status</Th>
               </tr>
             </thead>
-            <tbody className="text-sm">
+            <tbody>
               {loads.map((l) => {
                 const gross = Number(l.gross_pay) || 0;
                 const fee = gross * feeRateOf(l);
                 return (
-                  <tr key={l.id} className="border-b border-slate-800/50">
-                    <td className="py-4 font-mono text-amber-500">{l.loadId || '—'}</td>
-                    <td className="py-4 text-slate-400">{fmtDate(l.delivery_date)}</td>
-                    <td className="py-4 font-semibold text-white">{money(gross)}</td>
-                    <td className="py-4 text-slate-400">{money(fee)}</td>
-                    <td className="py-4 font-semibold text-emerald-400">{money(gross - fee)}</td>
-                    <td className="py-4"><span className={`px-2 py-1 rounded text-xs ${statusStyle(l.status)}`}>{l.status || '—'}</span></td>
+                  <tr key={l.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                    <Td className="font-mono text-amber-500">{l.loadId || '—'}</Td>
+                    <Td className="text-slate-400">{fmtDate(l.delivery_date)}</Td>
+                    <Td className="font-semibold text-white">{money(gross)}</Td>
+                    <Td className="text-slate-400">{money(fee)}</Td>
+                    <Td className="font-semibold text-emerald-400">{money(gross - fee)}</Td>
+                    <Td><span className={`px-2 py-1 rounded text-xs ${statusStyle(l.status)}`}>{l.status || '—'}</span></Td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -1796,16 +1778,16 @@ function PetLogisticsView() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">Pet Logistics Dashboard <span className="text-[10px] font-normal bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Example</span></h2>
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">Pet Logistics Dashboard <Badge tone="slate" className="font-normal">Example</Badge></h2>
           <p className="text-slate-400">Managing Lady's road life so you don't have to worry. <span className="text-slate-500">(Sample data — full module coming soon.)</span></p>
         </div>
-        <button className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors shrink-0">
+        <PrimaryButton className="shrink-0">
           <ShieldCheck size={18} /> Emergency Vet Connect
-        </button>
+        </PrimaryButton>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col items-center text-center">
+        <Card className="md:col-span-1 p-6 flex flex-col items-center text-center">
           <div className="w-24 h-24 bg-slate-800 rounded-full border-4 border-amber-500/30 flex items-center justify-center mb-4">
             <Dog size={48} className="text-amber-500/80" />
           </div>
@@ -1815,10 +1797,10 @@ function PetLogisticsView() {
             <div className="flex justify-between"><span className="text-slate-500">Vaccines</span><span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 size={14} /> Up to date</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Diet</span><span className="text-slate-200">Fresh Sub</span></div>
           </div>
-        </div>
+        </Card>
 
         <div className="md:col-span-2 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <Card className="p-6">
             <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Activity className="text-amber-500" size={20} /> Predictive Nutrition Engine</h3>
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1 bg-slate-800 rounded-xl p-4">
@@ -1832,9 +1814,9 @@ function PetLogisticsView() {
                 <div className="text-sm text-slate-300 mt-1">Rerouted to Dallas Terminal</div>
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <Card className="p-6">
             <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Map className="text-blue-500" size={20} /> Pet-Friendly Waypoints</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700">
@@ -1852,7 +1834,7 @@ function PetLogisticsView() {
                 <button className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors text-white shrink-0">Add to GPS</button>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
@@ -1915,50 +1897,51 @@ function AssignLoadView() {
     }
   };
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold">Assign a Load</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Create a load and assign it to a driver — it appears instantly in their Lane Management & Schedule.</p>
 
       {loading ? (
         <div className="text-slate-400">Loading drivers…</div>
       ) : (
-        <form onSubmit={submit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-          <div>
-            <label className="block text-xs text-slate-400 mb-2">Driver</label>
+        <Card className="p-6">
+          <form onSubmit={submit} className="space-y-5">
+          <Field label="Driver">
             <select className={field} value={form.driverUid} onChange={(e) => set('driverUid', e.target.value)} required>
               <option value="">Select a driver…</option>
               {drivers.map((d) => <option key={d.uid} value={d.uid}>{d.email || d.uid}</option>)}
             </select>
             {drivers.length === 0 && <p className="text-xs text-amber-400 mt-2">No drivers yet — a driver has to log in once before they show up here.</p>}
-          </div>
+          </Field>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-2">Load ID</label><input className={field} value={form.loadId} onChange={(e) => set('loadId', e.target.value)} /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Gross Pay ($)</label><input className={field} type="number" value={form.gross_pay} onChange={(e) => set('gross_pay', e.target.value)} placeholder="2450" /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Origin (Pickup)</label><input className={field} value={form.origin} onChange={(e) => set('origin', e.target.value)} placeholder="Atlanta, GA" required /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Destination (Delivery)</label><input className={field} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Dallas, TX" required /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Commodity</label><input className={field} value={form.commodity} onChange={(e) => set('commodity', e.target.value)} placeholder="Dry goods" /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Weight</label><input className={field} value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="42,000 lbs" /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">PO Number</label><input className={field} value={form.po_number} onChange={(e) => set('po_number', e.target.value)} /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Pickup Number</label><input className={field} value={form.pickup_number} onChange={(e) => set('pickup_number', e.target.value)} /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Pickup Time</label><input className={field} value={form.pickup_time} onChange={(e) => set('pickup_time', e.target.value)} placeholder="Oct 24, 8:00 AM" /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Delivery Time</label><input className={field} value={form.delivery_time} onChange={(e) => set('delivery_time', e.target.value)} placeholder="Oct 25, 4:00 PM" /></div>
-            <div><label className="block text-xs text-slate-400 mb-2">Delivery Date</label><input className={field} type="date" value={form.delivery_date} onChange={(e) => set('delivery_date', e.target.value)} /></div>
+            <Field label="Load ID"><input className={field} value={form.loadId} onChange={(e) => set('loadId', e.target.value)} /></Field>
+            <Field label="Gross Pay ($)"><input className={field} type="number" value={form.gross_pay} onChange={(e) => set('gross_pay', e.target.value)} placeholder="2450" /></Field>
+            <Field label="Origin (Pickup)"><input className={field} value={form.origin} onChange={(e) => set('origin', e.target.value)} placeholder="Atlanta, GA" required /></Field>
+            <Field label="Destination (Delivery)"><input className={field} value={form.destination} onChange={(e) => set('destination', e.target.value)} placeholder="Dallas, TX" required /></Field>
+            <Field label="Commodity"><input className={field} value={form.commodity} onChange={(e) => set('commodity', e.target.value)} placeholder="Dry goods" /></Field>
+            <Field label="Weight"><input className={field} value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="42,000 lbs" /></Field>
+            <Field label="PO Number"><input className={field} value={form.po_number} onChange={(e) => set('po_number', e.target.value)} /></Field>
+            <Field label="Pickup Number"><input className={field} value={form.pickup_number} onChange={(e) => set('pickup_number', e.target.value)} /></Field>
+            <Field label="Pickup Time"><input className={field} value={form.pickup_time} onChange={(e) => set('pickup_time', e.target.value)} placeholder="Oct 24, 8:00 AM" /></Field>
+            <Field label="Delivery Time"><input className={field} value={form.delivery_time} onChange={(e) => set('delivery_time', e.target.value)} placeholder="Oct 25, 4:00 PM" /></Field>
+            <Field label="Delivery Date"><input className={field} type="date" value={form.delivery_date} onChange={(e) => set('delivery_date', e.target.value)} /></Field>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+            <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">
               {saving ? 'Assigning…' : 'Assign Load'}
-            </button>
+            </PrimaryButton>
             {done && <span className="text-sm text-emerald-400">{done}</span>}
           </div>
-        </form>
+          </form>
+        </Card>
       )}
     </div>
   );
@@ -2133,7 +2116,7 @@ function AllLoadsView() {
     </select>
   );
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   if (loading) return <div className="text-slate-400">Loading all loads…</div>;
 
@@ -2142,70 +2125,64 @@ function AllLoadsView() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">All Loads</h2>
-          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+          <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
         </div>
-        <button onClick={fetchAll} className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors">Refresh</button>
+        <GhostButton onClick={fetchAll} className="text-sm px-3 py-2">Refresh</GhostButton>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">Total Loads</div><div className="text-xl font-bold">{filtered.length}</div></div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">In Transit</div><div className="text-xl font-bold text-blue-400">{filtered.filter((l) => l.status === 'In Transit').length}</div></div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">Delivered</div><div className="text-xl font-bold text-emerald-400">{filtered.filter((l) => l.status === 'Delivered').length}</div></div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-500">Gross (shown)</div><div className="text-xl font-bold text-emerald-400">{money(totalGross)}</div></div>
+        <StatTile label="Total Loads" value={filtered.length} />
+        <StatTile label="In Transit" value={filtered.filter((l) => l.status === 'In Transit').length} accent="blue" />
+        <StatTile label="Delivered" value={filtered.filter((l) => l.status === 'Delivered').length} accent="emerald" />
+        <StatTile label="Gross (shown)" value={money(totalGross)} accent="emerald" />
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+        <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} className={`${SELECT_CLS} w-auto`}>
           <option value="All">All drivers</option>
           {driverEmails.map((em) => <option key={em} value={em}>{em}</option>)}
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT_CLS} w-auto`}>
           <option value="All">All statuses</option>
           {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">No loads match these filters.</div>
+        <Card className="p-10 text-center text-slate-400">No loads match these filters.</Card>
       ) : (
         <>
-          <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <Card className="hidden md:block overflow-hidden">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="p-4 font-medium">Load</th>
-                  <th className="p-4 font-medium">Driver</th>
-                  <th className="p-4 font-medium">Route</th>
-                  <th className="p-4 font-medium">Delivery</th>
-                  <th className="p-4 font-medium">Gross</th>
-                  <th className="p-4 font-medium">Status</th>
-                  <th className="p-4 font-medium"></th>
+                <tr className="border-b border-slate-800 bg-slate-800/30">
+                  <Th>Load</Th><Th>Driver</Th><Th>Route</Th><Th>Delivery</Th><Th>Gross</Th><Th>Status</Th><Th></Th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((l) => (
-                  <tr key={l.id} className="border-b border-slate-800/50 last:border-0">
-                    <td className="p-4 font-mono text-amber-500 font-semibold">{l.loadId || '—'}</td>
-                    <td className="p-4 text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</td>
-                    <td className="p-4 text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</td>
-                    <td className="p-4 text-slate-400">{l.delivery_date || '—'}</td>
-                    <td className="p-4 font-semibold text-white">{money(l.gross_pay)}</td>
-                    <td className="p-4"><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</td>
-                    <td className="p-4">
+                  <tr key={l.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                    <Td className="font-mono text-amber-500 font-semibold">{l.loadId || '—'}</Td>
+                    <Td className="text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</Td>
+                    <Td className="text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</Td>
+                    <Td className="text-slate-400">{l.delivery_date || '—'}</Td>
+                    <Td className="font-semibold text-white">{money(l.gross_pay)}</Td>
+                    <Td><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</Td>
+                    <Td>
                       <div className="flex items-center gap-2">
                         <OfferButton l={l} />
                         <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>
                       </div>
-                    </td>
+                    </Td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
           <div className="md:hidden space-y-3">
             {filtered.map((l) => (
-              <div key={l.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+              <Card key={l.id} className="p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-amber-500 font-semibold text-sm">{l.loadId || '—'}</span>
                   <span className="font-semibold text-white text-sm">{money(l.gross_pay)}</span>
@@ -2219,53 +2196,51 @@ function AllLoadsView() {
                   <OfferButton l={l} />
                   <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors shrink-0">Edit</button>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </>
       )}
 
       {editing && form && (
-        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={closeEdit}>
-          <form
+        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={closeEdit}>
+          <Card
             onClick={(e) => e.stopPropagation()}
-            onSubmit={saveEdit}
-            className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl p-6 my-8 space-y-5"
+            className="w-full max-w-2xl p-6 my-8"
           >
+            <form onSubmit={saveEdit} className="space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Edit Load <span className="font-mono text-amber-500">{form.loadId}</span></h3>
               <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
             </div>
 
-            <div>
-              <label className="block text-xs text-slate-400 mb-2">Driver</label>
+            <Field label="Driver">
               <select className={field} value={form.driverUid} onChange={(e) => setField('driverUid', e.target.value)} required>
                 <option value="">Select a driver…</option>
                 {userList.map((d) => <option key={d.uid} value={d.uid}>{d.email}</option>)}
               </select>
-            </div>
+            </Field>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><label className="block text-xs text-slate-400 mb-2">Load ID</label><input className={field} value={form.loadId} onChange={(e) => setField('loadId', e.target.value)} /></div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-2">Status</label>
+              <Field label="Load ID"><input className={field} value={form.loadId} onChange={(e) => setField('loadId', e.target.value)} /></Field>
+              <Field label="Status">
                 <select className={field} value={form.status} onChange={(e) => setField('status', e.target.value)}>
                   {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
                   <option value="Cleared">Cleared</option>
                 </select>
-              </div>
-              <div><label className="block text-xs text-slate-400 mb-2">Gross Pay ($)</label><input className={field} type="number" value={form.gross_pay} onChange={(e) => setField('gross_pay', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Delivery Date</label><input className={field} type="date" value={form.delivery_date} onChange={(e) => setField('delivery_date', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Loaded Miles</label><input className={field} type="number" value={form.loadedMiles} onChange={(e) => setField('loadedMiles', e.target.value)} placeholder="for offer RPM" /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Deadhead Miles</label><input className={field} type="number" value={form.deadheadMiles} onChange={(e) => setField('deadheadMiles', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Origin (Pickup)</label><input className={field} value={form.origin} onChange={(e) => setField('origin', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Destination (Delivery)</label><input className={field} value={form.destination} onChange={(e) => setField('destination', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Commodity</label><input className={field} value={form.commodity} onChange={(e) => setField('commodity', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Weight</label><input className={field} value={form.weight} onChange={(e) => setField('weight', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">PO Number</label><input className={field} value={form.po_number} onChange={(e) => setField('po_number', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Pickup Number</label><input className={field} value={form.pickup_number} onChange={(e) => setField('pickup_number', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Pickup Time</label><input className={field} value={form.pickup_time} onChange={(e) => setField('pickup_time', e.target.value)} /></div>
-              <div><label className="block text-xs text-slate-400 mb-2">Delivery Time</label><input className={field} value={form.delivery_time} onChange={(e) => setField('delivery_time', e.target.value)} /></div>
+              </Field>
+              <Field label="Gross Pay ($)"><input className={field} type="number" value={form.gross_pay} onChange={(e) => setField('gross_pay', e.target.value)} /></Field>
+              <Field label="Delivery Date"><input className={field} type="date" value={form.delivery_date} onChange={(e) => setField('delivery_date', e.target.value)} /></Field>
+              <Field label="Loaded Miles"><input className={field} type="number" value={form.loadedMiles} onChange={(e) => setField('loadedMiles', e.target.value)} placeholder="for offer RPM" /></Field>
+              <Field label="Deadhead Miles"><input className={field} type="number" value={form.deadheadMiles} onChange={(e) => setField('deadheadMiles', e.target.value)} /></Field>
+              <Field label="Origin (Pickup)"><input className={field} value={form.origin} onChange={(e) => setField('origin', e.target.value)} /></Field>
+              <Field label="Destination (Delivery)"><input className={field} value={form.destination} onChange={(e) => setField('destination', e.target.value)} /></Field>
+              <Field label="Commodity"><input className={field} value={form.commodity} onChange={(e) => setField('commodity', e.target.value)} /></Field>
+              <Field label="Weight"><input className={field} value={form.weight} onChange={(e) => setField('weight', e.target.value)} /></Field>
+              <Field label="PO Number"><input className={field} value={form.po_number} onChange={(e) => setField('po_number', e.target.value)} /></Field>
+              <Field label="Pickup Number"><input className={field} value={form.pickup_number} onChange={(e) => setField('pickup_number', e.target.value)} /></Field>
+              <Field label="Pickup Time"><input className={field} value={form.pickup_time} onChange={(e) => setField('pickup_time', e.target.value)} /></Field>
+              <Field label="Delivery Time"><input className={field} value={form.delivery_time} onChange={(e) => setField('delivery_time', e.target.value)} /></Field>
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
@@ -2274,12 +2249,13 @@ function AllLoadsView() {
               </button>
               <div className="flex items-center gap-3">
                 <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-sm">Cancel</button>
-                <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+                <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">
                   {saving ? 'Saving…' : 'Save Changes'}
-                </button>
+                </PrimaryButton>
               </div>
             </div>
-          </form>
+            </form>
+          </Card>
         </div>
       )}
     </div>
@@ -2337,15 +2313,14 @@ function LoginView({ accessDenied }) {
 
         <form onSubmit={handleEmailAuth} className="space-y-4">
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+            className={`${INPUT_CLS} px-4 py-3`} />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+            className={`${INPUT_CLS} px-4 py-3`} />
           {error && <p className="text-red-400 text-sm">{error}</p>}
           {notice && <p className="text-emerald-400 text-sm">{notice}</p>}
-          <button type="submit" disabled={busy}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+          <PrimaryButton type="submit" disabled={busy} className="w-full py-3">
             {busy ? 'Please wait…' : 'Sign In'}
-          </button>
+          </PrimaryButton>
           <button type="button" onClick={handleReset} className="w-full text-center text-xs text-slate-400 hover:text-amber-400 transition-colors">
             Forgot password?
           </button>
@@ -2395,14 +2370,13 @@ function ChangePasswordView({ onDone }) {
         <p className="text-sm text-slate-400 mb-6">You're using a temporary password. Choose a new one to continue.</p>
         <form onSubmit={submit} className="space-y-4">
           <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password" required
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+            className={`${INPUT_CLS} px-4 py-3`} />
           <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Confirm new password" required
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-amber-500" />
+            className={`${INPUT_CLS} px-4 py-3`} />
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button type="submit" disabled={busy}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+          <PrimaryButton type="submit" disabled={busy} className="w-full py-3">
             {busy ? 'Saving…' : 'Save & Continue'}
-          </button>
+          </PrimaryButton>
         </form>
         <button onClick={() => signOut(auth)} className="w-full text-center text-xs text-slate-500 mt-6 hover:text-slate-300">Sign out</button>
       </div>
@@ -2474,35 +2448,34 @@ function ManageDriversView() {
   };
 
   const isAdminEmail = (em) => ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((em || '').toLowerCase());
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold">Manage Drivers</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Create driver accounts and control who can sign in. Drivers can't self-register.</p>
 
-      <form onSubmit={createDriver} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+      <Card className="p-6">
+        <form onSubmit={createDriver} className="space-y-4">
         <h3 className="font-bold">Add a New Driver</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-slate-400 mb-2">Driver Email</label>
+          <Field label="Driver Email">
             <input className={field} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="driver@example.com" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-2">Temporary Password</label>
+          </Field>
+          <Field label="Temporary Password">
             <div className="flex gap-2">
               <input className={field} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 6 characters" />
               <button type="button" onClick={genPw} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 rounded-lg shrink-0">Generate</button>
             </div>
-          </div>
+          </Field>
         </div>
         {error && <p className="text-red-400 text-sm">{error}</p>}
-        <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+        <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">
           {saving ? 'Creating…' : 'Create Driver Account'}
-        </button>
+        </PrimaryButton>
 
         {created && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-sm">
@@ -2512,9 +2485,10 @@ function ManageDriversView() {
             <div className="text-xs text-slate-400 mt-2">They'll be asked to set their own password on first login.</div>
           </div>
         )}
-      </form>
+        </form>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="font-bold mb-4">Current Accounts</h3>
         {loading ? (
           <div className="text-slate-400 text-sm">Loading…</div>
@@ -2547,7 +2521,7 @@ function ManageDriversView() {
             })}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -2642,17 +2616,15 @@ function FleetView() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">Fleet (ELD)</h2>
-          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">DEMO</span>
+          <Badge tone="amber" className="font-bold tracking-wide">DEMO</Badge>
         </div>
         <div className="flex gap-2">
-          <button onClick={loadDemo} disabled={busy}
-            className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+          <PrimaryButton onClick={loadDemo} disabled={busy} className="text-sm">
             {busy ? 'Working…' : 'Load Demo Data'}
-          </button>
-          <button onClick={clearDemo} disabled={busy}
-            className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+          </PrimaryButton>
+          <GhostButton onClick={clearDemo} disabled={busy} className="text-sm">
             Clear
-          </button>
+          </GhostButton>
         </div>
       </div>
 
@@ -2665,7 +2637,7 @@ function FleetView() {
         <div className="text-slate-400">Loading fleet…</div>
       ) : (
         <>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <Card className="p-6">
             <h3 className="font-bold mb-4">Hours of Service</h3>
             {hos.length === 0 ? <div className="text-slate-500 text-sm">No HOS data yet — click "Load Demo Data".</div> : (
               <div className="space-y-2">
@@ -2678,10 +2650,10 @@ function FleetView() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <Card className="p-6">
               <h3 className="font-bold mb-4">Vehicles ({vehicles.length})</h3>
               {vehicles.length === 0 ? <div className="text-slate-500 text-sm">None yet.</div> : (
                 <div className="space-y-2">
@@ -2693,8 +2665,8 @@ function FleetView() {
                   ))}
                 </div>
               )}
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            </Card>
+            <Card className="p-6">
               <h3 className="font-bold mb-4">Drivers ({drivers.length})</h3>
               {drivers.length === 0 ? <div className="text-slate-500 text-sm">None yet.</div> : (
                 <div className="space-y-2">
@@ -2706,7 +2678,7 @@ function FleetView() {
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         </>
       )}
@@ -2946,7 +2918,7 @@ function NegotiationCalcView() {
     banner = { cls: 'bg-amber-500/15 border-amber-500/40 text-amber-300', title: `🟡 Clears your floor — but BELOW market`, sub: `Market is ${rpm(marketRpm)}/mi; you're at ${rpm(trueRpm)}. Push toward ${money(marketTarget)}.` };
   }
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   const Metric = ({ label, value, guide, accent, highlight }) => (
     <div className={`border rounded-xl p-4 ${highlight ? 'bg-amber-500/10 border-amber-500/40' : 'bg-slate-800/50 border-slate-700'}`}>
@@ -2962,7 +2934,7 @@ function NegotiationCalcView() {
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold">Rate Calculator</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Punch in the broker's numbers live on the call — see instantly if the load works and exactly what to counter.</p>
 
@@ -2977,7 +2949,7 @@ function NegotiationCalcView() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h3 className="font-bold">Load Inputs</h3>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Saved Carrier (auto-fills truck specs)</label>
@@ -3060,7 +3032,7 @@ function NegotiationCalcView() {
             <div className="text-sm text-slate-200">{commodityInfo.equip}</div>
             <div className="text-xs text-slate-400 mt-2">Accessorial surcharge: <span className="text-white font-semibold">{money(surcharge)}</span></div>
           </div>
-        </div>
+        </Card>
 
         <div className="space-y-4">
           <div className={`rounded-2xl border p-5 ${banner.cls}`}>
@@ -3092,25 +3064,23 @@ function NegotiationCalcView() {
               guide={`Built into Trip Cost and your floor. Required: ${commodityInfo.equip}`} />
           )}
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+          <Card className="p-4 space-y-2">
             <div>
               <label className="block text-xs text-slate-400 mb-1">Final Agreed Rate ($)</label>
               <input className={`${field} text-base font-semibold`} type="number" inputMode="decimal" value={v.finalOffer} onChange={set('finalOffer')} placeholder={v.brokerOffer ? `${v.brokerOffer} (broker offer)` : 'e.g. 2200'} />
               <p className="text-[10px] text-slate-500 mt-1">What the load actually pays the carrier. Leave blank to use the broker offer.</p>
             </div>
-            <button type="button" onClick={() => assignLoad(true)} disabled={assigning || !selectedCarrierObj}
-              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+            <PrimaryButton type="button" onClick={() => assignLoad(true)} disabled={assigning || !selectedCarrierObj} className="w-full px-4 py-2.5">
               {assigning ? 'Working…' : '📣 Send as Offer (carrier accepts/declines)'}
-            </button>
-            <button type="button" onClick={() => assignLoad(false)} disabled={assigning || !selectedCarrierObj}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+            </PrimaryButton>
+            <GhostButton type="button" onClick={() => assignLoad(false)} disabled={assigning || !selectedCarrierObj} className="w-full border border-slate-700">
               ➕ Assign Directly (no offer)
-            </button>
+            </GhostButton>
             <p className="text-[11px] text-slate-500">
               {selectedCarrierObj ? `Creates a dispatched load for ${selectedCarrierObj.name} and sends it to their portal.` : 'Pick a saved carrier above to enable.'}
             </p>
             {assignMsg && <p className={`text-sm ${assignMsg.includes('✓') ? 'text-emerald-400' : 'text-amber-400'}`}>{assignMsg}</p>}
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -3152,7 +3122,7 @@ function HosValidator({ totalMiles = 0, windowHours = 0, driveAvail = '', onDriv
     red: { cls: 'bg-red-500/15 border-red-500/40 text-red-300', title: '🔴 Not Legal In Time — Pass or Push Delivery', sub: `Short by ${hrs(Math.abs(buffer))}. Negotiate a later delivery date.` },
   }[status];
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
   const Metric = ({ label, value, guide, accent }) => (
     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
       <div className="flex items-baseline justify-between gap-2">
@@ -3167,12 +3137,12 @@ function HosValidator({ totalMiles = 0, windowHours = 0, driveAvail = '', onDriv
     <div className="pt-2">
       <div className="flex items-center gap-2 mb-1">
         <h2 className="text-2xl font-bold">Transit & HOS Validator</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400 mb-4">Can the driver legally make this delivery window? Get a yes/no in seconds — before you commit to the broker.</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h3 className="font-bold">Trip Inputs</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
@@ -3192,7 +3162,7 @@ function HosValidator({ totalMiles = 0, windowHours = 0, driveAvail = '', onDriv
           <p className="text-[11px] text-slate-500 leading-snug">
             Tip: keep avg speed at 50–55 — a truck cruising 65 averages far less once you add fuel stops, scales, and traffic.
           </p>
-        </div>
+        </Card>
 
         <div className="space-y-4">
           <div className={`rounded-2xl border p-5 ${banner.cls}`}>
@@ -3254,7 +3224,7 @@ function NewAuthorityView() {
         </p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="text-lg font-bold mb-4">Why good freight is harder to find at first</h3>
         <div className="space-y-3">
           {reasons.map((r) => (
@@ -3267,9 +3237,9 @@ function NewAuthorityView() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="text-lg font-bold mb-1">It gets better — here's the timeline</h3>
         <p className="text-sm text-slate-400 mb-4">This curve is normal. The grind is temporary and it pays off.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3280,9 +3250,9 @@ function NewAuthorityView() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="text-lg font-bold mb-4">What we're doing about it — for you</h3>
         <div className="space-y-2">
           {helps.map((h) => (
@@ -3292,12 +3262,12 @@ function NewAuthorityView() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700/50 rounded-2xl p-6 text-center">
+      <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 text-center">
         <p className="text-white font-semibold">Keep the wheels turning. Stay clean, stay consistent, and let the calendar do its work.</p>
         <p className="text-sm text-slate-400 mt-1">Every established carrier on the road today started exactly where you are.</p>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -3487,17 +3457,18 @@ function CarriersView() {
     return d ? d.email : '';
   };
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold">Carriers</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Save each carrier once. Pick them in the Rate Calculator to auto-fill specs and one-click assign loads.</p>
 
-      <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+      <Card className="p-6">
+        <form onSubmit={add} className="space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h3 className="font-bold">Add a Carrier</h3>
           <div className="flex items-center gap-2">
@@ -3564,12 +3535,13 @@ function CarriersView() {
           </div>
         )}
 
-        <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+        <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">
           {saving ? 'Saving…' : 'Save Carrier'}
-        </button>
-      </form>
+        </PrimaryButton>
+        </form>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="font-bold mb-4">Saved Carriers</h3>
         {loading ? (
           <div className="text-slate-400 text-sm">Loading…</div>
@@ -3613,7 +3585,7 @@ function CarriersView() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -3724,17 +3696,17 @@ function LaneIntelView() {
     `${nt.location} ${nt.note} ${nt.category}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
         <h2 className="text-2xl font-bold">Lane Intel</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Know the business of the road — transit days and the facility/market intel your team learns one load at a time.</p>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+      <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h3 className="font-bold">Transit Day Estimator</h3>
           <button type="button" onClick={pullFromCalc} className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-1.5 rounded-lg">⤵ Pull from Rate Calculator</button>
@@ -3775,9 +3747,9 @@ function LaneIntelView() {
           )}
         </div>
         <p className="text-[11px] text-slate-600">~500 mi/day is a safe solo-driver assumption once you factor HOS, fuel, and loading. Auto-distance from state selection arrives when the maps API is connected.</p>
-      </div>
+      </Card>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+      <Card className="p-6 space-y-4">
         <h3 className="font-bold">Facility & Market Intel</h3>
         <p className="text-xs text-slate-500">Log what your team learns: cold markets, slow shippers, no-parking receivers, rough routes. Searchable for the whole team.</p>
 
@@ -3787,9 +3759,9 @@ function LaneIntelView() {
             {INTEL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <input className={`${field} sm:col-span-4`} value={form.note} onChange={setFf('note')} placeholder="e.g. Cold flatbed market — cover deadhead out" />
-          <button type="submit" disabled={saving} className="sm:col-span-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
+          <PrimaryButton type="submit" disabled={saving} className="sm:col-span-2 px-3 py-2">
             {saving ? '…' : 'Add'}
-          </button>
+          </PrimaryButton>
         </form>
 
         <input className={field} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search intel…" />
@@ -3814,7 +3786,7 @@ function LaneIntelView() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -3921,7 +3893,7 @@ function OnboardingWizard({ onDone }) {
   };
 
   const STEPS = ['Confirm', 'Documents', 'Payment'];
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   const next = () => setStep((s) => Math.min(s + 1, 4));
   const back = () => setStep((s) => Math.max(s - 1, 0));
@@ -4013,9 +3985,9 @@ function OnboardingWizard({ onDone }) {
                   ? "Your dispatcher already started your profile from your carrier packet. Confirm it's right and add your documents — takes about 2 minutes."
                   : "Let's get a few details on file so we can start aggressively negotiating your rates and securing your preferred lanes."}
               </p>
-              <button onClick={() => setStep(1)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors">
+              <PrimaryButton onClick={() => setStep(1)} className="px-8 py-3">
                 {profileLoaded ? 'Start →' : 'Loading…'}
-              </button>
+              </PrimaryButton>
             </div>
           )}
 
@@ -4024,7 +3996,7 @@ function OnboardingWizard({ onDone }) {
               <div><h2 className="text-2xl font-bold">Confirm Your Profile</h2><p className="text-slate-400 text-sm mt-1">{carrierDoc ? "Here's what we have on file. Make sure it's right." : "We don't have a profile on file yet — please fill in the basics."}</p></div>
 
               {carrierDoc && !editProfile ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <Card className="p-5">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-amber-400 tracking-wide">FROM YOUR CARRIER PACKET</span>
                     <button type="button" onClick={() => setEditProfile(true)} className="text-xs text-slate-400 hover:text-white underline">Something's wrong? Edit</button>
@@ -4037,7 +4009,7 @@ function OnboardingWizard({ onDone }) {
                   <SummaryRow label="Target Min Rate" value={f.targetRate ? '$' + f.targetRate + '/mi' : ''} />
                   <SummaryRow label="Preferred Lanes" value={f.preferredLanesText} />
                   <SummaryRow label="Avoid" value={f.avoidText} />
-                </div>
+                </Card>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs text-slate-400 mb-1">Legal Company Name *</label><input className={field} value={f.companyName} onChange={set('companyName')} /></div>
@@ -4059,7 +4031,7 @@ function OnboardingWizard({ onDone }) {
                 </div>
               )}
 
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <Card className="p-5 space-y-4">
                 <div className="text-xs font-semibold text-slate-400 tracking-wide">A FEW MORE DETAILS WE NEED</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-xs text-slate-400 mb-1">USDOT Number</label><input className={field} value={f.dotNumber} onChange={set('dotNumber')} /></div>
@@ -4081,7 +4053,7 @@ function OnboardingWizard({ onDone }) {
                     })}
                   </div>
                 </div>
-              </div>
+              </Card>
             </div>
           )}
 
@@ -4135,9 +4107,9 @@ function OnboardingWizard({ onDone }) {
               {submitErr && <p className="text-red-400 text-sm mb-4">{submitErr}</p>}
               <div className="flex items-center justify-center gap-3">
                 <button onClick={() => setStep(3)} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
-                <button onClick={submit} disabled={submitting} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-8 py-3 rounded-lg transition-colors disabled:opacity-50">
+                <PrimaryButton onClick={submit} disabled={submitting} className="px-8 py-3">
                   {submitting ? 'Saving…' : 'Go to Dashboard →'}
-                </button>
+                </PrimaryButton>
               </div>
             </div>
           )}
@@ -4148,9 +4120,9 @@ function OnboardingWizard({ onDone }) {
         <div className="border-t border-slate-800 px-4 md:px-8 py-4">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
             <button onClick={back} className="text-sm text-slate-400 hover:text-white px-4 py-2">← Back</button>
-            <button onClick={next} disabled={!canProceed()} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg transition-colors disabled:opacity-50">
+            <PrimaryButton onClick={next} disabled={!canProceed()} className="px-6 py-2.5">
               {step < 3 ? 'Continue' : 'Review & Finish'}
-            </button>
+            </PrimaryButton>
           </div>
         </div>
       )}
@@ -4244,7 +4216,7 @@ function TrainingView() {
       <div className="flex items-center gap-2">
         <GraduationCap className="text-amber-500" size={26} />
         <h2 className="text-2xl font-bold">Dispatcher Training</h2>
-        <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Your onboarding playbook — reference it anytime, and flip on <span className="text-amber-300 font-semibold">Guided Mode</span> in the header to get walked through workflows live.</p>
 
@@ -4259,7 +4231,7 @@ function TrainingView() {
 
       {tab === 'guided' && (
         <div className="space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <Card className="p-6">
             <h3 className="text-lg font-bold flex items-center gap-2 mb-3"><GraduationCap className="text-amber-500" size={20} /> What Guided Mode does</h3>
             <p className="text-sm text-slate-300 leading-relaxed mb-4">Toggle <span className="text-amber-300 font-semibold">Guided Mode</span> in the top header. When it’s on, the portal adds soft checklists and contextual tips to the trickiest workflows — so new dispatchers build good habits without slowing down. It never hard-blocks you; it nudges.</p>
             <div className="space-y-3">
@@ -4276,12 +4248,12 @@ function TrainingView() {
                 <div className="text-xs text-slate-400 mt-1">Before a load is sent, a quick checklist confirms the rate, times, and fees match what was agreed.</div>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {tab === 'glossary' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <Card className="p-6">
           <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><BookOpen className="text-amber-500" size={20} /> Freight Glossary — 15 Terms to Know</h3>
           <div className="space-y-3">
             {GLOSSARY.map(([term, def]) => (
@@ -4291,13 +4263,13 @@ function TrainingView() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {tab === 'sops' && (
         <div className="space-y-6">
           {SOPS.map((sop) => (
-            <div key={sop.title} className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <Card key={sop.title} className="p-6">
               <h3 className="text-lg font-bold flex items-center gap-2 mb-1"><ShieldCheck className="text-amber-500" size={20} /> {sop.title}</h3>
               <p className="text-sm text-slate-400 mb-4">{sop.intro}</p>
               <ol className="space-y-2">
@@ -4308,7 +4280,7 @@ function TrainingView() {
                   </li>
                 ))}
               </ol>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -4316,12 +4288,12 @@ function TrainingView() {
       {tab === 'scripts' && (
         <div className="space-y-4">
           {TALK_TRACKS.map((t) => (
-            <div key={t.title} className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <Card key={t.title} className="p-6">
               <h3 className="text-base font-bold text-white">{t.title}</h3>
               <div className="text-xs text-slate-500 mt-0.5 mb-3">Use when: {t.when}</div>
               <div className="bg-slate-800/50 border-l-2 border-amber-500 rounded-r-lg p-4 text-sm text-slate-200 italic leading-relaxed">{t.script}</div>
               <div className="text-xs text-emerald-400 mt-3">Tip: {t.tip}</div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -4442,7 +4414,7 @@ function UpgradesView({ uid }) {
       </div>
 
       {/* B2 — Credential Checklist */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="text-lg font-bold mb-1">Credential Checklist</h3>
         <p className="text-sm text-slate-400 mb-4">Green = on file. Tap a missing one for a quick how-to guide.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -4460,10 +4432,10 @@ function UpgradesView({ uid }) {
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* B3 — Credential Document Uploads */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="text-lg font-bold mb-1">Upload Your Credential Docs</h3>
         <p className="text-sm text-slate-400 mb-4">Store photos of your cards so dispatch can bid on specialized loads immediately.</p>
         <div className="space-y-3">
@@ -4481,14 +4453,14 @@ function UpgradesView({ uid }) {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Credential how-to modal */}
       {modal && (() => {
         const c = CREDENTIALS.find((x) => x.key === modal);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setModal(null)}>
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
+            <Card className="p-6 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-white">How to get your {c.label}</h3>
                 <button onClick={() => setModal(null)} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
@@ -4503,9 +4475,9 @@ function UpgradesView({ uid }) {
               </ol>
               {c.find && (
                 <div className="mt-5">
-                  <button onClick={findTSA} disabled={tsa.loading} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg disabled:opacity-50">
+                  <PrimaryButton onClick={findTSA} disabled={tsa.loading} className="w-full py-2.5">
                     {tsa.loading ? 'Finding…' : '📍 Find nearest TSA enrollment center'}
-                  </button>
+                  </PrimaryButton>
                   {tsa.err && <p className="text-xs text-red-400 mt-2">{tsa.err}</p>}
                   {tsa.list && tsa.list.length === 0 && <p className="text-xs text-slate-400 mt-2">No centers found nearby.</p>}
                   {tsa.list && tsa.list.length > 0 && (
@@ -4522,7 +4494,7 @@ function UpgradesView({ uid }) {
                   )}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
         );
       })()}
@@ -4610,46 +4582,48 @@ function ExpensesView() {
     URL.revokeObjectURL(a.href);
   };
 
-  const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500';
+  const field = INPUT_CLS;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">Expenses</h2>
-          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold tracking-wide">ADMIN</span>
+          <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
         </div>
         <div className="flex gap-2">
-          <button onClick={exportCsv} className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg">Export CSV</button>
-          <button onClick={() => setShowForm((s) => !s)} className="text-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg flex items-center gap-2"><Plus size={18} /> Add</button>
+          <GhostButton onClick={exportCsv} className="text-sm border border-slate-700 px-3 py-2">Export CSV</GhostButton>
+          <PrimaryButton onClick={() => setShowForm((s) => !s)} className="text-sm"><Plus size={18} /> Add</PrimaryButton>
         </div>
       </div>
       <p className="text-slate-400 text-sm">Track your business costs. Bank-feed auto-import (Plaid) comes in the backend phase — for now, log them here and export to QuickBooks.</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5"><div className="text-xs text-slate-500 mb-1">Dispatch Fees (this month)</div><div className="text-2xl font-bold text-emerald-400">{money(feesThisMonth)}</div></div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5"><div className="text-xs text-slate-500 mb-1">Expenses (this month)</div><div className="text-2xl font-bold text-amber-400">{money(totalMonth)}</div></div>
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 col-span-2 sm:col-span-1"><div className="text-xs text-slate-500 mb-1">Net Profit (this month)</div><div className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{money(profit)}</div></div>
+        <StatTile label="Dispatch Fees (this month)" value={money(feesThisMonth)} accent="emerald" className="p-5" />
+        <StatTile label="Expenses (this month)" value={money(totalMonth)} accent="amber" className="p-5" />
+        <StatTile label="Net Profit (this month)" value={money(profit)} accent={profit >= 0 ? 'emerald' : 'red'} className="p-5 col-span-2 sm:col-span-1" />
       </div>
 
       {showForm && (
-        <form onSubmit={add} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <Card className="p-6">
+          <form onSubmit={add} className="space-y-4">
           <h3 className="font-bold">New Expense</h3>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div><label className="block text-xs text-slate-400 mb-1">Category</label><select className={field} value={form.category} onChange={set('category')}>{EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Amount ($)</label><input className={field} type="number" inputMode="decimal" value={form.amount} onChange={set('amount')} placeholder="0.00" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Date</label><input className={field} type="date" value={form.date} onChange={set('date')} /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Note</label><input className={field} value={form.note} onChange={set('note')} placeholder="optional" /></div>
+            <Field label="Category"><select className={field} value={form.category} onChange={set('category')}>{EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
+            <Field label="Amount ($)"><input className={field} type="number" inputMode="decimal" value={form.amount} onChange={set('amount')} placeholder="0.00" /></Field>
+            <Field label="Date"><input className={field} type="date" value={form.date} onChange={set('date')} /></Field>
+            <Field label="Note"><input className={field} value={form.note} onChange={set('note')} placeholder="optional" /></Field>
           </div>
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Add Expense'}</button>
+            <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">{saving ? 'Saving…' : 'Add Expense'}</PrimaryButton>
             <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
           </div>
-        </form>
+          </form>
+        </Card>
       )}
 
       {Object.keys(byCat).length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <Card className="p-6">
           <h3 className="font-bold mb-3">This Month by Category</h3>
           <div className="space-y-2">
             {Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
@@ -4659,10 +4633,10 @@ function ExpensesView() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <Card className="p-6">
         <h3 className="font-bold mb-4">All Expenses</h3>
         {loading ? <div className="text-slate-400 text-sm">Loading…</div>
           : expenses.length === 0 ? <div className="text-slate-500 text-sm">No expenses logged yet.</div>
@@ -4679,7 +4653,7 @@ function ExpensesView() {
               ))}
             </div>
           )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -4701,6 +4675,91 @@ function NavItem({ icon, label, isActive, onClick }) {
       {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400" />}
     </button>
   );
+}
+
+// ============================================================================
+// ===== Pass 2 — shared UI primitives (consistent component patterns) ========
+// Presentational only; adopt across screens so every panel/form/table matches.
+// ============================================================================
+
+// Standardized control styling, reused by every form in the app.
+const INPUT_CLS = 'w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-colors';
+const SELECT_CLS = INPUT_CLS;
+const LABEL_CLS = 'block text-xs font-medium text-slate-400 mb-1.5';
+
+// Standard surface card used across the app.
+function Card({ children, className = '', ...rest }) {
+  return (
+    <div className={`bg-slate-900/70 border border-slate-800 rounded-2xl shadow-lg shadow-black/20 ${className}`} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+// Panel/section header: optional icon + accent, inline badge, right-aligned action.
+function PanelHeader({ icon, title, accent = 'amber', badge, action, className = '' }) {
+  const accentCls = { amber: 'text-amber-500', blue: 'text-blue-400', emerald: 'text-emerald-400', slate: 'text-slate-400' }[accent] || 'text-amber-500';
+  return (
+    <div className={`flex items-center justify-between gap-3 ${className}`}>
+      <h3 className="text-lg font-semibold text-white flex items-center gap-2 min-w-0">
+        {icon && <span className={`${accentCls} shrink-0`}>{icon}</span>}
+        <span className="truncate">{title}</span>
+        {badge}
+      </h3>
+      {action}
+    </div>
+  );
+}
+
+// Compact stat tile — label over a bold value, optional accent color.
+function StatTile({ label, value, accent = 'white', className = '' }) {
+  const v = { white: 'text-white', emerald: 'text-emerald-400', amber: 'text-amber-400', blue: 'text-blue-400', red: 'text-red-400', slate: 'text-slate-300' }[accent] || 'text-white';
+  return (
+    <div className={`bg-slate-800/50 border border-slate-700 rounded-xl p-4 ${className}`}>
+      <div className="text-xs text-slate-500 mb-1">{label}</div>
+      <div className={`text-xl font-bold ${v}`}>{value}</div>
+    </div>
+  );
+}
+
+// Colored status pill.
+function Badge({ children, tone = 'slate', className = '' }) {
+  const tones = {
+    slate: 'bg-slate-800 text-slate-300 border-slate-700',
+    amber: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    emerald: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    red: 'bg-red-500/20 text-red-400 border-red-500/30',
+    indigo: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  };
+  return <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border ${tones[tone] || tones.slate} ${className}`}>{children}</span>;
+}
+
+// Labeled form field wrapper.
+function Field({ label, hint, children, className = '' }) {
+  return (
+    <div className={className}>
+      {label && <label className={LABEL_CLS}>{label}</label>}
+      {children}
+      {hint && <p className="text-[11px] text-slate-500 mt-1.5">{hint}</p>}
+    </div>
+  );
+}
+
+// Buttons — consistent primary / ghost treatments.
+function PrimaryButton({ children, className = '', ...rest }) {
+  return <button className={`inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
+}
+function GhostButton({ children, className = '', ...rest }) {
+  return <button className={`inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
+}
+
+// Table primitives — consistent header + cell styling.
+function Th({ children, className = '' }) {
+  return <th className={`text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 ${className}`}>{children}</th>;
+}
+function Td({ children, className = '' }) {
+  return <td className={`px-4 py-3 text-sm text-slate-300 align-middle ${className}`}>{children}</td>;
 }
 
 
