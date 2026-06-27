@@ -208,6 +208,37 @@ function GuidedHint({ children }) {
     </div>
   );
 }
+
+// ===== Forward OS brand =====
+function ForwardOSLogo({ size = 36 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true" className="shrink-0">
+      <defs>
+        <linearGradient id="fosGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fbbf24" /><stop offset="1" stopColor="#d97706" />
+        </linearGradient>
+      </defs>
+      <rect x="1.5" y="1.5" width="37" height="37" rx="11" fill="#0b1220" stroke="#1e293b" strokeWidth="1.5" />
+      <g fill="none" stroke="url(#fosGrad)" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="12,13 20,20 12,27" />
+        <polyline points="20,13 28,20 20,27" />
+      </g>
+    </svg>
+  );
+}
+
+function BrandLockup({ size = 34, stack = false }) {
+  return (
+    <div className={`flex items-center gap-2.5 ${stack ? 'flex-col text-center gap-2' : ''}`}>
+      <ForwardOSLogo size={size} />
+      <div className={stack ? '' : 'leading-none'}>
+        <div className="text-base font-extrabold tracking-tight text-white leading-none">Forward<span className="text-amber-500">OS</span></div>
+        <div className="text-[10px] text-slate-500 tracking-[0.18em] font-semibold mt-1">DISPATCH PLATFORM</div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [paymentMethod, setPaymentMethod] = useState('factoring');
@@ -314,7 +345,7 @@ export default function App() {
   };
 
   if (authLoading) {
-    return <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400 font-sans">Loading…</div>;
+    return <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-[#0b1220] text-slate-400 font-sans">Loading…</div>;
   }
   if (!user) {
     return <LoginView accessDenied={accessDenied} />;
@@ -328,21 +359,18 @@ export default function App() {
 
   return (
     <GuidedModeContext.Provider value={isAdmin && guidedMode}>
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans overflow-hidden">
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transform transition-transform duration-200 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#0b1220]/95 backdrop-blur border-r border-slate-800/80 flex flex-col transform transition-transform duration-200 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
         <div className="p-6 flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-wider text-white">FORWARD MOTION</h1>
-            <p className="text-xs text-amber-500 tracking-widest font-semibold mt-1">VIP FREIGHT</p>
-          </div>
+          <BrandLockup size={34} />
           <button
             onClick={() => setSidebarOpen(false)}
             className="md:hidden text-slate-400 hover:text-white text-3xl leading-none -mt-1"
@@ -2293,14 +2321,12 @@ function LoginView({ accessDenied }) {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100 font-sans p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold tracking-wider text-white">FORWARD MOTION</h1>
-          <p className="text-xs text-amber-500 tracking-widest font-semibold mt-1">VIP FREIGHT</p>
-        </div>
+    <div className="relative flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-4 overflow-hidden">
+      <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-amber-500/10 blur-[120px]" />
+      <div className="relative w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
+        <div className="flex justify-center mb-8"><BrandLockup size={42} stack /></div>
 
-        <h2 className="text-xl font-bold mb-2">Driver Sign In</h2>
+        <h2 className="text-xl font-bold mb-2">Sign In</h2>
         <p className="text-sm text-slate-400 mb-6">Access is invite-only. Use the email and temporary password your dispatcher gave you.</p>
 
         {accessDenied && (
@@ -2362,8 +2388,9 @@ function ChangePasswordView({ onDone }) {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-100 font-sans p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8">
+    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-4">
+      <div className="w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
+        <div className="flex justify-center mb-6"><BrandLockup size={36} stack /></div>
         <h2 className="text-xl font-bold mb-2">Set Your Password</h2>
         <p className="text-sm text-slate-400 mb-6">You're using a temporary password. Choose a new one to continue.</p>
         <form onSubmit={submit} className="space-y-4">
@@ -3949,12 +3976,9 @@ function OnboardingWizard({ onDone }) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col">
-      <div className="border-b border-slate-800 px-4 md:px-8 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold tracking-wider text-white">FORWARD MOTION</h1>
-          <p className="text-[10px] text-amber-500 tracking-widest font-semibold">VIP FREIGHT</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans flex flex-col">
+      <div className="border-b border-slate-800/80 px-4 md:px-8 py-4 flex items-center justify-between">
+        <BrandLockup size={30} />
         <button onClick={() => signOut(auth)} className="text-xs text-slate-400 hover:text-white">Sign out</button>
       </div>
 
@@ -4665,14 +4689,16 @@ function NavItem({ icon, label, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-6 py-3 transition-all duration-200 border-l-2 ${
+      className={`group w-full flex items-center gap-3 mx-3 my-0.5 px-3 py-2.5 rounded-xl transition-all duration-150 ${
         isActive
-          ? 'bg-slate-800/50 text-white border-amber-500'
-          : 'text-slate-400 border-transparent hover:bg-slate-800/30 hover:text-slate-200'
+          ? 'bg-amber-500/10 text-white ring-1 ring-amber-500/30'
+          : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
       }`}
+      style={{ width: 'calc(100% - 1.5rem)' }}
     >
-      <span className={isActive ? 'text-amber-500' : 'text-slate-500'}>{icon}</span>
+      <span className={isActive ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-300'}>{icon}</span>
       <span className="font-medium text-sm">{label}</span>
+      {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400" />}
     </button>
   );
 }
