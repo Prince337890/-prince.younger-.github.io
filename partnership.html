@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partnership Program | Powered by Forward Motion Freight</title>
+    <meta name="description" content="Launch your own branded dispatch &amp; carrier portal — powered by Forward Motion Freight. White-label platform, hosted and secured, with your logo, your drivers, and your data fully isolated.">
+    <meta name="theme-color" content="#0a0f1a">
+    <meta name="color-scheme" content="dark">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
+    </script>
+    <style>
+        body { background:#0a0f1a; }
+        .logo-mark { overflow: visible; }
+        .logo-hub { transform-box: fill-box; transform-origin: center; animation: hubSpin 6s linear infinite; }
+        @keyframes hubSpin { to { transform: rotate(360deg); } }
+        .chev { opacity: 0; animation: chevSweep 2.4s ease-in-out infinite; }
+        .chev.c1 { animation-delay: 0s; } .chev.c2 { animation-delay: .18s; }
+        @keyframes chevSweep {
+            0% { opacity: 0; transform: translateX(-4px); }
+            30% { opacity: 1; transform: translateX(0); }
+            60% { opacity: 1; transform: translateX(0); }
+            100% { opacity: 0; transform: translateX(5px); }
+        }
+        @media (prefers-reduced-motion: reduce) { .logo-hub, .chev { animation: none !important; } .chev { opacity: 1; } }
+    </style>
+</head>
+<body class="font-sans bg-[#0a0f1a] text-white antialiased">
+
+    <!-- ===================== TOP BAR ===================== -->
+    <header class="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
+        <a href="index.html" class="flex items-center gap-2.5">
+            <svg viewBox="0 0 48 48" class="logo-mark h-9 w-9" aria-hidden="true">
+                <g class="logo-hub">
+                    <circle cx="16" cy="24" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+                    <circle cx="16" cy="24" r="3" fill="#FF5722"/>
+                    <g stroke="#FFFFFF" stroke-width="2" stroke-linecap="round">
+                        <line x1="16" y1="24" x2="16" y2="13"/><line x1="16" y1="24" x2="25.5" y2="29.5"/><line x1="16" y1="24" x2="6.5" y2="29.5"/>
+                    </g>
+                </g>
+                <g fill="none" stroke="#FF5722" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline class="chev c1" points="31,16 38,24 31,32"/><polyline class="chev c2" points="37,16 44,24 37,32"/>
+                </g>
+            </svg>
+            <span class="font-display text-sm font-extrabold uppercase tracking-[0.18em] text-white sm:text-base">
+                Forward&nbsp;Motion <span class="text-[#FF5722]">Freight</span>
+            </span>
+        </a>
+        <a href="mailto:prince@forwardmotionfreight.com?subject=Partnership%20Program%20Inquiry"
+           class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold tracking-wide text-slate-200 backdrop-blur-sm transition hover:border-white/30 hover:bg-white/10 sm:text-sm">
+            Become a Partner
+        </a>
+    </header>
+
+    <!-- ===================== HERO ===================== -->
+    <section class="relative overflow-hidden px-5 pb-16 pt-10 sm:px-8 sm:pb-24 sm:pt-16">
+        <div class="pointer-events-none absolute -top-24 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-[#FF5722]/15 blur-[130px]"></div>
+        <div class="relative mx-auto max-w-3xl text-center">
+            <span class="inline-flex items-center gap-2 rounded-full border border-[#FF5722]/40 bg-[#FF5722]/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-200">
+                Partnership Program
+            </span>
+            <h1 class="mt-6 font-display text-[2.1rem] font-extrabold leading-[1.08] tracking-tight text-white sm:text-6xl">
+                Launch Your Own Dispatch Platform — Without Building One.
+            </h1>
+            <p class="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+                Run a dispatch service or fleet and want the technology to match? Get your own
+                fully-branded dispatcher &amp; driver portal — your logo, your drivers, your data —
+                <strong class="font-semibold text-slate-200">powered by Forward Motion Freight</strong>.
+                We built the platform. You put your name on it.
+            </p>
+            <div class="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <a href="mailto:prince@forwardmotionfreight.com?subject=Partnership%20Program%20Inquiry"
+                   class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5722] px-7 py-4 text-base font-bold text-white shadow-[0_10px_30px_-8px_rgba(255,87,34,0.6)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ff6a3c]">
+                    Become a Partner
+                    <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </a>
+                <a href="dispatcher-portal.html" class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-7 py-4 text-base font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5">
+                    See the Platform
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===================== WHAT YOU GET ===================== -->
+    <section class="px-5 py-16 sm:px-8 sm:py-20">
+        <div class="mx-auto max-w-6xl">
+            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#FF5722]">The White-Glove Offering</p>
+            <h2 class="mt-3 text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Your Brand. Our Engine.</h2>
+
+            <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <!-- 1 -->
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 1 0 9 14c-1.5 0-2.5-.5-2.5-2s1-2 2.5-2"/></svg></div>
+                    <h3 class="mt-6 font-display text-xl font-bold text-white">Fully White-Labeled</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-slate-400">Your company name, logo, and brand colors throughout. Your drivers see <em>your</em> platform — quietly powered by us.</p>
+                </div>
+                <!-- 2 -->
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+                    <h3 class="mt-6 font-display text-xl font-bold text-white">Both Portals, Day One</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-slate-400">The full dispatcher deal desk <em>and</em> the driver portal — rate calculator, HOS checks, carrier management, financials, the works.</p>
+                </div>
+                <!-- 3 -->
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                    <h3 class="mt-6 font-display text-xl font-bold text-white">Your Data, Isolated</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-slate-400">Every partner runs in their own secure space. Your loads, carriers, and drivers are walled off — never shared, never visible to anyone else.</p>
+                </div>
+                <!-- 4 -->
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+                    <h3 class="mt-6 font-display text-xl font-bold text-white">Hosted &amp; Maintained</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-slate-400">We host it, secure it, and keep it running. No servers to manage, no updates to chase — you focus on booking freight.</p>
+                </div>
+                <!-- 5 -->
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+                    <h3 class="mt-6 font-display text-xl font-bold text-white">Onboarding &amp; Training</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-slate-400">We set it up, walk you through it on a live call, and help you invite your first dispatchers and drivers.</p>
+                </div>
+                <!-- 6 -->
+                <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#FF5722]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF5722]/12 text-[#FF5722]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14"/></svg></div>
+                    <h3 class="mt-6 font-display text-xl font-bold text-white">Scales With You</h3>
+                    <p class="mt-3 text-[15px] leading-relaxed text-slate-400">Add drivers and dispatchers as you grow. Simple subscription pricing — no big upfront build, no surprise invoices.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===================== HOW IT WORKS ===================== -->
+    <section class="px-5 py-16 sm:px-8 sm:py-20">
+        <div class="mx-auto max-w-4xl">
+            <h2 class="text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">How It Works</h2>
+            <ol class="mt-12 space-y-6">
+                <li class="flex gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-7">
+                    <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#FF5722] font-display text-lg font-extrabold text-white">1</span>
+                    <div><h3 class="font-display text-lg font-bold text-white">Discovery Call</h3><p class="mt-1.5 text-[15px] leading-relaxed text-slate-400">We learn how you run — your fleet size, the modules you need, and your branding.</p></div>
+                </li>
+                <li class="flex gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-7">
+                    <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#FF5722] font-display text-lg font-extrabold text-white">2</span>
+                    <div><h3 class="font-display text-lg font-bold text-white">We Brand &amp; Provision</h3><p class="mt-1.5 text-[15px] leading-relaxed text-slate-400">Your logo, colors, and name go on the platform, and we stand up your own isolated, secure instance.</p></div>
+                </li>
+                <li class="flex gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-7">
+                    <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#FF5722] font-display text-lg font-extrabold text-white">3</span>
+                    <div><h3 class="font-display text-lg font-bold text-white">Onboard Your Team</h3><p class="mt-1.5 text-[15px] leading-relaxed text-slate-400">A live training call, then you invite your dispatchers and drivers and start booking.</p></div>
+                </li>
+                <li class="flex gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-7">
+                    <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#FF5722] font-display text-lg font-extrabold text-white">4</span>
+                    <div><h3 class="font-display text-lg font-bold text-white">Grow on Subscription</h3><p class="mt-1.5 text-[15px] leading-relaxed text-slate-400">We keep it running and updated; you add seats as you scale. That's it.</p></div>
+                </li>
+            </ol>
+        </div>
+    </section>
+
+    <!-- ===================== FINAL CTA ===================== -->
+    <section class="px-5 py-16 sm:px-8 sm:py-20">
+        <div class="mx-auto max-w-5xl rounded-3xl border border-[#FF5722]/25 bg-gradient-to-br from-[#1a1008] to-[#0a0f1a] p-8 text-center sm:p-14">
+            <h2 class="font-display text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Put Your Name on a Platform That's Already Proven.</h2>
+            <p class="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
+                Tell us about your operation and we'll scope a branded portal for your team. Veteran-owned,
+                built in the real world, ready to carry your brand.
+            </p>
+            <a href="mailto:prince@forwardmotionfreight.com?subject=Partnership%20Program%20Inquiry"
+               class="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF5722] px-7 py-4 text-base font-bold text-white shadow-[0_10px_30px_-8px_rgba(255,87,34,0.6)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ff6a3c]">
+                Start the Conversation
+                <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+        </div>
+    </section>
+
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="border-t border-white/10 px-5 py-12 text-center sm:px-8">
+        <p class="font-display text-sm font-extrabold uppercase tracking-[0.18em] text-white">Forward&nbsp;Motion <span class="text-[#FF5722]">Freight</span></p>
+        <p class="mt-4 text-sm text-slate-400">Email: <a href="mailto:prince@forwardmotionfreight.com" class="text-[#FF5722] hover:underline">prince@forwardmotionfreight.com</a></p>
+        <nav class="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-400">
+            <a href="index.html" class="hover:text-white">Home</a>
+            <a href="dispatcher-portal.html" class="hover:text-white">Dispatcher Portal</a>
+            <a href="driver-portal.html" class="hover:text-white">Driver Portal</a>
+            <a href="carrier-packet.html" class="hover:text-white">Carrier Packet</a>
+        </nav>
+        <p class="mt-6 text-xs text-slate-600">&copy; 2026 Forward Motion Freight LLC. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>
