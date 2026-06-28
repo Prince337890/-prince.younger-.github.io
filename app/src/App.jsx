@@ -192,6 +192,45 @@ const DISPATCHER_PHONE = '';
 // Default dispatch fee % when a load/carrier doesn't specify one.
 const DEFAULT_FEE_PCT = 10;
 
+// ============================================================================
+// ===== 2026 MARKET REFERENCE — UPDATE THESE NUMBERS WHEN THE MARKET MOVES ====
+// This is the ONE place to edit market data. It feeds the Rate Calculator's
+// market auto-suggest and the admin "Market Pulse" widget. Numbers are a
+// point-in-time snapshot (estimates) — bump MARKET_AS_OF and the values each
+// quarter. A live DAT/market feed replaces this in the backend phase.
+// ============================================================================
+const MARKET_AS_OF = 'Q2 2026';
+
+// Suggested all-in market rate ($/mi) by commodity, keyed to the calculator's
+// commodity list. Used only as a one-tap suggestion — never overwrites input.
+const MARKET_RATES = {
+  'General Dry Freight': 2.47,
+  'Frozen Seafood/Poultry': 3.20,
+  'Fresh Produce': 3.20,
+  'Coiled Steel': 3.57,
+  'High-Value Electronics': 2.60,
+};
+
+// Snapshot shown in the admin Market Pulse dashboard widget.
+const MARKET_PULSE = {
+  dieselPerGal: 5.35,
+  spotAllIn: 3.83, // national truckload spot record ($/mi)
+  trend: 'up', // 'up' | 'down' | 'flat'
+  headline: 'Supply-constrained market — capacity is tight and rates favor carriers.',
+  modality: [
+    { type: 'Dry Van', rpm: '$2.47–$2.80', yoy: '+18–23%' },
+    { type: 'Reefer', rpm: '$3.11–$3.31', yoy: '+13–18%' },
+    { type: 'Flatbed', rpm: '$3.46–$3.57', yoy: '+14–20%' },
+    { type: 'LTL', rpm: '+12.5% GRI', yoy: '+12.5%' },
+    { type: 'Intermodal', rpm: '$1.39', yoy: '−5%' },
+  ],
+  lanes: [
+    { lane: 'Atlanta, GA → Miami, FL', rpm: '$2.50–$2.90' },
+    { lane: 'Memphis, TN → Atlanta, GA', rpm: '$2.40–$2.75' },
+    { lane: 'Yakima, WA → Northeast (reefer)', rpm: '$8.7k–$10.6k / load' },
+  ],
+};
+
 // "Guided Mode" (training wheels) — when on, the UI nudges new dispatchers
 // through workflows with checklists and contextual hints. Read app-wide.
 const GuidedModeContext = React.createContext(false);
@@ -337,6 +376,7 @@ export default function App() {
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
       case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
+      case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
       case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
@@ -391,6 +431,7 @@ export default function App() {
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
               <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<ShieldCheck size={18} />} label="Broker Check" isActive={activeTab === 'brokercheck'} onClick={() => go('brokercheck')} />
               <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
@@ -578,6 +619,56 @@ function AdminWeeklyGross() {
   );
 }
 
+// ---------- ADMIN: 2026 MARKET PULSE (seeded snapshot, see MARKET_PULSE) ----------
+function MarketPulse() {
+  const p = MARKET_PULSE;
+  const trend = { up: { t: '▲ Rising', c: 'text-emerald-400' }, down: { t: '▼ Falling', c: 'text-red-400' }, flat: { t: '▬ Flat', c: 'text-slate-400' } }[p.trend] || { t: '', c: 'text-slate-400' };
+  return (
+    <Card className="p-6">
+      <PanelHeader
+        icon={<Activity size={20} />}
+        title="Market Pulse"
+        badge={<Badge tone="slate" className="font-normal">as of {MARKET_AS_OF}</Badge>}
+        action={<span className={`text-sm font-bold ${trend.c}`}>{trend.t}</span>}
+      />
+      <p className="text-sm text-slate-400 mt-2">{p.headline}</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+        <StatTile label="National Spot (all-in)" value={`$${p.spotAllIn.toFixed(2)}/mi`} accent="emerald" />
+        <StatTile label="Avg Diesel" value={`$${p.dieselPerGal.toFixed(2)}/gal`} accent="amber" />
+        <StatTile label="Trend" value={trend.t} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+          <div className="text-xs font-semibold text-slate-400 mb-2">Spot Rates by Equipment</div>
+          <div className="space-y-1.5">
+            {p.modality.map((m) => (
+              <div key={m.type} className="flex items-center justify-between text-sm">
+                <span className="text-slate-300">{m.type}</span>
+                <span className="text-white font-semibold">{m.rpm} <span className="text-slate-500 font-normal text-xs">({m.yoy})</span></span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+          <div className="text-xs font-semibold text-slate-400 mb-2">Hot Lanes</div>
+          <div className="space-y-1.5">
+            {p.lanes.map((l) => (
+              <div key={l.lane} className="flex items-center justify-between text-sm gap-2">
+                <span className="text-slate-300 truncate">{l.lane}</span>
+                <span className="text-amber-400 font-semibold shrink-0">{l.rpm}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <GuidedHint>Use these as your anchor on broker calls. If the broker's offer is well under the market band for that equipment, you have room to counter — don't take the first number.</GuidedHint>
+      <p className="text-[10px] text-slate-600 mt-3">Estimates for guidance — update the snapshot in code (MARKET_PULSE) each quarter. Live market data arrives with the backend phase.</p>
+    </Card>
+  );
+}
+
 // ---------- DASHBOARD ----------
 function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
   const u = auth.currentUser;
@@ -646,6 +737,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
   return (
     <div className="space-y-6">
       {isAdmin && <AdminWeeklyGross />}
+      {isAdmin && <MarketPulse />}
 
       {!isAdmin && (
         <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
@@ -3011,7 +3103,16 @@ function NegotiationCalcView() {
             <div><label className="block text-xs text-slate-400 mb-1">Delivery Date &amp; Time</label><input className={field} type="datetime-local" value={v.deliveryAt} onChange={set('deliveryAt')} /></div>
             <div><label className="block text-xs text-amber-300 font-semibold mb-1">Broker Offer ($)</label><input className={`${field} border-amber-500/60 bg-amber-500/5 text-base font-semibold`} type="number" inputMode="decimal" value={v.brokerOffer} onChange={set('brokerOffer')} placeholder="2000" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Carrier Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={v.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Current Market Rate ($/mi)</label><input className={field} type="number" inputMode="decimal" value={v.marketRpm} onChange={set('marketRpm')} placeholder="2.45" /><p className="text-[10px] text-slate-500 mt-1">Manual now — live market data later.</p></div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Current Market Rate ($/mi)</label>
+              <input className={field} type="number" inputMode="decimal" value={v.marketRpm} onChange={set('marketRpm')} placeholder="2.45" />
+              {MARKET_RATES[v.commodity] ? (
+                <button type="button" onClick={() => setV((s) => ({ ...s, marketRpm: String(MARKET_RATES[v.commodity]) }))}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 mt-1">
+                  Market ~${MARKET_RATES[v.commodity].toFixed(2)}/mi ({MARKET_AS_OF}) — tap to use
+                </button>
+              ) : <p className="text-[10px] text-slate-500 mt-1">Manual now — live market data later.</p>}
+            </div>
             <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Deadhead Miles</label><input className={field} type="number" inputMode="decimal" value={v.deadheadMiles} onChange={set('deadheadMiles')} placeholder="50" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Estimated Tolls ($)</label><input className={field} type="number" inputMode="decimal" value={v.tolls} onChange={set('tolls')} placeholder="40" /></div>
@@ -4147,6 +4248,14 @@ const GLOSSARY = [
   ['Accessorials', 'Extra charges beyond linehaul — detention, layover, lumper, tarps, extra stops, TONU. Always ask which accessorials the broker will cover.'],
   ['Spot Market / Spot Rate', 'The day-to-day load board pricing that fluctuates with supply and demand — where most new-authority carriers live. Contrast with contract freight.'],
   ['MC Number / Authority', 'The FMCSA operating license (Motor Carrier number) that lets a carrier haul for hire. “Active authority” means they’re legal to run today.'],
+  ['Double Brokering', 'A fraud scheme where a bad actor poses as a carrier, accepts a load, then secretly re-brokers it to a real carrier for less and pockets the difference — leaving the real carrier unpaid and the original broker liable. The #1 fraud threat in 2026.'],
+  ['Broker Bond (BMC-84)', 'The $75,000 surety bond/trust every freight broker must keep. If valid claims drop it below $75k, the broker has 7 business days to replenish or their authority is auto-suspended. Always confirm it’s active before booking.'],
+  ['Broker Transparency (49 CFR 371.3)', 'A carrier’s right to see the broker’s records of what the shipper actually paid. 2026 rulemaking makes this a non-waivable duty with a 48-hour turnaround — giving dispatchers real leverage to audit lane margins.'],
+  ['Negligent Hiring (Montgomery v. Caribe)', 'The 2026 Supreme Court ruling that lets brokers be sued in state court for hiring an unsafe carrier that causes a crash. It killed the old FAAAA shield — so forensic carrier vetting is now mandatory, not optional.'],
+  ['Demurrage & Detention', 'Fees for holding equipment too long. The 2026 Evergreen v. FMC ruling set the “incentive principle”: fees are only fair when the carrier could actually have moved the freight — fees charged while a port/facility is closed are unjust and disputable.'],
+  ['Nuclear Verdict', 'A jury award over $10M (often $100M+) in a trucking accident case, frequently fueled by third-party litigation funding. The main driver behind insurance premiums rising ~36% over eight years.'],
+  ['SAFER / BASIC', 'FMCSA’s public safety systems. SAFER shows a carrier’s authority, insurance, and snapshot; BASIC (Behavior Analysis & Safety Improvement Categories) scores them on safety behaviors. Check both before clearing a carrier or broker.'],
+  ['Proof Package', 'The airtight documentation set for every load: signed RateCon, timestamped check-calls, signed BOL/POD, and lumper receipts. Legally required to win a surety-bond claim if a broker defaults — build it on every load.'],
 ];
 
 const SOPS = [
@@ -4179,6 +4288,32 @@ const SOPS = [
       'Only once it all matches, send it to the driver to sign — and save the executed copy to their Document Vault.',
     ],
   },
+  {
+    title: 'SOP — Vet a Broker Before You Book (2026)',
+    intro: 'Booking with a suspended or fraudulent broker means your carrier doesn’t get paid. Since the Montgomery ruling and the $75k bond rule, this is non-negotiable. Use the Broker Check tab to run it.',
+    steps: [
+      'Get the broker’s company name and MC number.',
+      'Confirm operating authority is ACTIVE on FMCSA SAFER and the name/address match what they gave you.',
+      'Check FMCSA L&I that the $75,000 broker bond is active and NOT pending suspension.',
+      'Run the broker’s MC through your factoring company — if they’re un-factorable or flagged, reject the load.',
+      'Confirm they’re not on the FMCSA public suspended-broker list.',
+      'Verify contact details independently: call the registered corporate number, don’t just trust the email signature.',
+      'Scan for double-brokering red flags (urgency, too-good rate, last-minute equipment swap, generic email, no tracking). Two or more = walk away.',
+      'Only after it clears, book — and start the proof package immediately.',
+    ],
+  },
+  {
+    title: 'SOP — Build an Airtight Proof Package',
+    intro: 'If a broker defaults or disputes, this documentation is what gets your carrier paid (and is required to file a surety-bond claim). Build it on every load — don’t reconstruct it later.',
+    steps: [
+      'Save the signed Rate Confirmation (RateCon) the moment it’s executed.',
+      'Log timestamped check-calls at pickup, in-transit, and delivery.',
+      'Capture the signed Bill of Lading (BOL) at pickup and the signed POD at delivery.',
+      'Collect lumper receipts and any accessorial/detention documentation with in/out times.',
+      'Note the broker’s MC and bond status at time of booking (screenshot SAFER/L&I).',
+      'Store everything against the load in the Document Vault so it’s one click to retrieve.',
+    ],
+  },
 ];
 
 const TALK_TRACKS = [
@@ -4199,6 +4334,18 @@ const TALK_TRACKS = [
     when: 'Load is canceled after the driver was already dispatched.',
     script: '“Understood that the load fell through, but my driver was already dispatched and is en route / on-site. I’ll need a TONU to cover the truck I committed to you. Standard on a dispatched cancellation is $___ — can you get that on a confirmation so we keep things clean for next time?”',
     tip: 'Stay professional — you want repeat freight from this broker. Frame the TONU as standard, not a penalty.',
+  },
+  {
+    title: 'Using broker transparency for leverage',
+    when: 'A broker keeps lowballing a lane you suspect pays well.',
+    script: '“Under the broker transparency rule I’m within my rights to request the transaction records on this load. I’d rather just work out a fair rate — the market on this lane is running $___/mile and I know there’s room. Let’s land at $____ and keep moving freight together.”',
+    tip: 'You rarely need to actually pull records — invoking the right (49 CFR 371.3) plus a real market number is usually enough to move the rate.',
+  },
+  {
+    title: 'Disputing an unfair detention/port fee',
+    when: 'A broker or carrier is billed detention/demurrage while the facility or port was closed.',
+    script: '“This detention was caused by the facility being closed — my driver physically could not return the equipment. Under the FMC’s incentive principle (Evergreen v. FMC, 2026), fees that don’t promote freight fluidity aren’t valid. I have the closure documented and I’m disputing this charge.”',
+    tip: 'Document the closure/cause in real time. The 2026 ruling is on your side when the delay was outside the driver’s control.',
   },
 ];
 
@@ -4654,6 +4801,101 @@ function ExpensesView() {
             </div>
           )}
       </Card>
+    </div>
+  );
+}
+
+// ---------- ADMIN: BROKER CHECK (vetting + anti-fraud, storage-free) ----------
+function BrokerCheckView() {
+  const [b, setB] = useState({ name: '', mc: '' });
+  const set = (k) => (e) => setB((s) => ({ ...s, [k]: e.target.value }));
+  const [checks, setChecks] = useState({});
+  const [flags, setFlags] = useState({});
+
+  const CHECKS = [
+    ['authority', 'Operating authority is ACTIVE on FMCSA SAFER'],
+    ['bond', '$75k broker bond active & not pending suspension (FMCSA L&I)'],
+    ['factorable', 'Broker MC approved by your factoring company'],
+    ['notSuspended', 'Not on the FMCSA suspended-broker list'],
+    ['insurance', 'Carrier carries ≥ $1M liability (2026 broker minimum)'],
+    ['contact', 'Contact verified via SAFER + independent callback to the registered number'],
+  ];
+  const RED_FLAGS = [
+    ['urgency', 'Unusual urgency — "cover it right now," pressure to skip steps'],
+    ['tooGood', 'Rate is suspiciously high for the lane (bait to bypass vetting)'],
+    ['equipSwap', 'Last-minute equipment or pickup-location change'],
+    ['genericEmail', 'Generic email domain (gmail/yahoo) instead of a corporate address'],
+    ['noTracking', 'Refuses tracking app / live location'],
+    ['mismatch', 'Phone/email don’t match the SAFER-registered company'],
+  ];
+
+  const allClear = CHECKS.every(([k]) => checks[k]);
+  const flagCount = RED_FLAGS.filter(([k]) => flags[k]).length;
+  let verdict;
+  if (flagCount >= 2) verdict = { tone: 'red', label: '🔴 HIGH RISK — do not book', sub: 'Multiple double-brokering / fraud red flags. Verify independently or walk away.' };
+  else if (!allClear || flagCount === 1) verdict = { tone: 'amber', label: '🟡 Caution — finish vetting', sub: 'Complete every check and clear all red flags before you tender this load.' };
+  else verdict = { tone: 'emerald', label: '🟢 Cleared to book', sub: 'All checks pass and no red flags. Keep the proof package for this load.' };
+  const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-amber-500/15 border-amber-500/40 text-amber-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
+
+  const reset = () => { setB({ name: '', mc: '' }); setChecks({}); setFlags({}); };
+  const saferUrl = 'https://safer.fmcsa.dot.gov/CompanySnapshot.aspx';
+  const liUrl = 'https://li-public.fmcsa.dot.gov/LIVIEW/pkg_menu.prc_menu';
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Broker Check</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Vet a broker before you book. In 2026, booking with a suspended or fraudulent broker means your carrier doesn't get paid — and negligent-hiring liability is real. Run this every time.</p>
+
+      <GuidedHint>The 2026 Supreme Court ruling (<strong>Montgomery v. Caribe</strong>) and the FMCSA's $75k bond rule make broker vetting non-optional. Booking with a suspended or double-brokering middleman can leave your carrier unpaid and you exposed. Two or more red flags below = walk away.</GuidedHint>
+
+      <Card className="p-6 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Broker / Company Name"><input className={INPUT_CLS} value={b.name} onChange={set('name')} placeholder="ACME Logistics LLC" /></Field>
+          <Field label="Broker MC Number"><input className={INPUT_CLS} value={b.mc} onChange={set('mc')} placeholder="MC-123456" /></Field>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a href={saferUrl} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">Open FMCSA SAFER ↗</a>
+          <a href={liUrl} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">Open FMCSA L&amp;I (bond/authority) ↗</a>
+        </div>
+      </Card>
+
+      <div className={`rounded-2xl border p-5 ${verdictCls}`}>
+        <div className="font-bold text-base">{verdict.label}</div>
+        <div className="text-sm opacity-80 mt-1">{verdict.sub}</div>
+      </div>
+
+      <Card className="p-6">
+        <PanelHeader icon={<ShieldCheck size={20} />} title="Vetting Checklist" badge={<Badge tone={allClear ? 'emerald' : 'slate'}>{CHECKS.filter(([k]) => checks[k]).length}/{CHECKS.length}</Badge>} />
+        <div className="space-y-2 mt-4">
+          {CHECKS.map(([k, label]) => (
+            <label key={k} className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2.5">
+              <input type="checkbox" checked={!!checks[k]} onChange={(e) => setChecks((c) => ({ ...c, [k]: e.target.checked }))} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <PanelHeader icon={<Activity size={20} />} title="Double-Brokering Red Flags" accent="red" badge={<Badge tone={flagCount === 0 ? 'emerald' : flagCount === 1 ? 'amber' : 'red'}>{flagCount} flagged</Badge>} />
+        <p className="text-xs text-slate-500 mt-2">Check anything you're seeing. Two or more is a strong signal to stop and verify independently.</p>
+        <div className="space-y-2 mt-4">
+          {RED_FLAGS.map(([k, label]) => (
+            <label key={k} className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2.5">
+              <input type="checkbox" checked={!!flags[k]} onChange={(e) => setFlags((c) => ({ ...c, [k]: e.target.checked }))} className="w-4 h-4 mt-0.5 rounded accent-red-500 shrink-0" />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-4">
+          <GhostButton onClick={reset} className="text-sm">Reset for next broker</GhostButton>
+        </div>
+      </Card>
+
+      <p className="text-[11px] text-slate-600">Manual vetting for now. Live SAFER lookups, the public suspended-broker list, and automatic factorability checks arrive with the backend phase.</p>
     </div>
   );
 }
