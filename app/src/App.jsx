@@ -744,6 +744,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">Safe travels, {name}.</h2>
             <p className="text-slate-400">Your next mandatory rest stop is in 3 hours. We've got everything handled.</p>
+            <div className="mt-3"><GuidedHint>This is the carrier’s home screen — active load, weekly earnings, and VIP updates. A pending offer takes over this screen until they accept or decline.</GuidedHint></div>
           </div>
           <div className="md:text-right">
             <div className="text-sm text-slate-400 mb-1">Gross Earnings (This Week)</div>
@@ -974,6 +975,7 @@ function ProfileView({ uid, displayName }) {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold">{impersonating ? 'Carrier Profile' : 'My Profile'}</h2>
+      <GuidedHint>Basic account info for the carrier. Their operating details (equipment, rates, lanes) live in the <strong>Carriers</strong> tab and the onboarding profile.</GuidedHint>
       <Card className="p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold uppercase">
@@ -1101,6 +1103,7 @@ function ScheduleView({ uid }) {
         <div>
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-2"><Calendar className="text-amber-500" size={24} /> Schedule & Calendar</h2>
           <p className="text-slate-400">Your agenda of upcoming loads and truck maintenance.</p>
+          <div className="mt-3"><GuidedHint>Loads with a delivery date appear here automatically. Add maintenance or other events manually so the carrier’s whole week lives in one place.</GuidedHint></div>
         </div>
         <PrimaryButton onClick={() => setShowForm((s) => !s)} className="shrink-0">
           <Plus size={18} /> Add Event
@@ -1226,6 +1229,7 @@ function LaneManagementView({ uid }) {
       <div>
         <h2 className="text-2xl font-bold mb-2">Lane Management</h2>
         <p className="text-slate-400">Everything you need to execute your current load.</p>
+        <div className="mt-3"><GuidedHint>The carrier’s execution screen for the active load — status updates, route, the paperwork checklist, and VIP stops. Walk a new driver through advancing the status as the load moves.</GuidedHint></div>
       </div>
 
       <Card className="p-6 space-y-6">
@@ -1306,6 +1310,8 @@ function LaneManagementView({ uid }) {
           <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Delivery</span>
         </div>
       </Card>
+
+      <LoadStepChecklist load={active} onPersist={(steps) => updateDoc(doc(db, 'loads', active.id), { steps }).catch((e) => console.error('checklist save failed', e))} />
 
       <HealthyHubAndShower load={active} />
 
@@ -1471,6 +1477,7 @@ function SafeParkingView() {
         <div>
           <h2 className="text-2xl font-bold mb-2">Trusted Safe Parking</h2>
           <p className="text-slate-400">Pre-verified, high-security stops for your route.</p>
+          <div className="mt-3"><GuidedHint>Curate trusted, secure overnight stops for your carriers. Add the ones you vouch for — they show up on the driver’s route.</GuidedHint></div>
         </div>
         {admin && (
           <PrimaryButton onClick={() => setShowForm((s) => !s)} className="text-sm shrink-0"><Plus size={18} /> Add Spot</PrimaryButton>
@@ -1584,6 +1591,7 @@ function ComplianceView({ uid }) {
         <div>
           <h2 className="text-2xl font-bold mb-2">Compliance Dashboard</h2>
           <p className="text-slate-400">Stay ahead of expiration dates and keep your status green.</p>
+          <div className="mt-3"><GuidedHint>Keep CDL, medical card, and insurance dates current. The portal warns 30 days out, the bell flags anything expired, and the dispatch guard stops you sending a load to a carrier with expired docs.</GuidedHint></div>
         </div>
         {admin && !editing && (
           <PrimaryButton onClick={openEdit} className="text-sm shrink-0">{data ? 'Edit Dates' : 'Add Record'}</PrimaryButton>
@@ -1681,6 +1689,7 @@ function DigitalVaultView() {
         <div>
           <h2 className="text-2xl font-bold mb-2">The Digital Vault</h2>
           <p className="text-slate-400">Your secure document cabinet — missing paperwork means missing pay.</p>
+          <div className="mt-3"><GuidedHint>Every load’s paperwork lives here — BOL, RateCon, lumper receipts, POD. A complete vault is the proof package that gets a carrier paid and wins a dispute.</GuidedHint></div>
         </div>
         <PrimaryButton onClick={() => setShowForm((s) => !s)} className="shrink-0">
           <Upload size={18} /> Upload
@@ -1787,6 +1796,7 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
       <div>
         <h2 className="text-2xl font-bold mb-2">Financial Routing</h2>
         <p className="text-slate-400">Manage how you get paid and how your dispatch fees are settled.</p>
+        <GuidedHint>Shows the carrier how they get paid and their settlement ledger. Factoring vs. ACH is their choice — the math (gross, your fee, their net) is automatic.</GuidedHint>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1860,6 +1870,7 @@ function WellnessView() {
       <HeartPulse size={64} className="mb-4 text-slate-700" />
       <h2 className="text-xl font-bold text-slate-300 mb-2">Wellness & Diet Routing</h2>
       <p className="max-w-md">Your diet preferences and gym requirements actively filter your route. Full module coming soon.</p>
+      <div className="mt-4 max-w-md text-left"><GuidedHint>A VIP concierge perk — diet and gym routing for the driver. Placeholder for now; the live Healthy Hub already runs on the active load in Lane Management.</GuidedHint></div>
     </div>
   );
 }
@@ -1872,6 +1883,7 @@ function PetLogisticsView() {
         <div>
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">Pet Logistics Dashboard <Badge tone="slate" className="font-normal">Example</Badge></h2>
           <p className="text-slate-400">Managing Lady's road life so you don't have to worry. <span className="text-slate-500">(Sample data — full module coming soon.)</span></p>
+          <div className="mt-3"><GuidedHint>A VIP concierge perk showing how you’d manage a driver’s pet on the road. Sample data for now — it demonstrates the premium experience to carriers.</GuidedHint></div>
         </div>
         <PrimaryButton className="shrink-0">
           <ShieldCheck size={18} /> Emergency Vet Connect
@@ -1998,6 +2010,7 @@ function AssignLoadView() {
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Create a load and assign it to a driver — it appears instantly in their Lane Management & Schedule.</p>
+      <GuidedHint>Assign Load creates a load <strong>directly</strong> (no accept/decline). For a load the carrier should review and accept first, build it in the <strong>Rate Calculator</strong> and use “Send as Offer” instead.</GuidedHint>
 
       {loading ? (
         <div className="text-slate-400">Loading drivers…</div>
@@ -2222,6 +2235,8 @@ function AllLoadsView() {
         <GhostButton onClick={fetchAll} className="text-sm px-3 py-2">Refresh</GhostButton>
       </div>
 
+      <GuidedHint>Your command center for every load. Use the <strong>Status</strong> dropdown to advance a load, <strong>Edit</strong> to fix details or work the paperwork checklist, and <strong>Cancel Offer</strong> to pull back a pending offer.</GuidedHint>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatTile label="Total Loads" value={filtered.length} />
         <StatTile label="In Transit" value={filtered.filter((l) => l.status === 'In Transit').length} accent="blue" />
@@ -2334,6 +2349,14 @@ function AllLoadsView() {
               <Field label="Pickup Time"><input className={field} value={form.pickup_time} onChange={(e) => setField('pickup_time', e.target.value)} /></Field>
               <Field label="Delivery Time"><input className={field} value={form.delivery_time} onChange={(e) => setField('delivery_time', e.target.value)} /></Field>
             </div>
+
+            <LoadStepChecklist
+              load={editing}
+              onPersist={(steps) => {
+                setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, steps } : l)));
+                updateDoc(doc(db, 'loads', editing.id), { steps }).catch((e) => console.error('checklist save failed', e));
+              }}
+            />
 
             <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
@@ -2549,6 +2572,7 @@ function ManageDriversView() {
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Create driver accounts and control who can sign in. Drivers can't self-register.</p>
+      <GuidedHint>Order matters: create the driver login <strong>here first</strong>, then link it to the carrier’s profile in the <strong>Carriers</strong> tab. Only linked carriers can be sent loads.</GuidedHint>
 
       <Card className="p-6">
         <form onSubmit={createDriver} className="space-y-4">
@@ -2720,6 +2744,7 @@ function FleetView() {
         </div>
       </div>
 
+      <GuidedHint>This ELD screen is demo data for now. When your Samsara token is connected in the backend phase, these same screens fill with live hours-of-service and vehicle data — no layout changes.</GuidedHint>
       <div className="text-xs text-slate-500 bg-slate-800/40 border border-slate-700 rounded-lg px-4 py-2">
         This is sample data so you can build the UI today. When your Samsara token is ready, a Cloud Function fills these same screens with real fleet data — no UI changes.
       </div>
@@ -2904,21 +2929,54 @@ function NegotiationCalcView() {
     setAssignMsg('');
     if (!selectedCarrierObj) { setAssignMsg('Pick a saved carrier first.'); return; }
     if (!selectedCarrierObj.linkedDriverUid) { setAssignMsg('This carrier has no linked driver login — set one in the Carriers tab.'); return; }
-    // Guided Mode (Workflow C): RateCon pre-send checklist + minimum-rate guard.
-    if (guided) {
-      const finalRate = Number(v.finalOffer) || Number(v.brokerOffer) || 0;
-      const miles = (Number(v.loadedMiles) || 0) + (Number(v.deadheadMiles) || 0);
-      const minRpm = Number(v.minRpm) || 0;
-      const rpm = miles > 0 ? finalRate / miles : 0;
-      const belowMin = minRpm > 0 && rpm > 0 && rpm < minRpm;
-      const msg = 'RateCon check before you send this load:\n\n'
-        + '• Does the rate match what you agreed with the broker?\n'
-        + '• Are the pickup & delivery times correct?\n'
-        + '• Hidden fees / lumper / detention accounted for?\n'
-        + `• $${finalRate.toLocaleString()} = $${rpm.toFixed(2)}/mi vs carrier min $${minRpm.toFixed(2)}/mi` + (belowMin ? '  ⚠️ BELOW MINIMUM' : '  ✓')
-        + '\n\nSend this load to the carrier?';
-      if (!window.confirm(msg)) return;
+
+    // ----- Pre-send safety guards (always on; confirm-to-override) -----
+    const finalRate = Number(v.finalOffer) || Number(v.brokerOffer) || 0;
+    const miles = (Number(v.loadedMiles) || 0) + (Number(v.deadheadMiles) || 0);
+    const minRpmVal = Number(v.minRpm) || 0;
+    const rpm = miles > 0 ? finalRate / miles : 0;
+    const warnings = [];
+
+    // 1) Below the carrier's rate floor.
+    if (minRpmVal > 0 && rpm > 0 && rpm < minRpmVal) {
+      warnings.push(`Rate $${rpm.toFixed(2)}/mi is BELOW the carrier's $${minRpmVal.toFixed(2)}/mi floor.`);
     }
+    // 2) Delivery window may not be legal on the driver's clock (mirrors the HOS validator @55mph).
+    if (miles > 0 && windowHours > 0 && v.driveAvail !== '') {
+      const availHrs = Math.min(Number(v.driveAvail) || 0, 11);
+      const requiredDrive = miles / 55;
+      let resets = 0, remaining = requiredDrive - availHrs;
+      while (remaining > 0 && resets < 100) { resets += 1; remaining -= 11; }
+      const totalTransit = requiredDrive + resets * 10;
+      if (totalTransit > windowHours) warnings.push(`Delivery window looks too tight to run legally (~${totalTransit.toFixed(1)}h needed vs ${windowHours.toFixed(1)}h window).`);
+    }
+    // 3) Carrier isn't available.
+    if (selectedCarrierObj.availability && selectedCarrierObj.availability !== 'Available') {
+      warnings.push(`Carrier is currently ${selectedCarrierObj.availability}.`);
+    }
+    // 4) Expired compliance on the linked driver.
+    try {
+      const cs = await getDoc(doc(db, 'compliance', selectedCarrierObj.linkedDriverUid));
+      if (cs.exists()) {
+        const c = cs.data();
+        const expired = [];
+        [['CDL', c.cdl_expiration_date], ['Medical card', c.medical_card_expiration], ['Insurance', c.insurance_expiration]].forEach(([label, date]) => {
+          if (!date) return;
+          const dd = Math.ceil((new Date(date + 'T00:00:00') - new Date()) / 86400000);
+          if (dd < 0) expired.push(label);
+        });
+        if (expired.length) warnings.push(`${expired.join(', ')} ${expired.length === 1 ? 'is' : 'are'} EXPIRED on this carrier.`);
+      }
+    } catch (_) { /* compliance read is best-effort */ }
+
+    // Build one confirm dialog from the guards (+ the guided RateCon checklist).
+    const lines = [];
+    if (warnings.length) { lines.push('⚠️ Heads up before you send:', ...warnings.map((w) => '• ' + w), ''); }
+    if (guided) { lines.push('RateCon check:', '• Rate matches what you agreed with the broker?', '• Pickup & delivery times correct?', '• Lumper / detention / hidden fees accounted for?', ''); }
+    if (lines.length) {
+      if (!window.confirm(lines.join('\n') + '\nSend this load to the carrier?')) return;
+    }
+
     setAssigning(true);
     try {
       const loadId = 'FM-' + Math.floor(1000 + Math.random() * 9000);
@@ -3324,6 +3382,8 @@ function NewAuthorityView() {
           new authority goes through this</span>. Here's exactly why, and exactly how we shorten it for you.
         </p>
       </div>
+
+      <GuidedHint>Share this with brand-new-authority carriers who are frustrated about cheap freight — it explains why the first 90 days are hard and how a good dispatcher shortens that runway.</GuidedHint>
 
       <Card className="p-6">
         <h3 className="text-lg font-bold mb-4">Why good freight is harder to find at first</h3>
@@ -3806,6 +3866,7 @@ function LaneIntelView() {
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Know the business of the road — transit days and the facility/market intel your team learns one load at a time.</p>
+      <GuidedHint>Specializing in a few lanes is how dispatchers earn more. Log what you learn — slow shippers, no-parking receivers, cold markets — so the whole team stops repeating mistakes.</GuidedHint>
 
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -4366,6 +4427,7 @@ function TrainingView() {
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Your onboarding playbook — reference it anytime, and flip on <span className="text-amber-300 font-semibold">Guided Mode</span> in the header to get walked through workflows live.</p>
+      <GuidedHint>New to dispatch? This is your playbook. Read the <strong>Glossary</strong> and <strong>SOPs</strong>, keep the <strong>Negotiation Scripts</strong> handy on broker calls — and with Guided Mode on, you’ll see tips like this on every tab.</GuidedHint>
 
       <div className="flex flex-wrap gap-2">
         {TABS.map(([k, label]) => (
@@ -4541,6 +4603,7 @@ function UpgradesView({ uid }) {
       <div>
         <h2 className="text-2xl font-bold mb-2">Business Upgrades &amp; Credentials</h2>
         <p className="text-slate-400">Unlock better fuel discounts and specialized, higher-paying freight.</p>
+        <GuidedHint>Guide carriers into higher-paying niches — fuel cards, TWIC/Hazmat/Tanker endorsements, a SCAC. Tap any credential for a step-by-step how-to.</GuidedHint>
       </div>
 
       {/* B1 — Fuel Card Fast-Track */}
@@ -4744,6 +4807,7 @@ function ExpensesView() {
         </div>
       </div>
       <p className="text-slate-400 text-sm">Track your business costs. Bank-feed auto-import (Plaid) comes in the backend phase — for now, log them here and export to QuickBooks.</p>
+      <GuidedHint>Your monthly profit = dispatch fees earned − these expenses. Log every business cost (fuel card, software, insurance) so your net is real, and export to CSV at tax time.</GuidedHint>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <StatTile label="Dispatch Fees (this month)" value={money(feesThisMonth)} accent="emerald" className="p-5" />
@@ -5002,6 +5066,79 @@ function Th({ children, className = '' }) {
 }
 function Td({ children, className = '' }) {
   return <td className={`px-4 py-3 text-sm text-slate-300 align-middle ${className}`}>{children}</td>;
+}
+
+// ---------- LOAD PAPERWORK / MILESTONE CHECKLIST ----------
+// Storage-free "don't forget the docs" guide, keyed to load status. Shown to
+// BOTH the dispatcher (All Loads) and the carrier (Lane Management). Progress
+// persists on the load doc (best-effort) so both sides share it.
+const LOAD_STEPS = [
+  { key: 'dispatched', label: 'Booked / Offer Accepted', items: [
+    'Secure the signed Rate Confirmation (RateCon) from the broker',
+    'Send your Notice of Assignment (NOA) / carrier packet to the broker',
+    'Confirm pickup number, appointment time & facility address',
+    'Verify commodity, weight & any special equipment needs',
+  ] },
+  { key: 'shipper', label: 'Arrived at Shipper / In Transit', items: [
+    'Driver checks in & logs arrival time (protects detention pay)',
+    'Get the Bill of Lading (BOL) signed at pickup',
+    'Verify piece/pallet count & weight against the RateCon',
+    'Note the seal number and take load photos',
+  ] },
+  { key: 'delivered', label: 'Delivered', items: [
+    'Get the signed Proof of Delivery (POD) / delivery receipt',
+    'Collect lumper receipts & any detention documentation',
+    'Submit the invoice + full proof package to broker/factoring',
+    'Save every document to the Document Vault',
+  ] },
+];
+
+function LoadStepChecklist({ load, onPersist, title = 'Load Paperwork Checklist' }) {
+  const [steps, setSteps] = useState(() => (load && load.steps) || {});
+  useEffect(() => { setSteps((load && load.steps) || {}); }, [load && load.id]);
+  const st = (load && load.status) || '';
+  const currentKey = (st === 'Delivered' || st === 'Cleared') ? 'delivered'
+    : (st === 'Arrived at Shipper' || st === 'Loaded' || st === 'In Transit') ? 'shipper'
+    : 'dispatched';
+  const toggle = (mk, i) => {
+    setSteps((s) => {
+      const ns = { ...s, [mk + ':' + i]: !s[mk + ':' + i] };
+      if (onPersist) onPersist(ns);
+      return ns;
+    });
+  };
+  return (
+    <Card className="p-6">
+      <PanelHeader icon={<FileText size={20} />} title={title} />
+      <p className="text-sm text-slate-400 mt-1">Tick each item as you go so nothing gets missed before you get paid.</p>
+      <GuidedHint>Missing paperwork is the #1 reason a load pays late — or not at all. Secure the RateCon and send your NOA/packet the moment an offer is accepted, get the BOL signed at pickup, and the signed POD at delivery.</GuidedHint>
+      <div className="space-y-4 mt-4">
+        {LOAD_STEPS.map((m) => {
+          const done = m.items.filter((_, i) => steps[m.key + ':' + i]).length;
+          const isCurrent = m.key === currentKey;
+          return (
+            <div key={m.key} className={`rounded-xl border p-4 ${isCurrent ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700 bg-slate-800/40'}`}>
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <div className="font-semibold text-white text-sm flex items-center gap-2">{m.label}{isCurrent && <Badge tone="amber">Current</Badge>}</div>
+                <span className="text-xs text-slate-400">{done}/{m.items.length}</span>
+              </div>
+              <div className="space-y-2">
+                {m.items.map((it, i) => {
+                  const on = !!steps[m.key + ':' + i];
+                  return (
+                    <label key={i} className="flex items-start gap-2.5 text-sm cursor-pointer">
+                      <input type="checkbox" checked={on} onChange={() => toggle(m.key, i)} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
+                      <span className={on ? 'text-slate-500 line-through' : 'text-slate-200'}>{it}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
 }
 
 // ---------- NOTIFICATIONS BELL ----------
