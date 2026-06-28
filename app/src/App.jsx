@@ -1402,6 +1402,84 @@ function DeliveryDebriefModal({ load, onClose }) {
   );
 }
 
+// ---------- DETENTION REQUEST (carrier files on a load; storage-free) ----------
+function DetentionCard({ load, onSaved }) {
+  const existing = load.detention || null;
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({
+    arrivedAt: existing?.arrivedAt || '',
+    departedAt: existing?.departedAt || '',
+    freeHours: existing?.freeHours != null ? String(existing.freeHours) : '2',
+    ratePerHour: existing?.ratePerHour != null ? String(existing.ratePerHour) : '50',
+    notes: existing?.notes || '',
+  });
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const n = (x) => parseFloat(x) || 0;
+  const money = (x) => '$' + (x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const totalH = (f.arrivedAt && f.departedAt) ? Math.max(0, (new Date(f.departedAt) - new Date(f.arrivedAt)) / 3600000) : 0;
+  const billable = Math.max(0, totalH - n(f.freeHours));
+  const amount = billable * n(f.ratePerHour);
+  const ready = f.arrivedAt && f.departedAt && new Date(f.departedAt) > new Date(f.arrivedAt);
+
+  const save = async () => {
+    setBusy(true);
+    const detention = {
+      arrivedAt: f.arrivedAt, departedAt: f.departedAt,
+      freeHours: n(f.freeHours), ratePerHour: n(f.ratePerHour),
+      billableHours: Number(billable.toFixed(2)), amount: Number(amount.toFixed(2)),
+      notes: f.notes.trim(), status: 'filed', filedAt: serverTimestamp(),
+    };
+    try { await updateDoc(doc(db, 'loads', load.id), { detention }); if (onSaved) await onSaved(); setOpen(false); }
+    catch (e) { console.error('detention save failed', e); alert('Could not save — check the console.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Card className="p-6">
+      <PanelHeader icon={<Activity size={20} />} title="Detention" badge={existing ? <Badge tone={existing.status === 'resolved' ? 'emerald' : 'amber'}>{existing.status === 'resolved' ? 'Resolved' : 'Filed'}</Badge> : null} />
+      <p className="text-sm text-slate-400 mt-1">Held past your free time at a facility? Log it here — documented in/out times are what get detention paid.</p>
+      <GuidedHint>Document arrival the moment the driver checks in. Per the 2026 Evergreen ruling, fees are collectible when the delay is the facility's fault — your timestamps are the proof. See Training → Negotiation Scripts for the talk-track.</GuidedHint>
+
+      {existing && !open && (
+        <div className="mt-4 bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div><div className="text-[10px] text-slate-500">BILLABLE</div><div className="font-bold text-white text-sm">{existing.billableHours}h</div></div>
+            <div><div className="text-[10px] text-slate-500">RATE</div><div className="font-bold text-white text-sm">{money(existing.ratePerHour)}/h</div></div>
+            <div><div className="text-[10px] text-slate-500">AMOUNT</div><div className="font-bold text-amber-400 text-sm">{money(existing.amount)}</div></div>
+            <div><div className="text-[10px] text-slate-500">FREE TIME</div><div className="font-bold text-white text-sm">{existing.freeHours}h</div></div>
+          </div>
+          {existing.notes && <div className="text-xs text-slate-400 mt-3">{existing.notes}</div>}
+        </div>
+      )}
+
+      {!open ? (
+        <GhostButton onClick={() => setOpen(true)} className="mt-4">{existing ? 'Edit detention claim' : 'File a detention claim'}</GhostButton>
+      ) : (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Checked in (arrival)"><input className={INPUT_CLS} type="datetime-local" value={f.arrivedAt} onChange={set('arrivedAt')} /></Field>
+            <Field label="Checked out (departure)"><input className={INPUT_CLS} type="datetime-local" value={f.departedAt} onChange={set('departedAt')} /></Field>
+            <Field label="Free time (hours)"><input className={INPUT_CLS} type="number" inputMode="decimal" value={f.freeHours} onChange={set('freeHours')} /></Field>
+            <Field label="Detention rate ($/hour)"><input className={INPUT_CLS} type="number" inputMode="decimal" value={f.ratePerHour} onChange={set('ratePerHour')} /></Field>
+          </div>
+          <Field label="Notes (what caused the delay?)"><textarea className={`${INPUT_CLS} min-h-[60px]`} value={f.notes} onChange={set('notes')} placeholder="e.g. dock closed, no doors available, lumper backed up" /></Field>
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+            <div className="text-sm text-slate-400">{ready ? `${totalH.toFixed(1)}h on site − ${n(f.freeHours)}h free = ` : 'Enter both times to calculate'}<span className="font-bold text-white">{ready ? `${billable.toFixed(1)}h billable` : ''}</span></div>
+            <div className="text-xl font-bold text-amber-400">{ready ? money(amount) : '—'}</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <PrimaryButton onClick={save} disabled={busy || !ready} className="px-5">{busy ? 'Saving…' : 'Submit Detention'}</PrimaryButton>
+            <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+      <p className="text-[11px] text-slate-600 mt-3">Attaching the timestamped BOL photo to the claim unlocks once Firebase Storage is enabled.</p>
+    </Card>
+  );
+}
+
 // ---------- LANE MANAGEMENT ----------
 function LaneManagementView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
@@ -1557,6 +1635,8 @@ function LaneManagementView({ uid }) {
       </Card>
 
       <LoadStepChecklist load={active} onPersist={(steps) => updateDoc(doc(db, 'loads', active.id), { steps }).catch((e) => console.error('checklist save failed', e))} />
+
+      <DetentionCard load={active} onSaved={fetchLoads} />
 
       <HealthyHubAndShower load={active} />
 
@@ -2602,6 +2682,30 @@ function AllLoadsView() {
                 updateDoc(doc(db, 'loads', editing.id), { steps }).catch((e) => console.error('checklist save failed', e));
               }}
             />
+
+            {editing.detention && (
+              <div className={`rounded-xl border p-4 ${editing.detention.status === 'resolved' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm font-semibold text-white flex items-center gap-2">
+                    ⏱ Detention claim — ${Number(editing.detention.amount || 0).toLocaleString()} ({editing.detention.billableHours}h)
+                    <Badge tone={editing.detention.status === 'resolved' ? 'emerald' : 'amber'}>{editing.detention.status === 'resolved' ? 'Resolved' : 'Filed'}</Badge>
+                  </div>
+                  {editing.detention.status !== 'resolved' && (
+                    <GhostButton
+                      type="button"
+                      onClick={() => {
+                        const next = { ...editing.detention, status: 'resolved' };
+                        setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, detention: next } : l)));
+                        setEditing((e) => ({ ...e, detention: next }));
+                        updateDoc(doc(db, 'loads', editing.id), { detention: next }).catch((err) => console.error('resolve failed', err));
+                      }}
+                      className="text-sm"
+                    >Mark Resolved</GhostButton>
+                  )}
+                </div>
+                {editing.detention.notes && <div className="text-xs text-slate-400 mt-2">{editing.detention.notes}</div>}
+              </div>
+            )}
 
             <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
@@ -5696,6 +5800,9 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
         });
         loads.filter((l) => l.offerStatus === 'declined').forEach((l) => {
           out.push({ id: 'declined-' + l.id, tone: 'red', icon: '✕', text: `${emailByUid[l.uid] || 'Carrier'} declined ${l.loadId || ''}${l.declineReason ? ' — ' + l.declineReason : ''}`, tab: 'allloads' });
+        });
+        loads.filter((l) => l.detention && l.detention.status === 'filed').forEach((l) => {
+          out.push({ id: 'det-' + l.id, tone: 'amber', icon: '⏱', text: `Detention filed on ${l.loadId || 'a load'} — $${Number(l.detention.amount || 0).toLocaleString()} (${emailByUid[l.uid] || 'carrier'})`, tab: 'allloads' });
         });
         compSnap.docs.forEach((d) => { complianceItems(d.data(), (emailByUid[d.id] || 'Carrier') + ':', 'comp-' + d.id).forEach((x) => out.push(x)); });
         carrierSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.availability && c.availability !== 'Available').forEach((c) => {
