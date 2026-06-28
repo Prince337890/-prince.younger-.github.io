@@ -290,6 +290,8 @@ export default function App() {
   const [viewAs, setViewAs] = useState(null);
   const [carrierOpts, setCarrierOpts] = useState([]);
   const [vipOn, setVipOn] = useState(true); // driver sees VIP Concierge unless their carrier turns it off
+  const [myStatus, setMyStatus] = useState('Available'); // carrier self-set availability
+  const [vipRequested, setVipRequested] = useState(false); // carrier asked dispatch for VIP
   const [guidedMode, setGuidedMode] = useState(() => { try { return localStorage.getItem('fm_guided') === '1'; } catch (_) { return false; } });
   const toggleGuided = () => setGuidedMode((g) => { const nv = !g; try { localStorage.setItem('fm_guided', nv ? '1' : '0'); } catch (_) {} return nv; });
 
@@ -326,6 +328,8 @@ export default function App() {
         setNeedsPwChange(!admin && data && data.mustChangePassword === true);
         setNeedsOnboarding(!admin && !(data && data.onboardingComplete === true));
         setVipOn(admin || !data || data.vipConcierge !== false); // off only when explicitly disabled
+        setMyStatus((data && data.availability) || 'Available');
+        setVipRequested(!!(data && data.vipRequested));
         setUser(u);
         setAccessDenied(false);
       } catch (e) {
@@ -356,9 +360,30 @@ export default function App() {
     setSidebarOpen(false);
   };
 
+  // Carrier self-sets their availability; mirror it onto their linked carrier
+  // profile so the dispatcher's Carriers/Rate Calculator views stay in sync.
+  const updateMyStatus = async (next) => {
+    if (!user) return;
+    setMyStatus(next);
+    try {
+      await setDoc(doc(db, 'users', user.uid), { availability: next }, { merge: true });
+      const cs = await getDocs(query(collection(db, 'carriers'), where('linkedDriverUid', '==', user.uid)));
+      cs.forEach((d) => updateDoc(doc(db, 'carriers', d.id), { availability: next }).catch(() => {}));
+    } catch (e) { console.error('status update failed', e); }
+  };
+
+  // Carrier asks dispatch to enable VIP concierge (an upsell at a higher fee %).
+  const requestVip = async () => {
+    if (!user) return;
+    setVipRequested(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid), { vipRequested: true, vipRequestedAt: serverTimestamp() }, { merge: true });
+    } catch (e) { console.error('VIP request failed', e); setVipRequested(false); }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} />;
+      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} />;
       case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
       case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
@@ -370,6 +395,8 @@ export default function App() {
       case 'wellness': return <WellnessView />;
       case 'pets': return <PetLogisticsView />;
       case 'upgrades': return <UpgradesView key={'upg-' + viewUid} uid={viewUid} />;
+      case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
+      case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
@@ -452,6 +479,7 @@ export default function App() {
               <NavItem icon={<ShieldCheck size={18} />} label="Compliance" isActive={activeTab === 'compliance'} onClick={() => go('compliance')} />
               <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
               <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
+              <NavItem icon={<Activity size={18} />} label="My CPM & Expenses" isActive={activeTab === 'mycpm'} onClick={() => go('mycpm')} />
               <NavItem icon={<CreditCard size={18} />} label="Upgrades & Credentials" isActive={activeTab === 'upgrades'} onClick={() => go('upgrades')} />
 
               {vipOn && (
@@ -472,7 +500,24 @@ export default function App() {
             </div>
             <div className="min-w-0">
               <div className="text-sm font-semibold truncate">{user.email}</div>
-              <div className="text-xs text-emerald-400">{isAdmin ? '● Admin' : '● On Route'}</div>
+              {isAdmin ? (
+                <div className="text-xs text-emerald-400">● Admin</div>
+              ) : (
+                <div className="flex items-center gap-1.5 -ml-0.5">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: myStatus === 'Available' ? '#34d399' : myStatus === 'On Break' ? '#fbbf24' : '#94a3b8' }} />
+                  <select
+                    value={myStatus}
+                    onChange={(e) => updateMyStatus(e.target.value)}
+                    title="Set your status — your dispatcher sees this"
+                    className="text-xs bg-transparent border-0 focus:outline-none cursor-pointer font-medium p-0"
+                    style={{ color: myStatus === 'Available' ? '#34d399' : myStatus === 'On Break' ? '#fbbf24' : '#94a3b8' }}
+                  >
+                    <option className="bg-slate-800 text-slate-100">Available</option>
+                    <option className="bg-slate-800 text-slate-100">On Break</option>
+                    <option className="bg-slate-800 text-slate-100">Off Duty</option>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
           <button
@@ -532,7 +577,7 @@ export default function App() {
               ← <span className="hidden sm:inline">Back to Website</span>
             </a>
             <NotificationsBell isAdmin={isAdmin && !viewAs} uid={viewUid} onNavigate={go} />
-            <button className="hover:text-white transition-colors"><Settings size={20} /></button>
+            <button onClick={() => go('settings')} className={`transition-colors ${activeTab === 'settings' ? 'text-amber-400' : 'hover:text-white'}`} title="Settings" aria-label="Settings"><Settings size={20} /></button>
           </div>
         </header>
 
@@ -670,7 +715,7 @@ function MarketPulse() {
 }
 
 // ---------- DASHBOARD ----------
-function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
+function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip }) {
   const u = auth.currentUser;
   const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
@@ -753,6 +798,22 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
         </Card>
       )}
 
+      {!isAdmin && (
+        <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: myStatus === 'Available' ? '#34d399' : myStatus === 'On Break' ? '#fbbf24' : '#94a3b8' }} />
+            <span className="text-sm text-slate-400">My status:</span>
+            <select value={myStatus} onChange={(e) => onSetStatus && onSetStatus(e.target.value)}
+              className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer">
+              <option>Available</option>
+              <option>On Break</option>
+              <option>Off Duty</option>
+            </select>
+          </div>
+          <span className="text-xs text-slate-500">Your dispatcher sees this when matching you to loads.</span>
+        </Card>
+      )}
+
       <QuoteOfTheDay />
 
       {!isAdmin && (
@@ -771,7 +832,9 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
             ) : !active ? (
               <div className="text-slate-500 text-sm py-4">No active load right now. Your dispatcher will assign one shortly.</div>
             ) : (
-              <div className="space-y-3">
+              <button type="button" onClick={() => onNavigate && onNavigate('lanes')}
+                className="w-full text-left space-y-3 group/al rounded-lg -m-1 p-1 hover:bg-white/[0.02] transition-colors"
+                title="Open in Lane Management">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-amber-500 font-bold text-sm">{active.loadId || '—'}</span>
                   <span className="text-sm font-bold text-emerald-400">{money(active.gross_pay)}</span>
@@ -786,11 +849,15 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
                   </div>
                   <div className="font-semibold text-slate-300">{active.destination || '—'}</div>
                 </div>
-              </div>
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-400 pt-1">
+                  Open in Lane Management
+                  <span className="transition-transform group-hover/al:translate-x-1">→</span>
+                </div>
+              </button>
             )}
           </Card>
 
-          {vipOn && (
+          {vipOn ? (
           <Card className="p-6">
             <PanelHeader
               className="mb-6"
@@ -815,10 +882,45 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true }) {
               </div>
             </div>
           </Card>
+          ) : (
+          <VipUpsellCard requested={vipRequested} onRequest={onRequestVip} />
           )}
         </div>
       )}
     </div>
+  );
+}
+
+// ---------- VIP UPSELL (carrier requests concierge from dispatch) ----------
+function VipUpsellCard({ requested, onRequest }) {
+  const BENEFITS = [
+    ['🛡', 'Trusted safe-parking scouting on every route'],
+    ['🏋️', 'Healthy Hub — gyms, grocers & clean dining near your delivery'],
+    ['🚿', 'Shower requests queued at your next stop'],
+    ['🐾', 'Pet logistics — food intercepts & pet-friendly waypoints'],
+    ['📞', 'Priority concierge line for layovers & last-minute needs'],
+  ];
+  return (
+    <Card className="p-6 border-amber-500/30">
+      <PanelHeader icon={<HeartPulse size={20} />} title="VIP Concierge" badge={<Badge tone="amber">Premium</Badge>} />
+      <p className="text-sm text-slate-400 mt-2">White-glove support so you can focus on driving. Available as a premium add-on.</p>
+      <div className="space-y-2.5 mt-4">
+        {BENEFITS.map(([icon, text]) => (
+          <div key={text} className="flex items-start gap-3 text-sm text-slate-200">
+            <span className="text-base leading-none shrink-0">{icon}</span>
+            <span>{text}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2.5 text-xs text-slate-400">
+        Heads up: VIP is a premium tier — your dispatch fee goes up a point or two to cover the concierge work. Most carriers find the saved time and stress more than worth it.
+      </div>
+      {requested ? (
+        <div className="mt-4 text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>
+      ) : (
+        <PrimaryButton onClick={onRequest} className="w-full mt-4">Request VIP Concierge</PrimaryButton>
+      )}
+    </Card>
   );
 }
 // ---------- DRIVER: PENDING LOAD OFFER ----------
@@ -1167,12 +1269,88 @@ function ScheduleView({ uid }) {
     </div>
   );
 }
+// ---------- DELIVERY DEBRIEF (carrier, right after marking Delivered) ----------
+// Captures how the delivery went and logs it to Facility & Market Intel
+// (lane_intel) so the dispatcher sees it and the team learns the facility.
+function DeliveryDebriefModal({ load, onClose }) {
+  const [outcome, setOutcome] = useState('smooth');
+  const [issues, setIssues] = useState({});
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ISSUES = ['Long detention / held late', 'Hard to find / bad directions', 'No overnight parking', 'Rude or slow staff', 'Lumper required', 'Other'];
+  const toggle = (x) => setIssues((s) => ({ ...s, [x]: !s[x] }));
+
+  const submit = async (skip = false) => {
+    setBusy(true);
+    const issueList = ISSUES.filter((x) => issues[x]);
+    const summary = skip ? '' : (outcome === 'smooth' ? 'Smooth delivery.' : 'Issues: ' + (issueList.join(', ') || 'unspecified') + '.') + (notes.trim() ? ' ' + notes.trim() : '');
+    try {
+      if (!skip) {
+        await addDoc(collection(db, 'lane_intel'), {
+          location: load.destination || 'Delivery facility',
+          category: 'Receiver',
+          note: `[${load.loadId || 'Load'}] ${summary}`.trim(),
+          createdAtMs: Date.now(),
+          createdAt: serverTimestamp(),
+          source: 'driver_debrief',
+        });
+        await updateDoc(doc(db, 'loads', load.id), {
+          deliveryReport: { outcome, issues: issueList, notes: notes.trim(), at: serverTimestamp() },
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('debrief save failed', e);
+    } finally {
+      setBusy(false);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto">
+      <div className="text-center mb-5">
+        <Badge tone="emerald" className="font-bold tracking-widest uppercase"><CheckCircle2 size={14} /> Delivered</Badge>
+        <h2 className="text-2xl font-bold text-white mt-3">How did this delivery go?</h2>
+        <p className="text-slate-400 text-sm mt-1">A quick note helps your dispatcher and the next driver. <span className="font-mono text-amber-500">{load.loadId || ''}</span> · {load.destination || ''}</p>
+      </div>
+      <Card className="p-6 space-y-5">
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => setOutcome('smooth')} className={`px-4 py-3 rounded-xl border text-sm font-semibold transition-colors ${outcome === 'smooth' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>👍 Smooth</button>
+          <button onClick={() => setOutcome('issues')} className={`px-4 py-3 rounded-xl border text-sm font-semibold transition-colors ${outcome === 'issues' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>⚠️ Had issues</button>
+        </div>
+
+        {outcome === 'issues' && (
+          <div>
+            <div className="text-xs font-semibold text-slate-400 mb-2">What happened? (tap any)</div>
+            <div className="flex flex-wrap gap-2">
+              {ISSUES.map((x) => (
+                <button key={x} onClick={() => toggle(x)} className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${issues[x] ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>{issues[x] ? '✓ ' : ''}{x}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label className={LABEL_CLS}>Notes for your dispatcher (optional)</label>
+          <textarea className={`${INPUT_CLS} min-h-[80px]`} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering about this receiver or lane…" />
+        </div>
+
+        <div className="space-y-2">
+          <PrimaryButton onClick={() => submit(false)} disabled={busy} className="w-full py-3">{busy ? 'Sending…' : 'Send to Dispatcher'}</PrimaryButton>
+          <button onClick={() => submit(true)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm py-1">Skip</button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ---------- LANE MANAGEMENT ----------
 function LaneManagementView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [debriefLoad, setDebriefLoad] = useState(null);
 
   const STATUS_FLOW = ['Dispatched', 'Arrived at Shipper', 'Loaded', 'In Transit', 'Delivered'];
 
@@ -1198,8 +1376,12 @@ function LaneManagementView({ uid }) {
   const setStatus = async (newStatus) => {
     if (!active) return;
     setUpdating(true);
+    const justDelivered = newStatus === 'Delivered' && active.status !== 'Delivered';
+    const deliveredLoad = justDelivered ? active : null;
     try {
       await updateDoc(doc(db, 'loads', active.id), { status: newStatus });
+      // Capture a quick debrief before the active load disappears from the screen.
+      if (deliveredLoad) setDebriefLoad(deliveredLoad);
       await fetchLoads();
     } catch (err) {
       console.error('Error updating status:', err);
@@ -1209,6 +1391,11 @@ function LaneManagementView({ uid }) {
   };
 
   if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading lane…</div>;
+
+  // Delivery debrief takes priority — collect feedback right after delivery.
+  if (debriefLoad) {
+    return <DeliveryDebriefModal load={debriefLoad} onClose={() => setDebriefLoad(null)} />;
+  }
 
   if (!active) {
     return (
@@ -4964,6 +5151,166 @@ function BrokerCheckView() {
   );
 }
 
+// ---------- CARRIER: MY CPM & EXPENSES ----------
+function DriverExpensesView({ uid }) {
+  const targetUid = uid || auth.currentUser?.uid;
+  const DEFAULTS = { truckPayment: '', insurance: '', otherFixed: '', mpg: '6.5', fuelPrice: '5.35', maintPerMile: '', otherVarPerMile: '', milesPerMonth: '', checkRate: '', checkMiles: '' };
+  const [f, setF] = useState(DEFAULTS);
+  const [saved, setSaved] = useState('');
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const n = (x) => parseFloat(x) || 0;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', targetUid));
+        if (snap.exists() && snap.data().cpm) setF((s) => ({ ...s, ...snap.data().cpm }));
+      } catch (e) { console.error('CPM load failed', e); }
+    })();
+  }, []);
+
+  const fixedMonthly = n(f.truckPayment) + n(f.insurance) + n(f.otherFixed);
+  const miles = n(f.milesPerMonth);
+  const fixedPerMile = miles > 0 ? fixedMonthly / miles : 0;
+  const fuelPerMile = n(f.mpg) > 0 ? n(f.fuelPrice) / n(f.mpg) : 0;
+  const variablePerMile = fuelPerMile + n(f.maintPerMile) + n(f.otherVarPerMile);
+  const breakeven = fixedPerMile + variablePerMile;
+
+  const checkRpm = n(f.checkMiles) > 0 ? n(f.checkRate) / n(f.checkMiles) : 0;
+  const profitPerMile = checkRpm - breakeven;
+  const checkReady = checkRpm > 0 && breakeven > 0;
+
+  const save = async () => {
+    try { await setDoc(doc(db, 'users', targetUid), { cpm: f }, { merge: true }); setSaved('Saved ✓'); setTimeout(() => setSaved(''), 2000); }
+    catch (e) { console.error('CPM save failed', e); setSaved('Could not save'); }
+  };
+  const money = (x) => '$' + (x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const rpm = (x) => '$' + (x || 0).toFixed(2);
+  const field = INPUT_CLS;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">My CPM &amp; Expenses</h2>
+        <p className="text-slate-400">Know your real cost per mile. Enter your monthly costs once and the calculator shows the rate you must beat to make money.</p>
+      </div>
+      <GuidedHint>This is the carrier’s own break-even number. Encourage drivers to fill it in — a carrier who knows their CPM negotiates harder and never hauls a losing load.</GuidedHint>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6 space-y-4">
+          <h3 className="font-bold">Your Costs</h3>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fixed (per month)</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Truck / trailer payment"><input className={field} type="number" inputMode="decimal" value={f.truckPayment} onChange={set('truckPayment')} placeholder="2200" /></Field>
+            <Field label="Insurance"><input className={field} type="number" inputMode="decimal" value={f.insurance} onChange={set('insurance')} placeholder="1400" /></Field>
+            <Field label="Other fixed (permits, ELD, parking…)" className="sm:col-span-2"><input className={field} type="number" inputMode="decimal" value={f.otherFixed} onChange={set('otherFixed')} placeholder="600" /></Field>
+          </div>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider pt-2">Variable (per mile)</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Truck avg MPG"><input className={field} type="number" inputMode="decimal" value={f.mpg} onChange={set('mpg')} /></Field>
+            <Field label="Fuel price ($/gal)"><input className={field} type="number" inputMode="decimal" value={f.fuelPrice} onChange={set('fuelPrice')} /></Field>
+            <Field label="Maintenance / tires ($/mi)"><input className={field} type="number" inputMode="decimal" value={f.maintPerMile} onChange={set('maintPerMile')} placeholder="0.20" /></Field>
+            <Field label="Other variable ($/mi)"><input className={field} type="number" inputMode="decimal" value={f.otherVarPerMile} onChange={set('otherVarPerMile')} placeholder="0.05" /></Field>
+          </div>
+          <Field label="Miles you drive per month"><input className={field} type="number" inputMode="decimal" value={f.milesPerMonth} onChange={set('milesPerMonth')} placeholder="10000" /></Field>
+          <div className="flex items-center gap-3">
+            <PrimaryButton onClick={save} className="px-5">Save</PrimaryButton>
+            {saved && <span className="text-sm text-emerald-400">{saved}</span>}
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          <Card className="p-6">
+            <div className="text-sm text-slate-400">Your break-even cost per mile</div>
+            <div className="text-4xl font-extrabold text-amber-400 mt-1">{breakeven > 0 ? rpm(breakeven) : '—'}<span className="text-lg text-slate-500 font-bold">/mi</span></div>
+            <p className="text-xs text-slate-500 mt-2">Run a mile below this and you lose money. This is your hard floor — never book under it.</p>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <StatTile label="Fixed cost / mi" value={miles > 0 ? rpm(fixedPerMile) : '—'} />
+              <StatTile label="Variable cost / mi" value={variablePerMile > 0 ? rpm(variablePerMile) : '—'} />
+              <StatTile label="Fuel / mi" value={fuelPerMile > 0 ? rpm(fuelPerMile) : '—'} />
+              <StatTile label="Fixed / month" value={fixedMonthly > 0 ? money(fixedMonthly) : '—'} />
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold mb-3">Quick Rate Check</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Load pays ($)"><input className={field} type="number" inputMode="decimal" value={f.checkRate} onChange={set('checkRate')} placeholder="2000" /></Field>
+              <Field label="Total miles"><input className={field} type="number" inputMode="decimal" value={f.checkMiles} onChange={set('checkMiles')} placeholder="800" /></Field>
+            </div>
+            {checkReady ? (
+              <div className={`mt-4 rounded-xl border p-4 ${profitPerMile >= 0 ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
+                <div className="text-sm font-bold text-white">{rpm(checkRpm)}/mi — {profitPerMile >= 0 ? `${rpm(profitPerMile)}/mi profit ✓` : `${rpm(Math.abs(profitPerMile))}/mi LOSS ✕`}</div>
+                <div className="text-xs text-slate-400 mt-1">{profitPerMile >= 0 ? 'This load clears your break-even. Good to run.' : 'This load is below your cost — pass or negotiate up.'}</div>
+              </div>
+            ) : <p className="text-xs text-slate-500 mt-3">Enter a load's pay and miles to see if it beats your break-even.</p>}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- SETTINGS ----------
+function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onRequestVip, guidedMode, toggleGuided, onNavigate }) {
+  const u = auth.currentUser;
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <h2 className="text-2xl font-bold">Settings</h2>
+
+      {!isAdmin && (
+        <Card className="p-6">
+          <h3 className="font-bold mb-3">My Availability</h3>
+          <p className="text-sm text-slate-400 mb-3">Set your status so your dispatcher knows when you're ready for a load.</p>
+          <div className="flex flex-wrap gap-2">
+            {['Available', 'On Break', 'Off Duty'].map((s) => (
+              <button key={s} onClick={() => onSetStatus && onSetStatus(s)}
+                className={`text-sm px-4 py-2 rounded-lg border transition-colors ${myStatus === s ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {!isAdmin && !vipOn && (
+        <Card className="p-6">
+          <h3 className="font-bold mb-2">VIP Concierge</h3>
+          <p className="text-sm text-slate-400 mb-4">Premium white-glove support (safe parking, Healthy Hub, shower queue, pet logistics). It raises your dispatch fee a point or two to cover the concierge work.</p>
+          {vipRequested
+            ? <div className="text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>
+            : <PrimaryButton onClick={onRequestVip}>Request VIP Concierge</PrimaryButton>}
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="p-6">
+          <h3 className="font-bold mb-3">Dispatcher Settings</h3>
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div>
+              <div className="text-sm font-semibold text-white">Guided Mode</div>
+              <div className="text-xs text-slate-400">Show step-by-step tips across every tab — great for training new dispatchers.</div>
+            </div>
+            <button onClick={toggleGuided} className={`w-12 h-6 rounded-full relative transition-colors shrink-0 ${guidedMode ? 'bg-amber-500' : 'bg-slate-600'}`}>
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${guidedMode ? 'left-6' : 'left-0.5'}`} />
+            </button>
+          </div>
+          <div className="mt-3 rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2.5 text-xs text-slate-400">
+            The dispatcher phone, fee defaults, and market snapshot are set in code for now (DISPATCHER_PHONE, DEFAULT_FEE_PCT, MARKET_PULSE). Live, editable settings arrive with the backend phase.
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-6">
+        <h3 className="font-bold mb-3">Account</h3>
+        <div className="text-sm text-slate-300">{u?.email}</div>
+        <div className="text-xs text-slate-500 mt-1">{isAdmin ? 'Admin / Dispatcher' : 'Carrier / Driver'}</div>
+        <GhostButton onClick={() => signOut(auth)} className="mt-4">Sign Out</GhostButton>
+      </Card>
+    </div>
+  );
+}
+
 // ---------- NAV ITEM ----------
 function NavItem({ icon, label, isActive, onClick }) {
   return (
@@ -5189,6 +5536,9 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
         compSnap.docs.forEach((d) => { complianceItems(d.data(), (emailByUid[d.id] || 'Carrier') + ':', 'comp-' + d.id).forEach((x) => out.push(x)); });
         carrierSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.availability && c.availability !== 'Available').forEach((c) => {
           out.push({ id: 'avail-' + c.id, tone: 'slate', icon: '⏸', text: `${c.name || 'Carrier'} is ${c.availability}`, tab: 'carriers' });
+        });
+        userSnap.docs.forEach((d) => {
+          if (d.data().vipRequested) out.push({ id: 'vip-' + d.id, tone: 'amber', icon: '⭐', text: `${d.data().email || 'A carrier'} requested VIP concierge`, tab: 'carriers' });
         });
       } else if (uid) {
         const [compSnap, loadSnap] = await Promise.all([
