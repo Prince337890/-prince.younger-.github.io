@@ -382,9 +382,18 @@ export default function App() {
     } catch (e) { console.error('VIP request failed', e); setVipRequested(false); }
   };
 
+  // Carrier changed their mind — withdraw the pending VIP request.
+  const cancelVip = async () => {
+    if (!user) return;
+    setVipRequested(false);
+    try {
+      await setDoc(doc(db, 'users', user.uid), { vipRequested: false }, { merge: true });
+    } catch (e) { console.error('VIP cancel failed', e); setVipRequested(true); }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} />;
+      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} />;
       case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
       case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
@@ -397,7 +406,7 @@ export default function App() {
       case 'pets': return <PetLogisticsView />;
       case 'upgrades': return <UpgradesView key={'upg-' + viewUid} uid={viewUid} />;
       case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
-      case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} />;
+      case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
@@ -718,7 +727,7 @@ function MarketPulse() {
 }
 
 // ---------- DASHBOARD ----------
-function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip }) {
+function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip }) {
   const u = auth.currentUser;
   const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
@@ -771,6 +780,15 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
+  // Greeting subline driven by availability (and the active load). When real
+  // ELD/HOS data is connected, swap in the live "drive hours remaining" here.
+  const statusLine = (() => {
+    if (myStatus === 'Off Duty') return "You're off duty — your dispatcher won't assign loads. We'll have freight ready when you're back.";
+    if (myStatus === 'On Break') return "On a break. New load offers are paused until you set yourself Available again.";
+    if (active) return "You're rolling on an active load. Drive safe — we've got the paperwork and back office covered.";
+    return "You're marked Available and we're hunting your next high-paying load.";
+  })();
+
   const statusBadge = (s) => {
     if (s === 'In Transit') return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
     if (s === 'Delivered' || s === 'Cleared') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
@@ -790,8 +808,8 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
       {!isAdmin && (
         <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">Safe travels, {name}.</h2>
-            <p className="text-slate-400">Your next mandatory rest stop is in 3 hours. We've got everything handled.</p>
+            <h2 className="text-2xl font-bold text-white mb-1">{myStatus === 'Off Duty' ? `Rest up, ${name}.` : myStatus === 'On Break' ? `Enjoy the break, ${name}.` : `Safe travels, ${name}.`}</h2>
+            <p className="text-slate-400">{statusLine}</p>
             <div className="mt-3"><GuidedHint>This is the carrier’s home screen — active load, weekly earnings, and VIP updates. A pending offer takes over this screen until they accept or decline.</GuidedHint></div>
           </div>
           <div className="md:text-right">
@@ -886,7 +904,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
             </div>
           </Card>
           ) : (
-          <VipUpsellCard requested={vipRequested} onRequest={onRequestVip} />
+          <VipUpsellCard requested={vipRequested} onRequest={onRequestVip} onCancel={onCancelVip} />
           )}
         </div>
       )}
@@ -897,7 +915,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 // ---------- VIP: shared request button + questionnaire ----------
 const VIP_SERVICES = ['Safe parking scouting', 'Healthy Hub (gyms, grocers, dining)', 'Shower queue at stops', 'Pet logistics', 'Priority concierge line'];
 
-function VipRequestButton({ requested, onRequest, className = '' }) {
+function VipRequestButton({ requested, onRequest, onCancel, className = '' }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [svc, setSvc] = useState({});
@@ -915,7 +933,12 @@ function VipRequestButton({ requested, onRequest, className = '' }) {
   };
 
   if (requested) {
-    return <div className="text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>;
+    return (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>
+        {onCancel && <button onClick={onCancel} className="text-xs text-slate-400 hover:text-red-400 underline shrink-0">Cancel request</button>}
+      </div>
+    );
   }
   return (
     <>
@@ -954,7 +977,7 @@ function VipRequestButton({ requested, onRequest, className = '' }) {
 }
 
 // ---------- VIP UPSELL (carrier requests concierge from dispatch) ----------
-function VipUpsellCard({ requested, onRequest }) {
+function VipUpsellCard({ requested, onRequest, onCancel }) {
   const BENEFITS = [
     ['🛡', 'Trusted safe-parking scouting on every route'],
     ['🏋️', 'Healthy Hub — gyms, grocers & clean dining near your delivery'],
@@ -977,7 +1000,7 @@ function VipUpsellCard({ requested, onRequest }) {
       <div className="mt-4 rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2.5 text-xs text-slate-400">
         Heads up: VIP is a premium tier — your dispatch fee goes up a point or two to cover the concierge work. Most carriers find the saved time and stress more than worth it.
       </div>
-      <div className="mt-4"><VipRequestButton requested={requested} onRequest={onRequest} className="w-full" /></div>
+      <div className="mt-4"><VipRequestButton requested={requested} onRequest={onRequest} onCancel={onCancel} className="w-full" /></div>
     </Card>
   );
 }
@@ -5522,7 +5545,9 @@ function VipServicesView() {
 }
 
 // ---------- SETTINGS ----------
-function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onRequestVip, guidedMode, toggleGuided, onNavigate }) {
+function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onRequestVip, onCancelVip, guidedMode, toggleGuided, onNavigate }) {
+  const [paperwork, setPaperwork] = useState(() => { try { return localStorage.getItem('fm_paperwork') !== '0'; } catch (_) { return true; } });
+  const togglePaperwork = () => setPaperwork((p) => { const nv = !p; try { localStorage.setItem('fm_paperwork', nv ? '1' : '0'); } catch (_) {} return nv; });
   const u = auth.currentUser;
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -5547,7 +5572,7 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
         <Card className="p-6">
           <h3 className="font-bold mb-2">VIP Concierge</h3>
           <p className="text-sm text-slate-400 mb-4">Premium white-glove support (safe parking, Healthy Hub, shower queue, pet logistics). It raises your dispatch fee a point or two to cover the concierge work.</p>
-          <VipRequestButton requested={vipRequested} onRequest={onRequestVip} />
+          <VipRequestButton requested={vipRequested} onRequest={onRequestVip} onCancel={onCancelVip} />
         </Card>
       )}
 
@@ -5568,6 +5593,18 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
           </div>
         </Card>
       )}
+
+      <Card className="p-6">
+        <div className="flex items-center justify-between gap-3 py-1">
+          <div>
+            <div className="text-sm font-semibold text-white">Paperwork reminders</div>
+            <div className="text-xs text-slate-400">Show the “collect &amp; confirm these documents” prompt on each load. Turn off if you’ve got the workflow down.</div>
+          </div>
+          <button onClick={togglePaperwork} className={`w-12 h-6 rounded-full relative transition-colors shrink-0 ${paperwork ? 'bg-amber-500' : 'bg-slate-600'}`}>
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${paperwork ? 'left-6' : 'left-0.5'}`} />
+          </button>
+        </div>
+      </Card>
 
       <Card className="p-6">
         <h3 className="font-bold mb-3">Account</h3>
@@ -5683,71 +5720,79 @@ function Td({ children, className = '' }) {
   return <td className={`px-4 py-3 text-sm text-slate-300 align-middle ${className}`}>{children}</td>;
 }
 
-// ---------- LOAD PAPERWORK / MILESTONE CHECKLIST ----------
-// Storage-free "don't forget the docs" guide, keyed to load status. Shown to
-// BOTH the dispatcher (All Loads) and the carrier (Lane Management). Progress
-// persists on the load doc (best-effort) so both sides share it.
+// ---------- LOAD PAPERWORK: COLLECT & CONFIRM ----------
+// Storage-free reminder keyed to load status. Each stage lists the documents
+// to collect, then you CONFIRM the stage (not a per-item checklist). Shown to
+// BOTH the dispatcher (All Loads) and the carrier (Lane Management); the
+// confirmation persists on the load doc so both sides share it. Carriers and
+// dispatchers can hide it in Settings once they've got the workflow down.
 const LOAD_STEPS = [
-  { key: 'dispatched', label: 'Booked / Offer Accepted', items: [
-    'Secure the signed Rate Confirmation (RateCon) from the broker',
-    'Send your Notice of Assignment (NOA) / carrier packet to the broker',
-    'Confirm pickup number, appointment time & facility address',
-    'Verify commodity, weight & any special equipment needs',
+  { key: 'dispatched', label: 'Before you process this load', items: [
+    'Signed Rate Confirmation (RateCon) from the broker',
+    'Your Notice of Assignment (NOA) / carrier packet sent to the broker',
+    'Pickup number, appointment time & facility address confirmed',
+    'Commodity, weight & any special equipment verified',
   ] },
-  { key: 'shipper', label: 'Arrived at Shipper / In Transit', items: [
-    'Driver checks in & logs arrival time (protects detention pay)',
-    'Get the Bill of Lading (BOL) signed at pickup',
-    'Verify piece/pallet count & weight against the RateCon',
-    'Note the seal number and take load photos',
+  { key: 'shipper', label: 'At pickup, before you roll', items: [
+    'Driver checked in & arrival time logged (protects detention pay)',
+    'Bill of Lading (BOL) signed at pickup',
+    'Piece/pallet count & weight verified against the RateCon',
+    'Seal number noted and load photos taken',
   ] },
-  { key: 'delivered', label: 'Delivered', items: [
-    'Get the signed Proof of Delivery (POD) / delivery receipt',
-    'Collect lumper receipts & any detention documentation',
-    'Submit the invoice + full proof package to broker/factoring',
-    'Save every document to the Document Vault',
+  { key: 'delivered', label: 'At delivery, before you invoice', items: [
+    'Signed Proof of Delivery (POD) / delivery receipt',
+    'Lumper receipts & any detention documentation collected',
+    'Invoice + full proof package submitted to broker/factoring',
+    'Every document saved to the Document Vault',
   ] },
 ];
 
-function LoadStepChecklist({ load, onPersist, title = 'Load Paperwork Checklist' }) {
+function LoadStepChecklist({ load, onPersist, title = 'Paperwork to Collect' }) {
+  const remindersOn = (() => { try { return localStorage.getItem('fm_paperwork') !== '0'; } catch (_) { return true; } })();
   const [steps, setSteps] = useState(() => (load && load.steps) || {});
   useEffect(() => { setSteps((load && load.steps) || {}); }, [load && load.id]);
+  if (!remindersOn) return null;
+
   const st = (load && load.status) || '';
   const currentKey = (st === 'Delivered' || st === 'Cleared') ? 'delivered'
     : (st === 'Arrived at Shipper' || st === 'Loaded' || st === 'In Transit') ? 'shipper'
     : 'dispatched';
-  const toggle = (mk, i) => {
+  const confirmStage = (mk) => {
     setSteps((s) => {
-      const ns = { ...s, [mk + ':' + i]: !s[mk + ':' + i] };
+      const ns = { ...s, [mk + ':confirmed']: true };
       if (onPersist) onPersist(ns);
       return ns;
     });
   };
+
   return (
     <Card className="p-6">
       <PanelHeader icon={<FileText size={20} />} title={title} />
-      <p className="text-sm text-slate-400 mt-1">Tick each item as you go so nothing gets missed before you get paid.</p>
-      <GuidedHint>Missing paperwork is the #1 reason a load pays late — or not at all. Secure the RateCon and send your NOA/packet the moment an offer is accepted, get the BOL signed at pickup, and the signed POD at delivery.</GuidedHint>
+      <p className="text-sm text-slate-400 mt-1">Make sure you have these in hand, then confirm before moving the load forward. (Turn these reminders off in Settings anytime.)</p>
+      <GuidedHint>Missing paperwork is the #1 reason a load pays late — or not at all. Secure the RateCon and send your NOA the moment an offer is accepted, get the BOL signed at pickup, and the signed POD at delivery.</GuidedHint>
       <div className="space-y-4 mt-4">
         {LOAD_STEPS.map((m) => {
-          const done = m.items.filter((_, i) => steps[m.key + ':' + i]).length;
+          const confirmed = !!steps[m.key + ':confirmed'];
           const isCurrent = m.key === currentKey;
           return (
-            <div key={m.key} className={`rounded-xl border p-4 ${isCurrent ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700 bg-slate-800/40'}`}>
+            <div key={m.key} className={`rounded-xl border p-4 ${confirmed ? 'border-emerald-500/30 bg-emerald-500/5' : isCurrent ? 'border-amber-500/40 bg-amber-500/5' : 'border-slate-700 bg-slate-800/40'}`}>
               <div className="flex items-center justify-between gap-2 mb-2.5">
-                <div className="font-semibold text-white text-sm flex items-center gap-2">{m.label}{isCurrent && <Badge tone="amber">Current</Badge>}</div>
-                <span className="text-xs text-slate-400">{done}/{m.items.length}</span>
+                <div className="font-semibold text-white text-sm flex items-center gap-2">
+                  {m.label}
+                  {confirmed ? <Badge tone="emerald"><CheckCircle2 size={11} /> Confirmed</Badge> : isCurrent ? <Badge tone="amber">Do this now</Badge> : null}
+                </div>
               </div>
-              <div className="space-y-2">
-                {m.items.map((it, i) => {
-                  const on = !!steps[m.key + ':' + i];
-                  return (
-                    <label key={i} className="flex items-start gap-2.5 text-sm cursor-pointer">
-                      <input type="checkbox" checked={on} onChange={() => toggle(m.key, i)} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
-                      <span className={on ? 'text-slate-500 line-through' : 'text-slate-200'}>{it}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <ul className="space-y-1.5">
+                {m.items.map((it, i) => (
+                  <li key={i} className={`flex items-start gap-2.5 text-sm ${confirmed ? 'text-slate-500' : 'text-slate-200'}`}>
+                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${confirmed ? 'bg-emerald-500/60' : 'bg-amber-400'}`} />
+                    <span>{it}</span>
+                  </li>
+                ))}
+              </ul>
+              {!confirmed && (
+                <PrimaryButton onClick={() => confirmStage(m.key)} className="mt-3 text-sm">✓ Confirm I have these</PrimaryButton>
+              )}
             </div>
           );
         })}
