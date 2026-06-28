@@ -1,3 +1,7 @@
 # Python caches from the vendored UI/UX skill scripts
 __pycache__/
 *.pyc
+
+# Stray Vite build output (the app builds under app/)
+dist/
+node_modules/
