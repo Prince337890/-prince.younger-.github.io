@@ -5727,22 +5727,27 @@ function Td({ children, className = '' }) {
 // confirmation persists on the load doc so both sides share it. Carriers and
 // dispatchers can hide it in Settings once they've got the workflow down.
 const LOAD_STEPS = [
-  { key: 'dispatched', label: 'Before you process this load', items: [
-    'Signed Rate Confirmation (RateCon) from the broker',
-    'Your Notice of Assignment (NOA) / carrier packet sent to the broker',
+  { key: 'dispatched', label: 'Before you dispatch the driver (broker paperwork)', items: [
+    'First load with this broker? Complete the Carrier Setup Packet: signed Broker-Carrier Agreement, W-9, Certificate of Insurance (COI) & a copy of the carrier’s FMCSA operating authority',
+    'Rate Confirmation received — review it line-by-line against the verbal deal (rate, freight details, pickup/delivery times, accessorials like fuel surcharge & detention)',
+    'RateCon signed and returned to the broker — do NOT send the driver to the shipper until it’s signed & returned',
+    'Broker’s $75,000 surety bond verified active in FMCSA (use the Broker Check tab) to protect against non-payment',
+    'Proof package started: save the RateCon, load-board screenshot & communication logs to guard against double-brokering',
     'Pickup number, appointment time & facility address confirmed',
-    'Commodity, weight & any special equipment verified',
   ] },
-  { key: 'shipper', label: 'At pickup, before you roll', items: [
-    'Driver checked in & arrival time logged (protects detention pay)',
-    'Bill of Lading (BOL) signed at pickup',
-    'Piece/pallet count & weight verified against the RateCon',
-    'Seal number noted and load photos taken',
+  { key: 'shipper', label: 'At the shipper / pickup (BOL)', items: [
+    'Bill of Lading (BOL) received from the shipper',
+    'Commodity, weight & piece count on the BOL verified against the freight actually loaded',
+    'Freight inspected for visible damage — note any exceptions or shortages on the BOL BEFORE signing (protects the carrier from liability)',
+    'BOL signed by BOTH the driver and the shipper',
+    'If the trailer was pre-loaded & sealed: the seal number on the trailer matches the seal number on the BOL',
+    'Driver check-in / arrival time logged (protects detention pay)',
   ] },
-  { key: 'delivered', label: 'At delivery, before you invoice', items: [
-    'Signed Proof of Delivery (POD) / delivery receipt',
+  { key: 'delivered', label: 'At the receiver / delivery (POD → invoice)', items: [
+    'Driver presents the BOL; the receiver inspects and signs — the signed BOL becomes the Proof of Delivery (POD)',
+    'Any damage or missing freight documented factually on the BOL before the receiver signs',
     'Lumper receipts & any detention documentation collected',
-    'Invoice + full proof package submitted to broker/factoring',
+    'Combine the signed RateCon + signed POD + invoice (+ lumper receipts) and send to the broker/factoring company for payment',
     'Every document saved to the Document Vault',
   ] },
 ];
