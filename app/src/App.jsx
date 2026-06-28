@@ -565,8 +565,8 @@ function AdminWeeklyGross() {
           </p>
         </div>
         <div className="md:text-right">
-          <div className="text-sm text-slate-400 mb-1">Gross Booked (This Week)</div>
-          <div className="text-3xl font-bold text-emerald-400">{money(stats.gross)}</div>
+          <div className="text-sm text-slate-400 mb-1">Your Dispatch Total (This Week)</div>
+          <div className="text-3xl font-bold text-amber-400">{money(stats.fee)}</div>
         </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5">
