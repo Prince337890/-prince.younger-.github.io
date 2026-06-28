@@ -373,11 +373,12 @@ export default function App() {
   };
 
   // Carrier asks dispatch to enable VIP concierge (an upsell at a higher fee %).
-  const requestVip = async () => {
+  // `answers` is the questionnaire payload so the dispatcher knows what they want.
+  const requestVip = async (answers) => {
     if (!user) return;
     setVipRequested(true);
     try {
-      await setDoc(doc(db, 'users', user.uid), { vipRequested: true, vipRequestedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { vipRequested: true, vipRequestedAt: serverTimestamp(), vipRequest: answers || {} }, { merge: true });
     } catch (e) { console.error('VIP request failed', e); setVipRequested(false); }
   };
 
@@ -403,6 +404,7 @@ export default function App() {
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
       case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
+      case 'vip': return isAdmin ? <VipServicesView /> : <DashboardView />;
       case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
@@ -458,6 +460,7 @@ export default function App() {
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
               <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<HeartPulse size={18} />} label="VIP Services" isActive={activeTab === 'vip'} onClick={() => go('vip')} />
               <NavItem icon={<ShieldCheck size={18} />} label="Broker Check" isActive={activeTab === 'brokercheck'} onClick={() => go('brokercheck')} />
               <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
@@ -891,6 +894,65 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
   );
 }
 
+// ---------- VIP: shared request button + questionnaire ----------
+const VIP_SERVICES = ['Safe parking scouting', 'Healthy Hub (gyms, grocers, dining)', 'Shower queue at stops', 'Pet logistics', 'Priority concierge line'];
+
+function VipRequestButton({ requested, onRequest, className = '' }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [svc, setSvc] = useState({});
+  const [form, setForm] = useState({ diet: '', pet: '', fitness: '', notes: '' });
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const toggle = (s) => setSvc((x) => ({ ...x, [s]: !x[s] }));
+
+  const submit = async () => {
+    setBusy(true);
+    const answers = {
+      services: VIP_SERVICES.filter((s) => svc[s]),
+      diet: form.diet.trim(), pet: form.pet.trim(), fitness: form.fitness.trim(), notes: form.notes.trim(),
+    };
+    try { await onRequest(answers); } finally { setBusy(false); setOpen(false); }
+  };
+
+  if (requested) {
+    return <div className="text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>;
+  }
+  return (
+    <>
+      <PrimaryButton onClick={() => setOpen(true)} className={className}>Request VIP Concierge</PrimaryButton>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => !busy && setOpen(false)}>
+          <Card className="w-full max-w-lg p-6 my-8" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2"><HeartPulse size={18} className="text-amber-500" /> VIP Concierge Request</h3>
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">Tell your dispatcher what you'd like so they can set up your concierge. <span className="text-slate-500">(VIP is a premium tier — it raises your dispatch fee a point or two.)</span></p>
+            <div className="space-y-4">
+              <div>
+                <label className={LABEL_CLS}>Which services interest you?</label>
+                <div className="flex flex-wrap gap-2">
+                  {VIP_SERVICES.map((s) => (
+                    <button key={s} type="button" onClick={() => toggle(s)} className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${svc[s] ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>{svc[s] ? '✓ ' : ''}{s}</button>
+                  ))}
+                </div>
+              </div>
+              <Field label="Dietary preferences / restrictions"><input className={INPUT_CLS} value={form.diet} onChange={set('diet')} placeholder="e.g. high-protein, no pork, diabetic-friendly" /></Field>
+              <Field label="Traveling with a pet? (type, name, needs)"><input className={INPUT_CLS} value={form.pet} onChange={set('pet')} placeholder="e.g. Golden Retriever 'Lady', fresh food" /></Field>
+              <Field label="Fitness / gym needs"><input className={INPUT_CLS} value={form.fitness} onChange={set('fitness')} placeholder="e.g. truck-accessible gym, daily" /></Field>
+              <Field label="Anything else?"><textarea className={`${INPUT_CLS} min-h-[70px]`} value={form.notes} onChange={set('notes')} placeholder="Anything that would make life on the road easier…" /></Field>
+            </div>
+            <div className="flex items-center gap-3 mt-5">
+              <PrimaryButton onClick={submit} disabled={busy} className="px-5">{busy ? 'Sending…' : 'Send Request'}</PrimaryButton>
+              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+            </div>
+          </Card>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ---------- VIP UPSELL (carrier requests concierge from dispatch) ----------
 function VipUpsellCard({ requested, onRequest }) {
   const BENEFITS = [
@@ -915,11 +977,7 @@ function VipUpsellCard({ requested, onRequest }) {
       <div className="mt-4 rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2.5 text-xs text-slate-400">
         Heads up: VIP is a premium tier — your dispatch fee goes up a point or two to cover the concierge work. Most carriers find the saved time and stress more than worth it.
       </div>
-      {requested ? (
-        <div className="mt-4 text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>
-      ) : (
-        <PrimaryButton onClick={onRequest} className="w-full mt-4">Request VIP Concierge</PrimaryButton>
-      )}
+      <div className="mt-4"><VipRequestButton requested={requested} onRequest={onRequest} className="w-full" /></div>
     </Card>
   );
 }
@@ -5251,6 +5309,114 @@ function DriverExpensesView({ uid }) {
   );
 }
 
+// ---------- ADMIN: VIP SERVICES (requests + active concierge) ----------
+function VipServicesView() {
+  const [reqs, setReqs] = useState([]);
+  const [activeVip, setActiveVip] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [uSnap, cSnap] = await Promise.all([getDocs(collection(db, 'users')), getDocs(collection(db, 'carriers'))]);
+      const carriers = cSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const byUid = {};
+      carriers.forEach((c) => { if (c.linkedDriverUid) byUid[c.linkedDriverUid] = c; });
+      const users = uSnap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+      setReqs(users.filter((u) => u.vipRequested).map((u) => ({ ...u, carrier: byUid[u.uid] || null })));
+      setActiveVip(carriers.filter((c) => c.vipConcierge));
+    } catch (e) { console.error('VIP load failed', e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { fetchAll(); }, []);
+
+  const enableVip = async (r) => {
+    setBusyId(r.uid);
+    try {
+      await setDoc(doc(db, 'users', r.uid), { vipConcierge: true, vipRequested: false }, { merge: true });
+      if (r.carrier) await updateDoc(doc(db, 'carriers', r.carrier.id), { vipConcierge: true });
+      await fetchAll();
+    } catch (e) { console.error('enable VIP failed', e); alert('Could not enable — check the console.'); }
+    finally { setBusyId(null); }
+  };
+  const dismiss = async (r) => {
+    setBusyId(r.uid);
+    try { await setDoc(doc(db, 'users', r.uid), { vipRequested: false }, { merge: true }); await fetchAll(); }
+    catch (e) { console.error('dismiss failed', e); }
+    finally { setBusyId(null); }
+  };
+
+  const nameOf = (r) => (r.carrier && r.carrier.name) || r.email || r.uid;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">VIP Services</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Carriers who asked for the VIP concierge upsell, and exactly what they want. Enable VIP to turn on their concierge experience.</p>
+      <GuidedHint>VIP is your highest-margin upsell. When you enable it, bump that carrier's <strong>dispatch fee</strong> a point or two in the Carriers tab to cover the concierge work — the fee bump usually pays for the whole platform.</GuidedHint>
+
+      {loading ? <div className="text-slate-400">Loading…</div> : (
+        <>
+          <Card className="p-6">
+            <PanelHeader icon={<HeartPulse size={20} />} title="Pending Requests" badge={reqs.length > 0 ? <Badge tone="amber">{reqs.length}</Badge> : null} />
+            {reqs.length === 0 ? (
+              <div className="text-slate-500 text-sm mt-4">No open VIP requests right now.</div>
+            ) : (
+              <div className="space-y-4 mt-4">
+                {reqs.map((r) => {
+                  const a = r.vipRequest || {};
+                  const empty = (!a.services || a.services.length === 0) && !a.diet && !a.pet && !a.fitness && !a.notes;
+                  return (
+                    <div key={r.uid} className="bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-white">{nameOf(r)}</div>
+                          <div className="text-xs text-slate-500">{r.email}{r.carrier ? ` · ${r.carrier.mcNumber || ''}` : ' · not linked to a carrier yet'}</div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <PrimaryButton onClick={() => enableVip(r)} disabled={busyId === r.uid} className="text-sm">{busyId === r.uid ? '…' : 'Enable VIP'}</PrimaryButton>
+                          <GhostButton onClick={() => dismiss(r)} disabled={busyId === r.uid} className="text-sm">Dismiss</GhostButton>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                        {a.services && a.services.length > 0 && <div className="sm:col-span-2"><span className="text-slate-500 text-xs">Services: </span><span className="text-slate-200">{a.services.join(', ')}</span></div>}
+                        {a.diet && <div><span className="text-slate-500 text-xs">Diet: </span><span className="text-slate-200">{a.diet}</span></div>}
+                        {a.pet && <div><span className="text-slate-500 text-xs">Pet: </span><span className="text-slate-200">{a.pet}</span></div>}
+                        {a.fitness && <div><span className="text-slate-500 text-xs">Fitness: </span><span className="text-slate-200">{a.fitness}</span></div>}
+                        {a.notes && <div className="sm:col-span-2"><span className="text-slate-500 text-xs">Notes: </span><span className="text-slate-200">{a.notes}</span></div>}
+                        {empty && <div className="text-slate-500 text-xs">No questionnaire details provided.</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold mb-4">Active VIP Carriers ({activeVip.length})</h3>
+            {activeVip.length === 0 ? (
+              <div className="text-slate-500 text-sm">No carriers on VIP yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {activeVip.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                    <div className="text-sm font-semibold text-white">{c.name}</div>
+                    <Badge tone="amber"><HeartPulse size={11} /> VIP · {Number(c.feePct || DEFAULT_FEE_PCT)}% fee</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- SETTINGS ----------
 function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onRequestVip, guidedMode, toggleGuided, onNavigate }) {
   const u = auth.currentUser;
@@ -5277,9 +5443,7 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
         <Card className="p-6">
           <h3 className="font-bold mb-2">VIP Concierge</h3>
           <p className="text-sm text-slate-400 mb-4">Premium white-glove support (safe parking, Healthy Hub, shower queue, pet logistics). It raises your dispatch fee a point or two to cover the concierge work.</p>
-          {vipRequested
-            ? <div className="text-sm text-emerald-400 font-semibold flex items-center gap-2"><CheckCircle2 size={16} /> Request sent — your dispatcher will reach out.</div>
-            : <PrimaryButton onClick={onRequestVip}>Request VIP Concierge</PrimaryButton>}
+          <VipRequestButton requested={vipRequested} onRequest={onRequestVip} />
         </Card>
       )}
 
@@ -5538,7 +5702,7 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
           out.push({ id: 'avail-' + c.id, tone: 'slate', icon: '⏸', text: `${c.name || 'Carrier'} is ${c.availability}`, tab: 'carriers' });
         });
         userSnap.docs.forEach((d) => {
-          if (d.data().vipRequested) out.push({ id: 'vip-' + d.id, tone: 'amber', icon: '⭐', text: `${d.data().email || 'A carrier'} requested VIP concierge`, tab: 'carriers' });
+          if (d.data().vipRequested) out.push({ id: 'vip-' + d.id, tone: 'amber', icon: '⭐', text: `${d.data().email || 'A carrier'} requested VIP concierge`, tab: 'vip' });
         });
       } else if (uid) {
         const [compSnap, loadSnap] = await Promise.all([
