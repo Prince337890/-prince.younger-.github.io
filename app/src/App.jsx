@@ -292,6 +292,7 @@ export default function App() {
   const [vipOn, setVipOn] = useState(true); // driver sees VIP Concierge unless their carrier turns it off
   const [myStatus, setMyStatus] = useState('Available'); // carrier self-set availability
   const [vipRequested, setVipRequested] = useState(false); // carrier asked dispatch for VIP
+  const [showTour, setShowTour] = useState(false); // first-login walkthrough
   const [guidedMode, setGuidedMode] = useState(() => { try { return localStorage.getItem('fm_guided') === '1'; } catch (_) { return false; } });
   const toggleGuided = () => setGuidedMode((g) => { const nv = !g; try { localStorage.setItem('fm_guided', nv ? '1' : '0'); } catch (_) {} return nv; });
 
@@ -342,6 +343,14 @@ export default function App() {
   }, []);
 
   const isAdmin = !!user && isAdminEmail(user.email);
+
+  // Show the first-login tour once the user is fully signed in (not mid pw-change/onboarding).
+  useEffect(() => {
+    if (user && !needsPwChange && !needsOnboarding) {
+      try { if (localStorage.getItem('fm_tour_seen') !== '1') setShowTour(true); } catch (_) {}
+    }
+  }, [user, needsPwChange, needsOnboarding]);
+  const closeTour = () => { setShowTour(false); try { localStorage.setItem('fm_tour_seen', '1'); } catch (_) {} };
 
   useEffect(() => {
     if (!isAdmin) { setCarrierOpts([]); return; }
@@ -406,7 +415,7 @@ export default function App() {
       case 'pets': return <PetLogisticsView />;
       case 'upgrades': return <UpgradesView key={'upg-' + viewUid} uid={viewUid} />;
       case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
-      case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} />;
+      case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} onReplayTour={() => setShowTour(true)} />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
@@ -610,6 +619,8 @@ export default function App() {
           {renderContent()}
         </div>
       </main>
+
+      {showTour && <TourOverlay role={isAdmin ? 'admin' : 'carrier'} onClose={closeTour} />}
     </div>
     </GuidedModeContext.Provider>
   );
@@ -3850,9 +3861,17 @@ function CarriersView() {
     name: '', mcNumber: '', driverName: '', phone: '', homeBase: '', trailerType: '',
     mpg: '', maxCapacity: '', minRpm: '', preferredLanes: '', noGo: '', multiStop: '',
     linkedDriverUid: '', currentDriveHours: '', feePct: '10', vipConcierge: false, availability: 'Available',
+    newLoginEmail: '', newLoginPw: '',
   };
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [createdLogin, setCreatedLogin] = useState(null);
+  const genPw = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let p = '';
+    for (let i = 0; i < 10; i++) p += chars[Math.floor(Math.random() * chars.length)];
+    setForm((f) => ({ ...f, newLoginPw: p }));
+  };
 
   // Guided Mode: soft carrier-verification checklist (Workflow A).
   const guided = useGuided();
@@ -3934,7 +3953,28 @@ function CarriersView() {
       }
     }
     setSaving(true);
+    setCreatedLogin(null);
+    let linkedUid = form.linkedDriverUid;
     try {
+      // Optionally create the portal login right here, then auto-link it —
+      // no need to bounce over to the Logins & Access tab first.
+      if (!linkedUid && form.newLoginEmail.trim() && form.newLoginPw) {
+        if (form.newLoginPw.length < 6) { alert('Temporary password must be at least 6 characters.'); setSaving(false); return; }
+        try {
+          const uid = await createDriverAccount(form.newLoginEmail.trim(), form.newLoginPw);
+          await setDoc(doc(db, 'users', uid), {
+            email: form.newLoginEmail.trim(), approved: true, mustChangePassword: true,
+            vipConcierge: !!form.vipConcierge, createdAt: serverTimestamp(),
+          }, { merge: true });
+          linkedUid = uid;
+          setCreatedLogin({ email: form.newLoginEmail.trim(), pw: form.newLoginPw });
+        } catch (err) {
+          console.error('inline login creation failed', err);
+          alert('Could not create the login: ' + (err.message || '').replace('Firebase: ', '') + '\n\nThe carrier was NOT saved — fix the email/password and try again.');
+          setSaving(false);
+          return;
+        }
+      }
       await addDoc(collection(db, 'carriers'), {
         name: form.name.trim(),
         mcNumber: form.mcNumber.trim(),
@@ -3948,7 +3988,7 @@ function CarriersView() {
         preferredLanes: form.preferredLanes.trim(),
         noGo: form.noGo.trim(),
         multiStop: form.multiStop.trim(),
-        linkedDriverUid: form.linkedDriverUid,
+        linkedDriverUid: linkedUid,
         currentDriveHours: Number(form.currentDriveHours) || 0,
         feePct: Number(form.feePct) || DEFAULT_FEE_PCT,
         vipConcierge: !!form.vipConcierge,
@@ -3958,8 +3998,8 @@ function CarriersView() {
         createdAt: serverTimestamp(),
       });
       // Mirror the VIP flag onto the linked driver's user doc so their portal reflects it.
-      if (form.linkedDriverUid) {
-        try { await setDoc(doc(db, 'users', form.linkedDriverUid), { vipConcierge: !!form.vipConcierge }, { merge: true }); } catch (_) {}
+      if (linkedUid) {
+        try { await setDoc(doc(db, 'users', linkedUid), { vipConcierge: !!form.vipConcierge }, { merge: true }); } catch (_) {}
       }
       setForm(blank);
       setVerify({ authority: false, w9: false, coi: false, noa: false });
@@ -4082,6 +4122,20 @@ function CarriersView() {
               {drivers.map((d) => <option key={d.uid} value={d.uid}>{d.email}</option>)}
             </select>
           </div>
+
+          {!form.linkedDriverUid && (
+            <div className="sm:col-span-2 bg-slate-800/40 border border-slate-700/60 border-l-2 border-l-amber-500 rounded-lg p-4">
+              <div className="text-xs font-semibold text-amber-300 mb-1">…or create their login right here</div>
+              <p className="text-[11px] text-slate-400 mb-3">No existing login? Create the carrier's portal account inline — it'll be linked to this profile automatically. (Leave blank if you'll link one later.)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input className={field} type="email" value={form.newLoginEmail} onChange={set('newLoginEmail')} placeholder="driver@example.com" />
+                <div className="flex gap-2">
+                  <input className={field} value={form.newLoginPw} onChange={set('newLoginPw')} placeholder="Temp password (6+ chars)" />
+                  <button type="button" onClick={genPw} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 rounded-lg shrink-0">Generate</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <GuidedHint>VIP Concierge is a premium upsell: turn it on for carriers you've agreed to give white-glove service, and bump their <strong>Dispatch Fee</strong> 1–2% (e.g. 8% → 10%). That upcharge typically covers your monthly subscription — the platform pays for itself.</GuidedHint>
 
@@ -4106,6 +4160,23 @@ function CarriersView() {
         <PrimaryButton type="submit" disabled={saving} className="px-5 py-2.5">
           {saving ? 'Saving…' : 'Save Carrier'}
         </PrimaryButton>
+
+        {createdLogin && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-sm">
+            <div className="font-semibold text-emerald-400 mb-2">✓ Carrier saved &amp; login created — share these with the driver:</div>
+            <div className="font-mono text-slate-200">Email: {createdLogin.email}</div>
+            <div className="font-mono text-slate-200">Temp password: {createdLogin.pw}</div>
+            <div className="text-xs text-slate-400 mt-2">They'll set their own password on first login.</div>
+            <button type="button"
+              onClick={() => {
+                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://forward-motion-app-bdim.vercel.app\n     Email: ${createdLogin.email}\n     Temporary password: ${createdLogin.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
+                if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
+              }}
+              className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
+              📋 Copy welcome email
+            </button>
+          </div>
+        )}
         </form>
       </Card>
 
@@ -5580,7 +5651,7 @@ function VipServicesView() {
 }
 
 // ---------- SETTINGS ----------
-function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onRequestVip, onCancelVip, guidedMode, toggleGuided, onNavigate }) {
+function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onRequestVip, onCancelVip, guidedMode, toggleGuided, onNavigate, onReplayTour }) {
   const [paperwork, setPaperwork] = useState(() => { try { return localStorage.getItem('fm_paperwork') !== '0'; } catch (_) { return true; } });
   const togglePaperwork = () => setPaperwork((p) => { const nv = !p; try { localStorage.setItem('fm_paperwork', nv ? '1' : '0'); } catch (_) {} return nv; });
   const u = auth.currentUser;
@@ -5639,6 +5710,13 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${paperwork ? 'left-6' : 'left-0.5'}`} />
           </button>
         </div>
+        <div className="flex items-center justify-between gap-3 py-1 mt-2 pt-3 border-t border-slate-800">
+          <div>
+            <div className="text-sm font-semibold text-white">Dashboard tour</div>
+            <div className="text-xs text-slate-400">Replay the first-login walkthrough anytime.</div>
+          </div>
+          {onReplayTour && <GhostButton onClick={onReplayTour} className="text-sm shrink-0">Replay tour</GhostButton>}
+        </div>
       </Card>
 
       <Card className="p-6">
@@ -5646,6 +5724,54 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
         <div className="text-sm text-slate-300">{u?.email}</div>
         <div className="text-xs text-slate-500 mt-1">{isAdmin ? 'Admin / Dispatcher' : 'Carrier / Driver'}</div>
         <GhostButton onClick={() => signOut(auth)} className="mt-4">Sign Out</GhostButton>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- FIRST-LOGIN TOUR ----------
+const TOUR_STEPS = {
+  admin: [
+    { icon: '👋', title: 'Welcome to Forward OS', body: 'This is your dispatch command center. Here’s a 60-second tour — skip anytime.' },
+    { icon: '🧮', title: 'The Deal Desk', body: 'Work every load in the Rate Calculator: break-even RPM, live market rate, and an HOS legality check — then send it to the carrier as an offer.' },
+    { icon: '🛡️', title: 'Vet before you book', body: 'Broker Check screens a broker’s $75k bond and double-brokering red flags. In 2026 that’s how you keep your carrier from getting stiffed.' },
+    { icon: '🏢', title: 'Carriers & Access', body: 'Build a carrier’s profile and create their login in one place, then assign loads straight from the calculator.' },
+    { icon: '🔔', title: 'Stay on top of it', body: 'The bell flags offers awaiting a response, expiring compliance, detention claims, and VIP requests — all deep-linked.' },
+    { icon: '🎓', title: 'Guided Mode', body: 'New to dispatch? Flip on Guided Mode (top bar) for step-by-step tips on every single tab.' },
+  ],
+  carrier: [
+    { icon: '👋', title: 'Welcome to your portal', body: 'Everything for your loads lives here. Quick tour — skip anytime.' },
+    { icon: '🚚', title: 'Your active load', body: 'Your current load shows on the dashboard. Tap it to open Lane Management and update your status as you roll.' },
+    { icon: '📄', title: 'Paperwork made simple', body: 'Each load reminds you exactly which documents to collect — RateCon, BOL, POD — then you confirm before moving on.' },
+    { icon: '💵', title: 'Know your numbers', body: 'My CPM & Expenses shows your true cost per mile, so you never haul a load that loses money.' },
+    { icon: '🟢', title: 'Set your status', body: 'Mark yourself Available, On Break, or Off Duty so your dispatcher knows when you’re ready for freight.' },
+    { icon: '⭐', title: 'Want the VIP treatment?', body: 'Request concierge services — safe parking, Healthy Hub, shower queue, and more — anytime from your dashboard.' },
+  ],
+};
+
+function TourOverlay({ role, onClose }) {
+  const steps = TOUR_STEPS[role] || TOUR_STEPS.carrier;
+  const [i, setI] = useState(0);
+  const step = steps[i];
+  const last = i === steps.length - 1;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-md p-7 text-center border-amber-500/30">
+        <div className="text-5xl mb-4">{step.icon}</div>
+        <h3 className="text-xl font-bold text-white">{step.title}</h3>
+        <p className="text-sm text-slate-400 mt-2 leading-relaxed">{step.body}</p>
+        <div className="flex items-center justify-center gap-1.5 mt-5">
+          {steps.map((_, idx) => <span key={idx} className={`w-1.5 h-1.5 rounded-full ${idx === i ? 'bg-amber-500' : 'bg-slate-600'}`} />)}
+        </div>
+        <div className="flex items-center justify-between gap-3 mt-6">
+          <button onClick={onClose} className="text-sm text-slate-400 hover:text-white">Skip tour</button>
+          <div className="flex items-center gap-2">
+            {i > 0 && <GhostButton onClick={() => setI((n) => n - 1)} className="text-sm">Back</GhostButton>}
+            {last
+              ? <PrimaryButton onClick={onClose} className="text-sm px-5">Get started →</PrimaryButton>
+              : <PrimaryButton onClick={() => setI((n) => n + 1)} className="text-sm px-5">Next</PrimaryButton>}
+          </div>
+        </div>
       </Card>
     </div>
   );
@@ -5680,21 +5806,26 @@ const INPUT_CLS = 'w-full bg-slate-800/80 border border-slate-700 rounded-lg px-
 const SELECT_CLS = INPUT_CLS;
 const LABEL_CLS = 'block text-xs font-medium text-slate-400 mb-1.5';
 
-// Standard surface card used across the app.
+// Standard surface panel. Pass 3: flatter, squarer "operations console" look
+// (hairline border, no drop shadow) so the portal reads like a tool, not a
+// brochure — deliberately distinct from the rounded marketing-site cards.
 function Card({ children, className = '', ...rest }) {
   return (
-    <div className={`bg-slate-900/70 border border-slate-800 rounded-2xl shadow-lg shadow-black/20 ${className}`} {...rest}>
+    <div className={`bg-slate-900/60 border border-slate-800/80 rounded-xl ${className}`} {...rest}>
       {children}
     </div>
   );
 }
 
-// Panel/section header: optional icon + accent, inline badge, right-aligned action.
+// Panel/section header: a vertical accent rail + title, optional icon, inline
+// badge, right-aligned action. The rail gives screens a console-like structure.
 function PanelHeader({ icon, title, accent = 'amber', badge, action, className = '' }) {
   const accentCls = { amber: 'text-amber-500', blue: 'text-blue-400', emerald: 'text-emerald-400', slate: 'text-slate-400' }[accent] || 'text-amber-500';
+  const railCls = { amber: 'bg-amber-500', blue: 'bg-blue-400', emerald: 'bg-emerald-400', slate: 'bg-slate-500' }[accent] || 'bg-amber-500';
   return (
     <div className={`flex items-center justify-between gap-3 ${className}`}>
-      <h3 className="text-lg font-semibold text-white flex items-center gap-2 min-w-0">
+      <h3 className="text-base font-semibold text-white flex items-center gap-2.5 min-w-0">
+        <span className={`w-1 h-4 rounded-full shrink-0 ${railCls}`} />
         {icon && <span className={`${accentCls} shrink-0`}>{icon}</span>}
         <span className="truncate">{title}</span>
         {badge}
@@ -5704,12 +5835,14 @@ function PanelHeader({ icon, title, accent = 'amber', badge, action, className =
   );
 }
 
-// Compact stat tile — label over a bold value, optional accent color.
+// Compact stat tile — label over a bold value, with a left accent rail so a
+// row of metrics reads like a dashboard readout.
 function StatTile({ label, value, accent = 'white', className = '' }) {
   const v = { white: 'text-white', emerald: 'text-emerald-400', amber: 'text-amber-400', blue: 'text-blue-400', red: 'text-red-400', slate: 'text-slate-300' }[accent] || 'text-white';
+  const rail = { white: 'border-l-slate-600', emerald: 'border-l-emerald-500', amber: 'border-l-amber-500', blue: 'border-l-blue-400', red: 'border-l-red-500', slate: 'border-l-slate-600' }[accent] || 'border-l-slate-600';
   return (
-    <div className={`bg-slate-800/50 border border-slate-700 rounded-xl p-4 ${className}`}>
-      <div className="text-xs text-slate-500 mb-1">{label}</div>
+    <div className={`bg-slate-800/40 border border-slate-700/60 border-l-2 ${rail} rounded-lg p-4 ${className}`}>
+      <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">{label}</div>
       <div className={`text-xl font-bold ${v}`}>{value}</div>
     </div>
   );
