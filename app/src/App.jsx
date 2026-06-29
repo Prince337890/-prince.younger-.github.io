@@ -462,17 +462,23 @@ export default function App() {
           {isAdmin && !viewAs ? (
             /* ----- ADMIN sees only dispatch tools ----- */
             <>
-              <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">DISPATCH</div>
+              <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">OVERVIEW</div>
               <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
+
+              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">THE DEAL DESK</div>
+              <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
+              <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
+              <NavItem icon={<ShieldCheck size={18} />} label="Broker Check" isActive={activeTab === 'brokercheck'} onClick={() => go('brokercheck')} />
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
-              <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
-              <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
+
+              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">CARRIERS &amp; ACCESS</div>
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<User size={18} />} label="Logins &amp; Access" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<HeartPulse size={18} />} label="VIP Services" isActive={activeTab === 'vip'} onClick={() => go('vip')} />
-              <NavItem icon={<ShieldCheck size={18} />} label="Broker Check" isActive={activeTab === 'brokercheck'} onClick={() => go('brokercheck')} />
-              <NavItem icon={<User size={18} />} label="Manage Drivers" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
-              <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
+
+              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">BUSINESS</div>
+              <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
             </>
@@ -835,7 +841,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
         </Card>
       )}
 
-      <QuoteOfTheDay />
+      <QuoteOfTheDay forDispatcher={isAdmin} />
 
       {!isAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1131,11 +1137,32 @@ const QUOTES = [
   { text: "Drive safe today — tomorrow's loads need you.", author: "Forward Motion" },
 ];
 
-function QuoteOfTheDay() {
+// Dispatcher-facing quotes — geared toward the deal desk, not the road.
+const DISPATCHER_QUOTES = [
+  { text: "Every load you book is a problem you solved for someone.", author: "Forward Motion" },
+  { text: "The best dispatchers don't find loads — they build relationships.", author: "Forward Motion" },
+  { text: "Never accept the first number. The counter is where you get paid.", author: "Forward Motion" },
+  { text: "Your carrier's profit is your reputation. Protect both.", author: "Forward Motion" },
+  { text: "Opportunities don't happen. You create them.", author: "Chris Grosser" },
+  { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+  { text: "Price is what you pay. Value is what you negotiate.", author: "Forward Motion" },
+  { text: "The dispatcher who knows the lane owns the call.", author: "Forward Motion" },
+  { text: "Success is where preparation and opportunity meet.", author: "Bobby Unser" },
+  { text: "A deal that doesn't clear the floor isn't a deal — it's a loss.", author: "Forward Motion" },
+  { text: "Do the hard work of the quiet hours; the loud wins follow.", author: "Forward Motion" },
+  { text: "Persistence on the phone beats talent on the bench.", author: "Forward Motion" },
+  { text: "Vet twice, book once. Fraud only wins when you're in a hurry.", author: "Forward Motion" },
+  { text: "Treat every carrier like the only one — that's how you keep them.", author: "Forward Motion" },
+  { text: "Quality means doing it right when no one is looking.", author: "Henry Ford" },
+  { text: "The harder you work, the luckier you get.", author: "Gary Player" },
+];
+
+function QuoteOfTheDay({ forDispatcher = false }) {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
   const dayOfYear = Math.floor((now - start) / 86400000);
-  const q = QUOTES[dayOfYear % QUOTES.length];
+  const pool = forDispatcher ? DISPATCHER_QUOTES : QUOTES;
+  const q = pool[dayOfYear % pool.length];
 
   return (
     <Card className="p-5 flex items-start gap-4">
@@ -2940,11 +2967,11 @@ function ManageDriversView() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
-        <h2 className="text-2xl font-bold">Manage Drivers</h2>
+        <h2 className="text-2xl font-bold">Logins &amp; Access</h2>
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
-      <p className="text-slate-400">Create driver accounts and control who can sign in. Drivers can't self-register.</p>
-      <GuidedHint>Order matters: create the driver login <strong>here first</strong>, then link it to the carrier’s profile in the <strong>Carriers</strong> tab. Only linked carriers can be sent loads.</GuidedHint>
+      <p className="text-slate-400"><strong className="text-slate-300">This tab is only about portal access</strong> — who can log in. Create the login &amp; temporary password here, then approve or revoke sign-in. The carrier's business details (MC#, equipment, rates, VIP) live in the <strong className="text-slate-300">Carriers</strong> tab.</p>
+      <GuidedHint>Two-step setup: (1) create the login <strong>here</strong>, then (2) build the carrier's profile in <strong>Carriers</strong> and link this login to it. Think of this tab as the keyring and Carriers as the rolodex.</GuidedHint>
 
       <Card className="p-6">
         <form onSubmit={createDriver} className="space-y-4">
@@ -2971,6 +2998,14 @@ function ManageDriversView() {
             <div className="font-mono text-slate-200">Email: {created.email}</div>
             <div className="font-mono text-slate-200">Temp password: {created.pw}</div>
             <div className="text-xs text-slate-400 mt-2">They'll be asked to set their own password on first login.</div>
+            <button type="button"
+              onClick={() => {
+                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://forward-motion-app-bdim.vercel.app\n     Email: ${created.email}\n     Temporary password: ${created.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nFrom there you'll see your assigned loads, pay, compliance, and more — all in one place.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
+                if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
+              }}
+              className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
+              📋 Copy welcome email
+            </button>
           </div>
         )}
         </form>
@@ -3998,7 +4033,7 @@ function CarriersView() {
         <h2 className="text-2xl font-bold">Carriers</h2>
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
-      <p className="text-slate-400">Save each carrier once. Pick them in the Rate Calculator to auto-fill specs and one-click assign loads.</p>
+      <p className="text-slate-400"><strong className="text-slate-300">This is the carrier's business profile</strong> — equipment, rates, lanes, VIP &amp; fee. Save each once, then pick them in the Rate Calculator to auto-fill specs and one-click assign loads. (Their <strong className="text-slate-300">login</strong> is created separately in <strong className="text-slate-300">Logins &amp; Access</strong>.)</p>
 
       <Card className="p-6">
         <form onSubmit={add} className="space-y-4">
