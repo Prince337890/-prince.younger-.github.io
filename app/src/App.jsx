@@ -4034,12 +4034,14 @@ function NewAuthorityView() {
 // Packet" in their Carriers tab. Replaces the old Google-Forms/Apps-Script flow.
 function CarrierIntakeView({ orgId }) {
   const blank = {
-    name: '', mcNumber: '', dotNumber: '', driverName: '', phone: '', email: '',
-    homeBase: '', trailerType: 'Dry Van', maxCapacity: '', minRpm: '',
+    name: '', mcNumber: '', dotNumber: '', ein: '', driverName: '', phone: '', email: '',
+    homeBase: '', trailerType: 'Dry Van', numTrucks: '', maxCapacity: '', minRpm: '',
+    factoringCompany: '', hazmat: false, twic: false,
     preferredLanes: '', noGo: '', multiStop: '', notes: '',
   };
   const [f, setF] = useState(blank);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const toggle = (k) => () => setF((s) => ({ ...s, [k]: !s[k] }));
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
@@ -4056,9 +4058,10 @@ function CarrierIntakeView({ orgId }) {
       await addDoc(collection(db, 'carrier_packets'), {
         orgId,
         name: f.name.trim(), mcNumber: f.mcNumber.trim(), dotNumber: f.dotNumber.trim(),
-        driverName: f.driverName.trim(), phone: f.phone.trim(), email: f.email.trim(),
+        ein: f.ein.trim(), driverName: f.driverName.trim(), phone: f.phone.trim(), email: f.email.trim(),
         homeBase: f.homeBase.trim(), trailerType: f.trailerType.trim(),
-        maxCapacity: f.maxCapacity.trim(), minRpm: f.minRpm.trim(),
+        numTrucks: f.numTrucks.trim(), maxCapacity: f.maxCapacity.trim(), minRpm: f.minRpm.trim(),
+        factoringCompany: f.factoringCompany.trim(), hazmat: !!f.hazmat, twic: !!f.twic,
         preferredLanes: f.preferredLanes.trim(), noGo: f.noGo.trim(),
         multiStop: f.multiStop.trim(), notes: f.notes.trim(),
         status: 'new', createdAt: serverTimestamp(),
@@ -4104,6 +4107,8 @@ function CarrierIntakeView({ orgId }) {
             <div><Label>Carrier / Business Name *</Label><input className={fld} value={f.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>
             <div><Label>MC Number *</Label><input className={fld} value={f.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
             <div><Label>DOT Number</Label><input className={fld} value={f.dotNumber} onChange={set('dotNumber')} placeholder="1234567" /></div>
+            <div><Label>EIN (Tax ID)</Label><input className={fld} value={f.ein} onChange={set('ein')} placeholder="12-3456789" /></div>
+            <div><Label>Factoring Company</Label><input className={fld} value={f.factoringCompany} onChange={set('factoringCompany')} placeholder="e.g. RTS, Apex — or 'None'" /></div>
             <div><Label>Driver Name</Label><input className={fld} value={f.driverName} onChange={set('driverName')} /></div>
             <div><Label>Cell Phone *</Label><input className={fld} type="tel" value={f.phone} onChange={set('phone')} placeholder="(555) 123-4567" /></div>
             <div><Label>Email</Label><input className={fld} type="email" value={f.email} onChange={set('email')} /></div>
@@ -4114,8 +4119,21 @@ function CarrierIntakeView({ orgId }) {
                 {['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Power Only', 'Box Truck', 'Other'].map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             </div>
+            <div><Label># of Trucks</Label><input className={fld} type="number" inputMode="numeric" value={f.numTrucks} onChange={set('numTrucks')} placeholder="1" /></div>
             <div><Label>Max Capacity (lbs)</Label><input className={fld} type="number" inputMode="decimal" value={f.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
             <div><Label>Minimum RPM ($)</Label><input className={fld} type="number" inputMode="decimal" value={f.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
+            <div className="sm:col-span-2 flex flex-wrap gap-2 pt-1">
+              <button type="button" onClick={toggle('hazmat')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${f.hazmat ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${f.hazmat ? 'bg-amber-500 border-amber-500 text-slate-950' : 'border-slate-500'}`}>{f.hazmat ? '✓' : ''}</span>
+                Hazmat endorsement
+              </button>
+              <button type="button" onClick={toggle('twic')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${f.twic ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${f.twic ? 'bg-amber-500 border-amber-500 text-slate-950' : 'border-slate-500'}`}>{f.twic ? '✓' : ''}</span>
+                TWIC card
+              </button>
+            </div>
             <div className="sm:col-span-2"><Label>Preferred Lanes / Regions</Label><input className={fld} value={f.preferredLanes} onChange={set('preferredLanes')} placeholder="TX ↔ Southeast, no NYC" /></div>
             <div className="sm:col-span-2"><Label>No-Go States / Cities</Label><input className={fld} value={f.noGo} onChange={set('noGo')} placeholder="NYC, CA" /></div>
             <div className="sm:col-span-2"><Label>Anything else we should know?</Label><input className={fld} value={f.notes} onChange={set('notes')} placeholder="TWIC, hazmat, team, etc." /></div>
@@ -4167,13 +4185,15 @@ function CarriersView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const blank = {
-    name: '', mcNumber: '', driverName: '', phone: '', homeBase: '', trailerType: '',
-    mpg: '', maxCapacity: '', minRpm: '', preferredLanes: '', noGo: '', multiStop: '',
+    name: '', mcNumber: '', dotNumber: '', ein: '', driverName: '', phone: '', homeBase: '', trailerType: '',
+    mpg: '', numTrucks: '', maxCapacity: '', minRpm: '', factoringCompany: '', hazmat: false, twic: false,
+    preferredLanes: '', noGo: '', multiStop: '',
     linkedDriverUid: '', currentDriveHours: '', feePct: '10', vipConcierge: false, availability: 'Available',
     newLoginEmail: '', newLoginPw: '',
   };
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const toggleField = (k) => () => setForm((f) => ({ ...f, [k]: !f[k] }));
   const [createdLogin, setCreatedLogin] = useState(null);
   const [carrierSearch, setCarrierSearch] = useState('');
   const genPw = () => {
@@ -4245,12 +4265,18 @@ function CarriersView() {
       ...f,
       name: p.name || f.name,
       mcNumber: p.mcNumber || f.mcNumber,
+      dotNumber: p.dotNumber || f.dotNumber,
+      ein: p.ein || f.ein,
       driverName: p.driverName || f.driverName,
       phone: p.phone || f.phone,
       homeBase: p.homeBase || f.homeBase,
       trailerType: p.trailerType || f.trailerType,
+      numTrucks: p.numTrucks ? String(p.numTrucks) : f.numTrucks,
       maxCapacity: p.maxCapacity ? String(p.maxCapacity) : f.maxCapacity,
       minRpm: p.minRpm ? String(p.minRpm) : f.minRpm,
+      factoringCompany: p.factoringCompany || f.factoringCompany,
+      hazmat: typeof p.hazmat === 'boolean' ? p.hazmat : f.hazmat,
+      twic: typeof p.twic === 'boolean' ? p.twic : f.twic,
       preferredLanes: p.preferredLanes || f.preferredLanes,
       noGo: p.noGo || f.noGo,
       multiStop: p.multiStop || f.multiStop,
@@ -4296,13 +4322,19 @@ function CarriersView() {
       await addDoc(collection(db, 'carriers'), stampOrg({
         name: form.name.trim(),
         mcNumber: form.mcNumber.trim(),
+        dotNumber: form.dotNumber.trim(),
+        ein: form.ein.trim(),
         driverName: form.driverName.trim(),
         phone: form.phone.trim(),
         homeBase: form.homeBase.trim(),
         trailerType: form.trailerType.trim(),
         mpg: Number(form.mpg) || 0,
+        numTrucks: Number(form.numTrucks) || 0,
         maxCapacity: Number(form.maxCapacity) || 0,
         minRpm: Number(form.minRpm) || 0,
+        factoringCompany: form.factoringCompany.trim(),
+        hazmat: !!form.hazmat,
+        twic: !!form.twic,
         preferredLanes: form.preferredLanes.trim(),
         noGo: form.noGo.trim(),
         multiStop: form.multiStop.trim(),
@@ -4423,11 +4455,15 @@ function CarriersView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label className="block text-xs text-slate-400 mb-1">Carrier / Business Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">MC Number</label><input className={field} value={form.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">DOT Number</label><input className={field} value={form.dotNumber} onChange={set('dotNumber')} placeholder="1234567" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">EIN (Tax ID)</label><input className={field} value={form.ein} onChange={set('ein')} placeholder="12-3456789" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Factoring Company</label><input className={field} value={form.factoringCompany} onChange={set('factoringCompany')} placeholder="RTS / Apex / None" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Driver Name</label><input className={field} value={form.driverName} onChange={set('driverName')} /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Driver Cell Phone</label><input className={field} value={form.phone} onChange={set('phone')} /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Home Base (City, State)</label><input className={field} value={form.homeBase} onChange={set('homeBase')} /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Trailer Type</label><input className={field} value={form.trailerType} onChange={set('trailerType')} placeholder="Dry Van / Reefer / Flatbed" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Truck Avg MPG</label><input className={field} type="number" inputMode="decimal" value={form.mpg} onChange={set('mpg')} placeholder="6.5" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1"># of Trucks</label><input className={field} type="number" inputMode="numeric" value={form.numTrucks} onChange={set('numTrucks')} placeholder="1" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Max Capacity (lbs)</label><input className={field} type="number" inputMode="decimal" value={form.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Minimum RPM ($)</label><input className={field} type="number" inputMode="decimal" value={form.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Current Drive Hours Available</label><input className={field} type="number" inputMode="decimal" value={form.currentDriveHours} onChange={set('currentDriveHours')} placeholder="8" /></div>
@@ -4439,6 +4475,18 @@ function CarriersView() {
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${form.vipConcierge ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
               <span className="flex items-center gap-1.5"><HeartPulse size={15} /> VIP Concierge</span>
               <span className={`w-8 h-4 rounded-full relative transition-colors ${form.vipConcierge ? 'bg-amber-500' : 'bg-slate-600'}`}><span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${form.vipConcierge ? 'left-4' : 'left-0.5'}`} /></span>
+            </button>
+          </div>
+          <div className="sm:col-span-2 flex flex-wrap gap-2">
+            <button type="button" onClick={toggleField('hazmat')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${form.hazmat ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+              <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${form.hazmat ? 'bg-amber-500 border-amber-500 text-slate-950' : 'border-slate-500'}`}>{form.hazmat ? '✓' : ''}</span>
+              Hazmat endorsement
+            </button>
+            <button type="button" onClick={toggleField('twic')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${form.twic ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+              <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${form.twic ? 'bg-amber-500 border-amber-500 text-slate-950' : 'border-slate-500'}`}>{form.twic ? '✓' : ''}</span>
+              TWIC card
             </button>
           </div>
           <div className="sm:col-span-2">
