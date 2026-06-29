@@ -425,6 +425,7 @@ export default function App() {
       case 'vip': return isAdmin ? <VipServicesView /> : <DashboardView />;
       case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
+      case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
       case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
       default: return <DashboardView />;
@@ -477,6 +478,7 @@ export default function App() {
               <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">THE DEAL DESK</div>
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
               <NavItem icon={<Map size={18} />} label="Lane Intel" isActive={activeTab === 'laneintel'} onClick={() => go('laneintel')} />
+              <NavItem icon={<Navigation size={18} />} label="TriHaul Planner" isActive={activeTab === 'trihaul'} onClick={() => go('trihaul')} />
               <NavItem icon={<ShieldCheck size={18} />} label="Broker Check" isActive={activeTab === 'brokercheck'} onClick={() => go('brokercheck')} />
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
@@ -2957,7 +2959,9 @@ function ManageDriversView() {
       setEmail(''); setPw('');
       fetchUsers();
     } catch (err) {
-      setError(err.message.replace('Firebase: ', ''));
+      setError(err.code === 'auth/email-already-in-use'
+        ? 'That email already has a login. If you revoked it, just re-approve it in the list below — the account is kept (it isn\'t deleted when you revoke or remove a carrier).'
+        : err.message.replace('Firebase: ', ''));
     } finally {
       setSaving(false);
     }
@@ -3866,6 +3870,7 @@ function CarriersView() {
   const [form, setForm] = useState(blank);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [createdLogin, setCreatedLogin] = useState(null);
+  const [carrierSearch, setCarrierSearch] = useState('');
   const genPw = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let p = '';
@@ -3970,7 +3975,10 @@ function CarriersView() {
           setCreatedLogin({ email: form.newLoginEmail.trim(), pw: form.newLoginPw });
         } catch (err) {
           console.error('inline login creation failed', err);
-          alert('Could not create the login: ' + (err.message || '').replace('Firebase: ', '') + '\n\nThe carrier was NOT saved — fix the email/password and try again.');
+          const inUse = err.code === 'auth/email-already-in-use';
+          alert(inUse
+            ? 'That email already has a portal login — you don\'t need to create it again.\n\nClear the "create login" fields and pick the existing account from "Linked Driver Login" above instead. If it was revoked, re-enable it in Logins & Access (the login is kept when you revoke or remove a carrier).\n\nThe carrier was NOT saved yet.'
+            : 'Could not create the login: ' + (err.message || '').replace('Firebase: ', '') + '\n\nThe carrier was NOT saved — fix the email/password and try again.');
           setSaving(false);
           return;
         }
@@ -4181,14 +4189,23 @@ function CarriersView() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="font-bold mb-4">Saved Carriers</h3>
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <h3 className="font-bold">Saved Carriers <span className="text-slate-500 font-normal text-sm">({list.length})</span></h3>
+          {list.length > 0 && (
+            <input value={carrierSearch} onChange={(e) => setCarrierSearch(e.target.value)} placeholder="Search name, MC, driver…"
+              className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-amber-500 w-full sm:w-64" />
+          )}
+        </div>
         {loading ? (
           <div className="text-slate-400 text-sm">Loading…</div>
         ) : list.length === 0 ? (
           <div className="text-slate-500 text-sm">No carriers saved yet.</div>
-        ) : (
-          <div className="space-y-2">
-            {list.map((c) => (
+        ) : (() => {
+          const shown = list.filter((c) => `${c.name || ''} ${c.mcNumber || ''} ${c.driverName || ''}`.toLowerCase().includes(carrierSearch.toLowerCase()));
+          if (shown.length === 0) return <div className="text-slate-500 text-sm">No carriers match “{carrierSearch}”.</div>;
+          return (
+          <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1 -mr-1">
+            {shown.map((c) => (
               <div key={c.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -4223,8 +4240,209 @@ function CarriersView() {
               </div>
             ))}
           </div>
-        )}
+          );
+        })()}
       </Card>
+    </div>
+  );
+}
+
+// ---------- ADMIN: TRIHAUL PLANNER ----------
+// Seeded intermediate-market (Point C) suggestions by the destination's state.
+// Heuristic, not live data — true load-to-truck ratios need a DAT feed (backend).
+const TRIHAUL_MARKETS = {
+  FL: ['Atlanta, GA', 'Charlotte, NC', 'Nashville, TN', 'Savannah, GA', 'Jacksonville, FL'],
+  TX: ['Dallas, TX', 'Memphis, TN', 'Oklahoma City, OK', 'Laredo, TX', 'Houston, TX'],
+  CA: ['Phoenix, AZ', 'Las Vegas, NV', 'Salt Lake City, UT', 'Denver, CO', 'Ontario, CA'],
+  GA: ['Charlotte, NC', 'Nashville, TN', 'Memphis, TN', 'Jacksonville, FL', 'Birmingham, AL'],
+  IL: ['Indianapolis, IN', 'Columbus, OH', 'Kansas City, MO', 'St. Louis, MO', 'Memphis, TN'],
+  PA: ['Columbus, OH', 'Charlotte, NC', 'Chicago, IL', 'Buffalo, NY', 'Harrisburg, PA'],
+  NJ: ['Columbus, OH', 'Charlotte, NC', 'Chicago, IL', 'Atlanta, GA', 'Pittsburgh, PA'],
+  OH: ['Chicago, IL', 'Atlanta, GA', 'Charlotte, NC', 'Indianapolis, IN', 'Nashville, TN'],
+  TN: ['Atlanta, GA', 'Dallas, TX', 'Chicago, IL', 'Charlotte, NC', 'Memphis, TN'],
+  NC: ['Atlanta, GA', 'Charlotte, NC', 'Nashville, TN', 'Columbus, OH', 'Jacksonville, FL'],
+  AZ: ['Dallas, TX', 'El Paso, TX', 'Las Vegas, NV', 'Salt Lake City, UT', 'Denver, CO'],
+};
+const TRIHAUL_FALLBACK = ['Atlanta, GA', 'Dallas, TX', 'Chicago, IL', 'Memphis, TN', 'Columbus, OH'];
+
+function TriHaulView() {
+  const DEFAULTS = {
+    originCity: '', destCity: '', abMiles: '', headhaulRate: '', backhaulRate: '',
+    pointC: '', bcMiles: '', bcRate: '', caMiles: '', caRate: '',
+    deadhead: '', mpg: '6.5', fuelPrice: '5.35', driveAvail: '', speed: '50', equipment: 'Dry Van',
+  };
+  const [t, setT] = useState(DEFAULTS);
+  const set = (k) => (e) => setT((s) => ({ ...s, [k]: e.target.value }));
+  const n = (x) => parseFloat(x) || 0;
+  const [pulled, setPulled] = useState('');
+
+  const pullFromCalc = React.useCallback((announce) => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('fm_ratecalc_v1') || '{}');
+      const v = saved.v || {};
+      setT((s) => ({
+        ...s,
+        originCity: v.originCity || s.originCity,
+        destCity: v.destCity || s.destCity,
+        abMiles: v.loadedMiles ? String(v.loadedMiles) : s.abMiles,
+        headhaulRate: (v.finalOffer || v.brokerOffer) ? String(v.finalOffer || v.brokerOffer) : s.headhaulRate,
+        mpg: v.mpg || s.mpg,
+        fuelPrice: v.fuelPrice || s.fuelPrice,
+        driveAvail: (v.driveAvail || v.driveAvail === 0) ? String(v.driveAvail) : s.driveAvail,
+      }));
+      if (announce) setPulled('Pulled the current lane from the Rate Calculator ✓');
+    } catch (_) { /* ignore */ }
+  }, []);
+  // Auto-update from the Rate Calculator on open.
+  useEffect(() => { pullFromCalc(false); }, [pullFromCalc]);
+
+  const stateOf = (city) => { const m = (city || '').match(/,\s*([A-Za-z]{2})\b/); return m ? m[1].toUpperCase() : ''; };
+  const suggestions = TRIHAUL_MARKETS[stateOf(t.destCity)] || TRIHAUL_FALLBACK;
+
+  // Economics
+  const rtRevenue = n(t.headhaulRate) + n(t.backhaulRate);
+  const rtMiles = n(t.abMiles) * 2;
+  const rtRpm = rtMiles > 0 ? rtRevenue / rtMiles : 0;
+  const rtFuel = n(t.mpg) > 0 ? (rtMiles / n(t.mpg)) * n(t.fuelPrice) : 0;
+  const rtNet = rtRevenue - rtFuel;
+
+  const triMiles = n(t.abMiles) + n(t.bcMiles) + n(t.caMiles) + n(t.deadhead);
+  const triRevenue = n(t.headhaulRate) + n(t.bcRate) + n(t.caRate);
+  const triRpm = triMiles > 0 ? triRevenue / triMiles : 0;
+  const triFuel = n(t.mpg) > 0 ? (triMiles / n(t.mpg)) * n(t.fuelPrice) : 0;
+  const triNet = triRevenue - triFuel;
+
+  const haveTri = n(t.bcRate) > 0 && n(t.caRate) > 0 && triMiles > 0;
+  const haveRt = n(t.backhaulRate) > 0 && rtMiles > 0;
+  const triWins = haveTri && haveRt && triRpm >= rtRpm;
+
+  // HOS across the triangle
+  const speed = n(t.speed) || 50;
+  const triDriveH = speed > 0 ? triMiles / speed : 0;
+  const daysNeeded = triDriveH > 0 ? Math.ceil(triDriveH / 11) : 0;
+  const leg1H = speed > 0 ? n(t.abMiles) / speed : 0;
+  const leg1Fits = t.driveAvail !== '' ? leg1H <= Math.min(n(t.driveAvail), 11) : null;
+
+  const money = (x) => '$' + Math.round(x || 0).toLocaleString('en-US');
+  const rpm = (x) => '$' + (x || 0).toFixed(2);
+  const field = INPUT_CLS;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">TriHaul Planner</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Beat the cheap direct backhaul. Build a triangle (A → B → C → A) that keeps the truck loaded and lifts your rate-per-mile.</p>
+      <GuidedHint>The trap is taking a cheap B→A backhaul just to get home. A third leg through a strong freight market (Point C) usually earns more total revenue at a higher RPM — even after the extra miles. This tool compares the two so you book the smarter triangle.</GuidedHint>
+
+      <div className="flex flex-wrap gap-2 items-center">
+        <GhostButton onClick={() => pullFromCalc(true)} className="text-sm">⤵ Pull current lane from Rate Calculator</GhostButton>
+        {pulled && <span className="text-xs text-emerald-400">{pulled}</span>}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* INPUTS */}
+        <Card className="p-6 space-y-4">
+          <PanelHeader icon={<Navigation size={18} />} title="Trip Inputs" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Origin — Point A"><input className={field} value={t.originCity} onChange={set('originCity')} placeholder="Atlanta, GA" /></Field>
+            <Field label="Destination — Point B"><input className={field} value={t.destCity} onChange={set('destCity')} placeholder="Miami, FL" /></Field>
+            <Field label="Headhaul rate A→B ($)"><input className={field} type="number" inputMode="decimal" value={t.headhaulRate} onChange={set('headhaulRate')} placeholder="1750" /></Field>
+            <Field label="A→B loaded miles"><input className={field} type="number" inputMode="decimal" value={t.abMiles} onChange={set('abMiles')} placeholder="660" /></Field>
+            <Field label="Avg direct backhaul B→A ($)" className="sm:col-span-2"><input className={field} type="number" inputMode="decimal" value={t.backhaulRate} onChange={set('backhaulRate')} placeholder="950 (the cheap one to beat)" /></Field>
+          </div>
+
+          <div className="pt-1">
+            <div className="text-xs font-semibold text-amber-400 mb-2">① Pick an intermediate market — Point C</div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {suggestions.map((c) => (
+                <button key={c} type="button" onClick={() => setT((s) => ({ ...s, pointC: c }))}
+                  className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors ${t.pointC === c ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>{c}</button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Point C"><input className={field} value={t.pointC} onChange={set('pointC')} placeholder="Atlanta, GA" /></Field>
+              <Field label="Equipment"><input className={field} value={t.equipment} onChange={set('equipment')} placeholder="Dry Van" /></Field>
+              <Field label="B→C rate ($)"><input className={field} type="number" inputMode="decimal" value={t.bcRate} onChange={set('bcRate')} placeholder="1900" /></Field>
+              <Field label="B→C miles"><input className={field} type="number" inputMode="decimal" value={t.bcMiles} onChange={set('bcMiles')} placeholder="660" /></Field>
+              <Field label="C→A rate ($)"><input className={field} type="number" inputMode="decimal" value={t.caRate} onChange={set('caRate')} placeholder="700" /></Field>
+              <Field label="C→A miles"><input className={field} type="number" inputMode="decimal" value={t.caMiles} onChange={set('caMiles')} placeholder="250" /></Field>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Field label="Deadhead mi"><input className={field} type="number" inputMode="decimal" value={t.deadhead} onChange={set('deadhead')} placeholder="50" /></Field>
+            <Field label="MPG"><input className={field} type="number" inputMode="decimal" value={t.mpg} onChange={set('mpg')} /></Field>
+            <Field label="Fuel $/gal"><input className={field} type="number" inputMode="decimal" value={t.fuelPrice} onChange={set('fuelPrice')} /></Field>
+            <Field label="Avg mph"><input className={field} type="number" inputMode="decimal" value={t.speed} onChange={set('speed')} /></Field>
+          </div>
+        </Card>
+
+        {/* RESULTS */}
+        <div className="space-y-4">
+          {/* ② Economic comparison */}
+          <Card className="p-5">
+            <PanelHeader icon={<Wallet size={18} />} title="Round Trip vs. TriHaul" />
+            <div className="grid grid-cols-3 gap-px bg-slate-800 rounded-lg overflow-hidden mt-4 text-center">
+              <div className="bg-slate-900/60 p-3"><div className="text-[10px] uppercase text-slate-500">Metric</div></div>
+              <div className="bg-slate-900/60 p-3"><div className="text-[10px] uppercase text-slate-500">Round Trip</div><div className="text-[10px] text-slate-600">A→B→A</div></div>
+              <div className="bg-slate-900/60 p-3"><div className="text-[10px] uppercase text-amber-400">TriHaul</div><div className="text-[10px] text-slate-600">A→B→C→A</div></div>
+
+              <div className="bg-slate-800/40 p-3 text-left text-xs text-slate-400">Revenue</div>
+              <div className="bg-slate-800/40 p-3 text-sm font-semibold text-white">{haveRt ? money(rtRevenue) : '—'}</div>
+              <div className="bg-amber-500/5 p-3 text-sm font-semibold text-white">{haveTri ? money(triRevenue) : '—'}</div>
+
+              <div className="bg-slate-800/40 p-3 text-left text-xs text-slate-400">Total miles</div>
+              <div className="bg-slate-800/40 p-3 text-sm text-slate-200">{rtMiles ? rtMiles.toLocaleString() : '—'}</div>
+              <div className="bg-amber-500/5 p-3 text-sm text-slate-200">{triMiles ? Math.round(triMiles).toLocaleString() : '—'}</div>
+
+              <div className="bg-slate-800/40 p-3 text-left text-xs text-slate-400">Rate / mile</div>
+              <div className="bg-slate-800/40 p-3 text-sm font-bold text-white">{haveRt ? rpm(rtRpm) : '—'}</div>
+              <div className={`bg-amber-500/5 p-3 text-sm font-bold ${haveTri && triWins ? 'text-emerald-400' : 'text-amber-400'}`}>{haveTri ? rpm(triRpm) : '—'}</div>
+
+              <div className="bg-slate-800/40 p-3 text-left text-xs text-slate-400">Net after fuel</div>
+              <div className="bg-slate-800/40 p-3 text-sm text-slate-200">{haveRt ? money(rtNet) : '—'}</div>
+              <div className="bg-amber-500/5 p-3 text-sm text-slate-200">{haveTri ? money(triNet) : '—'}</div>
+            </div>
+            {haveTri && haveRt && (
+              <div className={`mt-4 rounded-lg border p-3 text-sm ${triWins ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/10 border-amber-500/40 text-amber-300'}`}>
+                {triWins
+                  ? `🟢 TriHaul wins — ${rpm(triRpm - rtRpm)}/mi better and ${money(triRevenue - rtRevenue)} more revenue. Book the triangle.`
+                  : `🟡 The round trip is ahead by ${rpm(rtRpm - triRpm)}/mi here — find a stronger C→A leg or a closer Point C.`}
+              </div>
+            )}
+          </Card>
+
+          {/* ③ Deadhead & fuel */}
+          <Card className="p-5">
+            <PanelHeader icon={<CreditCard size={18} />} title="Deadhead & Fuel" />
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <StatTile label="TriHaul fuel cost" value={haveTri ? money(triFuel) : '—'} accent="amber" />
+              <StatTile label="Deadhead miles" value={t.deadhead ? Number(t.deadhead).toLocaleString() : '0'} />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-3">Quote each leg <strong>all-in</strong> — confirm the fuel surcharge with the broker on top of linehaul, and don't forget the deadhead between legs when you compare.</p>
+          </Card>
+
+          {/* ④ HOS */}
+          <Card className="p-5">
+            <PanelHeader icon={<Activity size={18} />} title="HOS Compliance" />
+            <div className="grid grid-cols-3 gap-3 mt-4 text-center">
+              <div><div className="text-[10px] text-slate-500">DRIVE TIME</div><div className="font-bold text-white text-sm">{triDriveH ? triDriveH.toFixed(1) + 'h' : '—'}</div></div>
+              <div><div className="text-[10px] text-slate-500">DAYS NEEDED</div><div className="font-bold text-white text-sm">{daysNeeded || '—'}</div></div>
+              <div><div className="text-[10px] text-slate-500">1ST LEG FITS</div><div className={`font-bold text-sm ${leg1Fits === null ? 'text-slate-400' : leg1Fits ? 'text-emerald-400' : 'text-red-400'}`}>{leg1Fits === null ? '—' : leg1Fits ? 'Yes' : 'No'}</div></div>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-3">Estimate only — {daysNeeded ? `~${daysNeeded} driving day${daysNeeded === 1 ? '' : 's'} at 11h/day` : 'enter miles & speed'}. Confirm each leg against the 11-hour drive limit, the 14-hour duty window, and the 70-hour/8-day cycle in the driver's ELD before committing.</p>
+          </Card>
+
+          {/* ⑤ Market viability */}
+          <Card className="p-5">
+            <PanelHeader icon={<Map size={18} />} title="Market Viability" accent="blue" />
+            <p className="text-sm text-slate-300 mt-3">{t.pointC ? `Make sure ${t.pointC} has outbound freight back toward ${t.originCity || 'Point A'} before you route through it — you don't want the driver stranded.` : 'Pick a Point C above to assess.'}</p>
+            <p className="text-[11px] text-slate-500 mt-2">The suggested markets are strong general freight hubs, but <strong>check the live load-to-truck ratio and demand</strong> for your equipment before committing. Real-time DAT/market data feeds this section in the backend phase; for now, verify on your load board.</p>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4888,9 +5106,73 @@ const TALK_TRACKS = [
   },
 ];
 
+// Knowledge check for new dispatchers — covers the job and the portal.
+const QUIZ = [
+  { q: 'A broker offers $1,650 on a 750-mile load. The carrier’s floor is $2.30/mi. What do you do?', options: ['Book it — it’s over $1,500', 'Counter — $1,650 ÷ 750 = $2.20/mi is below the $2.30 floor', 'Decline without countering'], answer: 1, why: '$1,650 ÷ 750 = $2.20/mi, under the $2.30 floor. Counter toward the floor — the portal’s guard will also warn you before you send.' },
+  { q: 'Before you dispatch the driver to the shipper, what MUST be done?', options: ['Nothing — just send them', 'The Rate Confirmation is signed and returned to the broker', 'The driver texts you'], answer: 1, why: 'Never roll without a signed, returned RateCon. It’s your binding agreement and proof for payment.' },
+  { q: 'Why verify a broker’s $75,000 bond in FMCSA before booking?', options: ['It’s optional paperwork', 'If the bond is suspended, your carrier won’t get paid', 'It sets the rate'], answer: 1, why: 'A suspended broker can’t pay claims — booking with one risks your carrier’s paycheck. Use Broker Check.' },
+  { q: 'A broker pressures you to book fast, offers a suspiciously high rate, and emails from a gmail address. This is…', options: ['A great deal — book it', 'Classic double-brokering red flags — verify independently or walk', 'Normal'], answer: 1, why: 'Urgency + too-good rate + generic email are textbook fraud signals. Two or more = stop and verify.' },
+  { q: 'The driver is held 3 hours past their appointment at the receiver. You should…', options: ['Ignore it', 'Log the in/out times and file a detention claim', 'Tell them to leave'], answer: 1, why: 'Documented times are what get detention paid. File it on the load — the dispatcher sees it instantly.' },
+  { q: 'What turns a signed Bill of Lading into a Proof of Delivery (POD)?', options: ['The broker signs it', 'The receiver inspects and signs it at delivery', 'You print it'], answer: 1, why: 'At delivery the receiver’s signature on the BOL makes it the POD — your proof to invoice.' },
+  { q: 'What is “deadhead” and why does it matter?', options: ['Bonus pay', 'Empty miles to a pickup — they burn fuel for $0 and lower your true RPM', 'A type of trailer'], answer: 1, why: 'Always factor deadhead into the true rate-per-mile; it’s where new carriers quietly lose money.' },
+  { q: 'A TriHaul (A→B→C→A) is worth building when…', options: ['Never', 'The triangle’s total revenue and RPM beat a cheap direct backhaul', 'Only on flatbeds'], answer: 1, why: 'A third leg through a strong market usually earns more at a higher RPM than a cheap B→A backhaul. The TriHaul Planner compares them.' },
+];
+
+function DispatchQuiz() {
+  const [picked, setPicked] = useState({});
+  const choose = (qi, oi) => setPicked((p) => (p[qi] != null ? p : { ...p, [qi]: oi }));
+  const score = QUIZ.reduce((s, q, i) => s + (picked[i] === q.answer ? 1 : 0), 0);
+  const answered = Object.keys(picked).length;
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h3 className="text-lg font-bold flex items-center gap-2"><BookOpen className="text-amber-500" size={20} /> Knowledge Check</h3>
+        <Badge tone={answered === QUIZ.length ? (score >= 6 ? 'emerald' : 'amber') : 'slate'}>{score}/{QUIZ.length}</Badge>
+      </div>
+      <p className="text-sm text-slate-400 mb-4">Eight questions on the job and the portal. Tap an answer to lock it in and see why.</p>
+      <div className="space-y-5">
+        {QUIZ.map((q, qi) => {
+          const sel = picked[qi];
+          const done = sel != null;
+          return (
+            <div key={qi}>
+              <div className="text-sm font-semibold text-white mb-2">{qi + 1}. {q.q}</div>
+              <div className="space-y-2">
+                {q.options.map((opt, oi) => {
+                  const isAnswer = oi === q.answer;
+                  const isSel = sel === oi;
+                  let cls = 'bg-slate-800/50 border-slate-700 text-slate-200 hover:border-slate-600';
+                  if (done && isAnswer) cls = 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300';
+                  else if (done && isSel && !isAnswer) cls = 'bg-red-500/10 border-red-500/40 text-red-300';
+                  else if (done) cls = 'bg-slate-800/30 border-slate-700/60 text-slate-500';
+                  return (
+                    <button key={oi} type="button" onClick={() => choose(qi, oi)} disabled={done}
+                      className={`w-full text-left text-sm px-3 py-2 rounded-lg border transition-colors ${cls}`}>
+                      {done && isAnswer ? '✓ ' : done && isSel && !isAnswer ? '✕ ' : ''}{opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {done && <p className="text-xs text-slate-400 mt-2"><span className="text-amber-400 font-semibold">Why:</span> {q.why}</p>}
+            </div>
+          );
+        })}
+      </div>
+      {answered === QUIZ.length && (
+        <div className={`mt-5 rounded-lg border p-4 text-sm ${score >= 6 ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/10 border-amber-500/40 text-amber-300'}`}>
+          {score >= 6 ? `🟢 ${score}/${QUIZ.length} — you’ve got the fundamentals. Go book a real one.` : `🟡 ${score}/${QUIZ.length} — review the Glossary and SOPs, then run it again.`}
+          <button onClick={() => setPicked({})} className="ml-2 underline hover:text-white">Retake</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function TrainingView() {
-  const [tab, setTab] = useState('guided');
+  const [tab, setTab] = useState('practice');
   const TABS = [
+    ['practice', 'Practice & Quiz'],
     ['guided', 'Guided Mode'],
     ['glossary', 'Freight Glossary'],
     ['sops', 'SOPs'],
@@ -4915,6 +5197,33 @@ function TrainingView() {
           </button>
         ))}
       </div>
+
+      {tab === 'practice' && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="text-lg font-bold flex items-center gap-2 mb-1"><GraduationCap className="text-amber-500" size={20} /> Practice Run — Book Your First Load</h3>
+            <p className="text-sm text-slate-400 mb-4">Follow these steps end-to-end with a test carrier. Flip <span className="text-amber-300 font-semibold">Guided Mode</span> on first — it’ll coach you through each screen. Nothing here is live until you assign a real load.</p>
+            <ol className="space-y-3">
+              {[
+                ['Set up a test carrier', 'Carriers → Add a Carrier. Fill the specs and use “…or create their login right here” to make a test login in one step.'],
+                ['Vet the broker', 'Broker Check → run the checklist and the double-broker red-flag scan. Two or more flags = walk away.'],
+                ['Work the rate', 'Rate Calculator → pick your test carrier, enter the lane and the broker’s offer. Tap the market-rate suggestion. Watch the banner go red/yellow/green.'],
+                ['Check the clock', 'Scroll to the HOS Validator — confirm the load is legal on the driver’s hours before you commit.'],
+                ['Plan the triangle', 'TriHaul Planner → pull the lane and compare a round trip vs. a triangle so you’re not stuck with a cheap backhaul.'],
+                ['Send it', 'Back in the Rate Calculator, set the Final Agreed Rate and “Send as Offer.” Try a below-floor rate first to see the safety guard fire.'],
+                ['Follow the paperwork', 'Open the load and walk the “Paperwork to Collect & Confirm” stages — RateCon & NOA, then BOL, then POD & invoice.'],
+              ].map(([title, body], i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="shrink-0 w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                  <div><span className="text-sm font-semibold text-white">{title}.</span> <span className="text-sm text-slate-400">{body}</span></div>
+                </li>
+              ))}
+            </ol>
+          </Card>
+
+          <DispatchQuiz />
+        </div>
+      )}
 
       {tab === 'guided' && (
         <div className="space-y-4">
