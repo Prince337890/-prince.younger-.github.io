@@ -170,6 +170,13 @@ async function placesNear(queryText, lat, lng, radius = 40000) {
   });
 }
 
+// Upload a file to Storage and return its public download URL.
+async function uploadToStorage(path, file) {
+  const r = storageRef(storage, path);
+  await uploadBytes(r, file);
+  return await getDownloadURL(r);
+}
+
 async function createDriverAccount(email, password) {
   const secondary = initializeApp(firebaseConfig, 'driver-creator-' + Date.now());
   const secondaryAuth = getAuth(secondary);
@@ -1422,8 +1429,18 @@ function DeliveryDebriefModal({ load, onClose }) {
   const [issues, setIssues] = useState({});
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
+  const [podUrl, setPodUrl] = useState('');
+  const [podBusy, setPodBusy] = useState(false);
   const ISSUES = ['Long detention / held late', 'Hard to find / bad directions', 'No overnight parking', 'Rude or slow staff', 'Lumper required', 'Other'];
   const toggle = (x) => setIssues((s) => ({ ...s, [x]: !s[x] }));
+  const uploadPod = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setPodBusy(true);
+    try { setPodUrl(await uploadToStorage(`load_docs/${load.uid}/pod_${load.id}_${file.name}`, file)); }
+    catch (err) { console.error('POD upload failed', err); alert('Photo upload failed — try again.'); }
+    finally { setPodBusy(false); }
+  };
 
   const submit = async (skip = false) => {
     setBusy(true);
@@ -1440,7 +1457,7 @@ function DeliveryDebriefModal({ load, onClose }) {
           source: 'driver_debrief',
         });
         await updateDoc(doc(db, 'loads', load.id), {
-          deliveryReport: { outcome, issues: issueList, notes: notes.trim(), at: serverTimestamp() },
+          deliveryReport: { outcome, issues: issueList, notes: notes.trim(), podUrl: podUrl || '', at: serverTimestamp() },
         }).catch(() => {});
       }
     } catch (e) {
@@ -1480,12 +1497,70 @@ function DeliveryDebriefModal({ load, onClose }) {
           <textarea className={`${INPUT_CLS} min-h-[80px]`} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering about this receiver or lane…" />
         </div>
 
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className={`text-xs px-3 py-2 rounded-lg cursor-pointer ${podBusy ? 'bg-slate-700 text-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'}`}>
+            {podBusy ? 'Uploading…' : (podUrl ? '✓ POD attached — replace' : '📎 Attach signed POD photo')}
+            <input type="file" accept="image/*,application/pdf" className="hidden" onChange={uploadPod} disabled={podBusy} />
+          </label>
+          {podUrl && <a href={podUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline">View</a>}
+        </div>
+
         <div className="space-y-2">
           <PrimaryButton onClick={() => submit(false)} disabled={busy} className="w-full py-3">{busy ? 'Sending…' : 'Send to Dispatcher'}</PrimaryButton>
           <button onClick={() => submit(true)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm py-1">Skip</button>
         </div>
       </Card>
     </div>
+  );
+}
+
+// ---------- RATE CONFIRMATION E-SIGN (carrier accepts the binding terms) ----------
+function RateConCard({ load, onSigned }) {
+  const [name, setName] = useState('');
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const signed = load.rateConSigned;
+  const money = (x) => Number(x || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+  const sign = async () => {
+    if (!name.trim() || !agree) return;
+    setBusy(true);
+    try {
+      await updateDoc(doc(db, 'loads', load.id), { rateConSigned: { name: name.trim(), at: serverTimestamp() } });
+      if (onSigned) await onSigned();
+    } catch (e) { console.error('ratecon sign failed', e); alert('Could not save your signature — try again.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Card className="p-6">
+      <PanelHeader icon={<FileText size={20} />} title="Rate Confirmation" badge={signed ? <Badge tone="emerald"><CheckCircle2 size={11} /> Signed</Badge> : <Badge tone="amber">Needs signature</Badge>} />
+      <p className="text-sm text-slate-400 mt-1">Your binding acceptance of this load. Review the terms, then e-sign before you roll.</p>
+      <div className="grid grid-cols-2 gap-3 mt-4 text-sm bg-slate-800/40 border border-slate-700 rounded-xl p-4">
+        <div><span className="text-slate-500 text-[11px] uppercase">Load</span><div className="font-mono text-amber-500">{load.loadId || '—'}</div></div>
+        <div><span className="text-slate-500 text-[11px] uppercase">Rate</span><div className="font-semibold text-emerald-400">{money(load.gross_pay)}</div></div>
+        <div><span className="text-slate-500 text-[11px] uppercase">Pickup</span><div className="text-slate-200">{load.origin || '—'}{load.pickup_time ? ` · ${load.pickup_time}` : ''}</div></div>
+        <div><span className="text-slate-500 text-[11px] uppercase">Delivery</span><div className="text-slate-200">{load.destination || '—'}{load.delivery_time ? ` · ${load.delivery_time}` : ''}</div></div>
+        <div><span className="text-slate-500 text-[11px] uppercase">Commodity</span><div className="text-slate-200">{load.commodity || '—'}</div></div>
+        <div><span className="text-slate-500 text-[11px] uppercase">Weight</span><div className="text-slate-200">{load.weight || '—'}</div></div>
+      </div>
+      {load.rateConUrl && (
+        <a href={load.rateConUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-sm text-amber-400 hover:underline">📄 View the broker’s Rate Confirmation document</a>
+      )}
+      {signed ? (
+        <div className="mt-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3">✓ E-signed by <strong>{signed.name}</strong>. Your dispatcher has been notified.</div>
+      ) : (
+        <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+          <p className="text-xs text-slate-400">Confirm the rate, stops, and times match what you agreed. Typing your name below is a legal electronic signature accepting these terms.</p>
+          <input className={INPUT_CLS} value={name} onChange={(e) => setName(e.target.value)} placeholder="Type your full legal name to sign" />
+          <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
+            <span>I confirm these terms are correct and I accept this Rate Confirmation.</span>
+          </label>
+          <PrimaryButton onClick={sign} disabled={busy || !name.trim() || !agree} className="px-5">{busy ? 'Signing…' : '✍️ E-sign Rate Confirmation'}</PrimaryButton>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -1502,6 +1577,16 @@ function DetentionCard({ load, onSaved }) {
     notes: existing?.notes || '',
   });
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const [bolUrl, setBolUrl] = useState(existing?.bolPhotoUrl || '');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const uploadBol = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setPhotoBusy(true);
+    try { setBolUrl(await uploadToStorage(`load_docs/${load.uid}/detention_bol_${load.id}_${file.name}`, file)); }
+    catch (err) { console.error('BOL upload failed', err); alert('Photo upload failed — try again.'); }
+    finally { setPhotoBusy(false); }
+  };
   const n = (x) => parseFloat(x) || 0;
   const money = (x) => '$' + (x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -1516,7 +1601,7 @@ function DetentionCard({ load, onSaved }) {
       arrivedAt: f.arrivedAt, departedAt: f.departedAt,
       freeHours: n(f.freeHours), ratePerHour: n(f.ratePerHour),
       billableHours: Number(billable.toFixed(2)), amount: Number(amount.toFixed(2)),
-      notes: f.notes.trim(), status: 'filed', filedAt: serverTimestamp(),
+      notes: f.notes.trim(), bolPhotoUrl: bolUrl || '', status: 'filed', filedAt: serverTimestamp(),
     };
     try { await updateDoc(doc(db, 'loads', load.id), { detention }); if (onSaved) await onSaved(); setOpen(false); }
     catch (e) { console.error('detention save failed', e); alert('Could not save — check the console.'); }
@@ -1538,6 +1623,7 @@ function DetentionCard({ load, onSaved }) {
             <div><div className="text-[10px] text-slate-500">FREE TIME</div><div className="font-bold text-white text-sm">{existing.freeHours}h</div></div>
           </div>
           {existing.notes && <div className="text-xs text-slate-400 mt-3">{existing.notes}</div>}
+          {existing.bolPhotoUrl && <a href={existing.bolPhotoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline mt-2 inline-block">📎 View attached BOL photo</a>}
         </div>
       )}
 
@@ -1552,6 +1638,13 @@ function DetentionCard({ load, onSaved }) {
             <Field label="Detention rate ($/hour)"><input className={INPUT_CLS} type="number" inputMode="decimal" value={f.ratePerHour} onChange={set('ratePerHour')} /></Field>
           </div>
           <Field label="Notes (what caused the delay?)"><textarea className={`${INPUT_CLS} min-h-[60px]`} value={f.notes} onChange={set('notes')} placeholder="e.g. dock closed, no doors available, lumper backed up" /></Field>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className={`text-xs px-3 py-2 rounded-lg cursor-pointer ${photoBusy ? 'bg-slate-700 text-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'}`}>
+              {photoBusy ? 'Uploading…' : (bolUrl ? '✓ BOL photo attached — replace' : '📎 Attach timestamped BOL photo')}
+              <input type="file" accept="image/*,application/pdf" className="hidden" onChange={uploadBol} disabled={photoBusy} />
+            </label>
+            {bolUrl && <a href={bolUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline">View</a>}
+          </div>
           <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
             <div className="text-sm text-slate-400">{ready ? `${totalH.toFixed(1)}h on site − ${n(f.freeHours)}h free = ` : 'Enter both times to calculate'}<span className="font-bold text-white">{ready ? `${billable.toFixed(1)}h billable` : ''}</span></div>
             <div className="text-xl font-bold text-amber-400">{ready ? money(amount) : '—'}</div>
@@ -1562,7 +1655,7 @@ function DetentionCard({ load, onSaved }) {
           </div>
         </div>
       )}
-      <p className="text-[11px] text-slate-600 mt-3">Attaching the timestamped BOL photo to the claim unlocks once Firebase Storage is enabled.</p>
+      <p className="text-[11px] text-slate-600 mt-3">Attach the timestamped BOL photo to back up the claim — it's the proof that wins detention disputes.</p>
     </Card>
   );
 }
@@ -1701,6 +1794,8 @@ function LaneManagementView({ uid }) {
           <p className="text-xs text-slate-500 mt-2">Current status: <span className="text-slate-300 font-semibold">{active.status}</span></p>
         </div>
       </Card>
+
+      <RateConCard load={active} onSigned={fetchLoads} />
 
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
@@ -2475,6 +2570,25 @@ function AllLoadsView() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [rcBusy, setRcBusy] = useState(false);
+
+  // Dispatcher attaches the broker's Rate Confirmation to the load (into the
+  // driver's Storage folder so the carrier can view & e-sign it).
+  const uploadRateCon = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file || !editing) return;
+    setRcBusy(true);
+    try {
+      const url = await uploadToStorage(`load_docs/${editing.uid}/ratecon_${editing.id}_${file.name}`, file);
+      const patch = { rateConUrl: url, rateConName: file.name };
+      await updateDoc(doc(db, 'loads', editing.id), patch);
+      setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...patch } : l)));
+      setEditing((ed) => ({ ...ed, ...patch }));
+    } catch (err) {
+      console.error('ratecon upload failed', err);
+      alert('Upload failed: ' + (err.code === 'storage/unauthorized' ? 'check the Storage rules allow admin write to load_docs.' : (err.message || 'try again')));
+    } finally { setRcBusy(false); }
+  };
 
   const STATUS_FLOW = ['Dispatched', 'Arrived at Shipper', 'Loaded', 'In Transit', 'Delivered'];
 
@@ -2793,6 +2907,23 @@ function AllLoadsView() {
                 {editing.detention.notes && <div className="text-xs text-slate-400 mt-2">{editing.detention.notes}</div>}
               </div>
             )}
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm font-semibold text-white flex items-center gap-2">
+                  📄 Rate Confirmation
+                  {editing.rateConSigned ? <Badge tone="emerald"><CheckCircle2 size={11} /> Signed by {editing.rateConSigned.name}</Badge>
+                    : editing.rateConUrl ? <Badge tone="amber">Sent — awaiting signature</Badge>
+                    : <Badge tone="slate">Not attached</Badge>}
+                </div>
+                <label className={`text-xs px-3 py-2 rounded-lg cursor-pointer shrink-0 ${rcBusy ? 'bg-slate-700 text-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'}`}>
+                  {rcBusy ? 'Uploading…' : (editing.rateConUrl ? 'Replace RateCon' : 'Attach broker RateCon')}
+                  <input type="file" accept="image/*,application/pdf" className="hidden" onChange={uploadRateCon} disabled={rcBusy} />
+                </label>
+              </div>
+              {editing.rateConUrl && <a href={editing.rateConUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline mt-2 inline-block">View attached document</a>}
+              <p className="text-[11px] text-slate-500 mt-2">Attach the broker's RateCon — the carrier reviews and e-signs it from their Lane Management screen.</p>
+            </div>
 
             <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
@@ -6455,6 +6586,9 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
         });
         loads.filter((l) => l.detention && l.detention.status === 'filed').forEach((l) => {
           out.push({ id: 'det-' + l.id, tone: 'amber', icon: '⏱', text: `Detention filed on ${l.loadId || 'a load'} — $${Number(l.detention.amount || 0).toLocaleString()} (${emailByUid[l.uid] || 'carrier'})`, tab: 'allloads' });
+        });
+        loads.filter((l) => l.rateConUrl && l.rateConSigned).forEach((l) => {
+          out.push({ id: 'rcsign-' + l.id, tone: 'emerald', icon: '✍️', text: `${l.rateConSigned.name || emailByUid[l.uid] || 'Carrier'} e-signed the RateCon on ${l.loadId || 'a load'}`, tab: 'allloads' });
         });
         compSnap.docs.forEach((d) => { complianceItems(d.data(), (emailByUid[d.id] || 'Carrier') + ':', 'comp-' + d.id).forEach((x) => out.push(x)); });
         carrierSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.availability && c.availability !== 'Available').forEach((c) => {
