@@ -35,28 +35,8 @@ const googleProvider = new GoogleAuthProvider();
 // --- Google Maps (client-side distance lookup) ---
 const GOOGLE_MAPS_API_KEY = 'AIzaSyBwhjnErrb0u91XdcPvavYknLNQBVSCzJI';
 
-// Apps Script /exec URL that returns carrier-packet form submissions (JSONP).
-const CARRIER_PACKET_API_URL = 'https://script.google.com/macros/s/AKfycby0hAu4ahT-tn8GZRqeFmKxQS0i0snSdv1SQCxfBnU2moRT6XoIJnTl9NxnQVTr_E5J/exec';
-
-// Loads JSON cross-origin via a <script> tag (JSONP) — bypasses CORS.
-function jsonpFetch(url, timeoutMs = 12000) {
-  return new Promise((resolve, reject) => {
-    const cb = 'fmPacketCb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-    const sep = url.includes('?') ? '&' : '?';
-    const script = document.createElement('script');
-    let done = false;
-    const cleanup = () => {
-      try { delete window[cb]; } catch (_) { window[cb] = undefined; }
-      if (script.parentNode) script.parentNode.removeChild(script);
-      clearTimeout(timer);
-    };
-    const timer = setTimeout(() => { if (!done) { done = true; cleanup(); reject(new Error('Timed out')); } }, timeoutMs);
-    window[cb] = (data) => { if (!done) { done = true; cleanup(); resolve(data); } };
-    script.onerror = () => { if (!done) { done = true; cleanup(); reject(new Error('Script load error')); } };
-    script.src = url + sep + 'callback=' + cb;
-    document.body.appendChild(script);
-  });
-}
+// Carrier-packet submissions now land in the `carrier_packets` Firestore
+// collection via the public CarrierIntakeView (?intake=<orgId>) — no Apps Script.
 
 let mapsLoaderPromise = null;
 function loadGoogleMaps() {
@@ -464,6 +444,14 @@ export default function App() {
       default: return <DashboardView />;
     }
   };
+
+  // Public carrier intake — reachable without a login at ?intake=<workspaceId>.
+  // A carrier fills this and it lands in that dispatcher's workspace.
+  let intakeOrg = null;
+  try { intakeOrg = new URLSearchParams(window.location.search).get('intake'); } catch (_) { /* ignore */ }
+  if (intakeOrg) {
+    return <CarrierIntakeView orgId={intakeOrg} />;
+  }
 
   if (authLoading) {
     return <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-[#0b1220] text-slate-400 font-sans">Loading…</div>;
@@ -4040,6 +4028,139 @@ function NewAuthorityView() {
 }
 
 // ---------- ADMIN: CARRIERS ----------
+// ---------- PUBLIC CARRIER INTAKE (no login) ----------
+// Served at ?intake=<workspaceId>. Writes a carrier_packets doc stamped with
+// that orgId, which then shows up under the dispatcher's "Import from Carrier
+// Packet" in their Carriers tab. Replaces the old Google-Forms/Apps-Script flow.
+function CarrierIntakeView({ orgId }) {
+  const blank = {
+    name: '', mcNumber: '', dotNumber: '', driverName: '', phone: '', email: '',
+    homeBase: '', trailerType: 'Dry Van', maxCapacity: '', minRpm: '',
+    preferredLanes: '', noGo: '', multiStop: '', notes: '',
+  };
+  const [f, setF] = useState(blank);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    if (!f.name.trim() || !f.mcNumber.trim() || !f.phone.trim()) {
+      setErr('Company name, MC/DOT number, and phone are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'carrier_packets'), {
+        orgId,
+        name: f.name.trim(), mcNumber: f.mcNumber.trim(), dotNumber: f.dotNumber.trim(),
+        driverName: f.driverName.trim(), phone: f.phone.trim(), email: f.email.trim(),
+        homeBase: f.homeBase.trim(), trailerType: f.trailerType.trim(),
+        maxCapacity: f.maxCapacity.trim(), minRpm: f.minRpm.trim(),
+        preferredLanes: f.preferredLanes.trim(), noGo: f.noGo.trim(),
+        multiStop: f.multiStop.trim(), notes: f.notes.trim(),
+        status: 'new', createdAt: serverTimestamp(),
+      });
+      setDone(true);
+    } catch (e2) {
+      console.error('intake submit failed', e2);
+      setErr('Could not submit — please try again, or call your dispatcher directly.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fld = INPUT_CLS;
+  const Label = ({ children }) => <label className="block text-xs text-slate-400 mb-1">{children}</label>;
+
+  if (done) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-6">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-3xl">✓</div>
+          <h1 className="text-2xl font-bold mb-2">Packet received</h1>
+          <p className="text-slate-400 leading-relaxed">
+            Thanks, {f.name.trim() || 'driver'} — your carrier packet is in. Your dispatcher will
+            review your authority and reach out to finish setup. You can close this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans py-10 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center mb-8">
+          <div className="text-amber-400 font-bold tracking-[0.2em] text-xs mb-2">FORWARD MOTION</div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Carrier Setup Packet</h1>
+          <p className="text-slate-400 mt-2 text-sm">Tell us about your truck and lanes. Takes about 2 minutes — no login needed.</p>
+        </div>
+
+        <form onSubmit={submit} className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label>Carrier / Business Name *</Label><input className={fld} value={f.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>
+            <div><Label>MC Number *</Label><input className={fld} value={f.mcNumber} onChange={set('mcNumber')} placeholder="MC-123456" /></div>
+            <div><Label>DOT Number</Label><input className={fld} value={f.dotNumber} onChange={set('dotNumber')} placeholder="1234567" /></div>
+            <div><Label>Driver Name</Label><input className={fld} value={f.driverName} onChange={set('driverName')} /></div>
+            <div><Label>Cell Phone *</Label><input className={fld} type="tel" value={f.phone} onChange={set('phone')} placeholder="(555) 123-4567" /></div>
+            <div><Label>Email</Label><input className={fld} type="email" value={f.email} onChange={set('email')} /></div>
+            <div><Label>Home Base (City, State)</Label><input className={fld} value={f.homeBase} onChange={set('homeBase')} placeholder="Dallas, TX" /></div>
+            <div>
+              <Label>Trailer Type</Label>
+              <select className={SELECT_CLS} value={f.trailerType} onChange={set('trailerType')}>
+                {['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Power Only', 'Box Truck', 'Other'].map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </div>
+            <div><Label>Max Capacity (lbs)</Label><input className={fld} type="number" inputMode="decimal" value={f.maxCapacity} onChange={set('maxCapacity')} placeholder="45000" /></div>
+            <div><Label>Minimum RPM ($)</Label><input className={fld} type="number" inputMode="decimal" value={f.minRpm} onChange={set('minRpm')} placeholder="2.00" /></div>
+            <div className="sm:col-span-2"><Label>Preferred Lanes / Regions</Label><input className={fld} value={f.preferredLanes} onChange={set('preferredLanes')} placeholder="TX ↔ Southeast, no NYC" /></div>
+            <div className="sm:col-span-2"><Label>No-Go States / Cities</Label><input className={fld} value={f.noGo} onChange={set('noGo')} placeholder="NYC, CA" /></div>
+            <div className="sm:col-span-2"><Label>Anything else we should know?</Label><input className={fld} value={f.notes} onChange={set('notes')} placeholder="TWIC, hazmat, team, etc." /></div>
+          </div>
+
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+          <button type="submit" disabled={saving}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-lg py-3 transition disabled:opacity-50">
+            {saving ? 'Submitting…' : 'Submit Carrier Packet'}
+          </button>
+          <p className="text-[11px] text-slate-600 text-center">By submitting you agree to be contacted about dispatching services. We'll verify your FMCSA authority before booking.</p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Shareable public-intake link for this workspace (shown in the Carriers tab).
+function IntakeLink() {
+  const [copied, setCopied] = useState(false);
+  const org = ACTIVE_ORG;
+  if (!org) {
+    return (
+      <div className="rounded-lg bg-slate-800/40 border border-slate-700 px-3 py-2 text-[11px] text-slate-400">
+        Your shareable carrier-intake link appears here once your workspace is set up.
+      </div>
+    );
+  }
+  let link = '';
+  try { link = `${window.location.origin}${window.location.pathname}?intake=${org}`; } catch (_) { link = `?intake=${org}`; }
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (_) {}
+  };
+  return (
+    <div className="rounded-lg bg-slate-800/40 border border-slate-700 px-3 py-2.5">
+      <div className="text-[11px] font-semibold text-slate-300 mb-1">📨 Your carrier-intake link — share it with new carriers to onboard themselves</div>
+      <div className="flex items-center gap-2">
+        <input readOnly value={link} className="flex-1 bg-slate-950/60 border border-slate-700 rounded-md px-2 py-1.5 text-[11px] text-slate-300 font-mono truncate" onFocus={(e) => e.target.select()} />
+        <button type="button" onClick={copy} className="text-[11px] bg-amber-500/90 hover:bg-amber-500 text-slate-900 font-semibold px-3 py-1.5 rounded-md shrink-0">{copied ? 'Copied ✓' : 'Copy'}</button>
+      </div>
+      <p className="text-[10px] text-slate-500 mt-1">Submissions land here under “Import from Carrier Packet.” Each workspace has its own link — carriers only ever reach you.</p>
+    </div>
+  );
+}
+
 function CarriersView() {
   const [list, setList] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -4095,18 +4216,22 @@ function CarriersView() {
 
   useEffect(() => { fetchCarriers(); }, []);
 
+  const [appliedPacketId, setAppliedPacketId] = useState(null);
+
   const loadPacket = async () => {
     setImportMsg('');
-    if (!CARRIER_PACKET_API_URL) { setImportMsg('Add CARRIER_PACKET_API_URL in the code.'); return; }
     setImporting(true);
     try {
-      const data = await jsonpFetch(CARRIER_PACKET_API_URL);
-      const arr = Array.isArray(data) ? data : [];
+      const snap = await getDocs(orgScoped('carrier_packets'));
+      const arr = snap.docs
+        .map((d) => ({ _id: d.id, ...d.data() }))
+        .filter((p) => p.status !== 'imported')
+        .sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0));
       setPacket(arr);
-      setImportMsg(arr.length ? `Loaded ${arr.length} submission(s) — pick one below.` : 'No carrier packet submissions yet.');
+      setImportMsg(arr.length ? `${arr.length} new submission(s) — pick one below.` : 'No new carrier packet submissions yet.');
     } catch (e) {
       console.error('Packet load failed:', e);
-      setImportMsg('Could not load packets (possible CORS block). ' + (e.message || ''));
+      setImportMsg('Could not load submissions. ' + (e.message || ''));
     } finally {
       setImporting(false);
     }
@@ -4115,6 +4240,7 @@ function CarriersView() {
   const applyPacket = (i) => {
     const p = packet[i];
     if (!p) return;
+    setAppliedPacketId(p._id || null);
     setForm((f) => ({
       ...f,
       name: p.name || f.name,
@@ -4192,6 +4318,12 @@ function CarriersView() {
       // Mirror the VIP flag onto the linked driver's user doc so their portal reflects it.
       if (linkedUid) {
         try { await setDoc(doc(db, 'users', linkedUid), { vipConcierge: !!form.vipConcierge }, { merge: true }); } catch (_) {}
+      }
+      // If this carrier came from an intake submission, mark it imported so it
+      // drops off the list and can't be double-added.
+      if (appliedPacketId) {
+        try { await updateDoc(doc(db, 'carrier_packets', appliedPacketId), { status: 'imported', importedAt: serverTimestamp() }); } catch (_) {}
+        setAppliedPacketId(null);
       }
       setForm(blank);
       setVerify({ authority: false, w9: false, coi: false, noa: false });
@@ -4285,6 +4417,8 @@ function CarriersView() {
           </div>
         </div>
         {importMsg && <p className="text-[11px] text-slate-400">{importMsg}</p>}
+        <IntakeLink />
+        <div className="border-t border-slate-800" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label className="block text-xs text-slate-400 mb-1">Carrier / Business Name</label><input className={field} value={form.name} onChange={set('name')} placeholder="Bell Trucking LLC" /></div>

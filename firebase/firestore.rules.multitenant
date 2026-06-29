@@ -120,6 +120,21 @@ service cloud.firestore {
       allow update, delete: if ownDoc(resource);
     }
 
+    // ---- carrier intake packets (PUBLIC submit) ----
+    // The intake form at ?intake=<orgId> is filled by carriers with no login,
+    // so create is open — but every submission must carry an orgId + a name,
+    // and the dispatcher reviews each one before importing. Reads are scoped to
+    // the owning workspace.
+    match /carrier_packets/{id} {
+      allow create: if request.resource.data.orgId is string
+                    && request.resource.data.orgId.size() > 0
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() < 200;
+      allow read:           if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
+      allow update, delete: if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
+    }
+
     // ---- workspaces registry (super-admin provisions; a dispatcher may read their own) ----
     match /orgs/{id} {
       allow read:  if isSuper() || (isDispatcher() && id == myOrg());
