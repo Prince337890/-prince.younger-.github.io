@@ -157,6 +157,64 @@ async function uploadToStorage(path, file) {
   return await getDownloadURL(r);
 }
 
+// Public portal URL — used in outbound welcome emails. Change this in ONE place
+// when the app moves off vercel.app to a custom domain.
+const PORTAL_URL = 'https://forward-motion-app-bdim.vercel.app';
+
+// Queue a transactional email. Writes a doc to the `mail` collection that the
+// Firebase "Trigger Email from Firestore" extension picks up and sends. Never
+// throws into the caller — a mail hiccup must not block account creation.
+async function queueEmail(to, subject, html) {
+  if (!to) return;
+  try {
+    await addDoc(collection(db, 'mail'), { to: [to], message: { subject, html } });
+  } catch (e) {
+    console.error('queueEmail failed (account still created):', e);
+  }
+}
+
+function emailShell(bodyHtml) {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1f2937;line-height:1.6">
+    <div style="background:#0a0f1a;padding:22px 24px;border-radius:12px 12px 0 0">
+      <span style="color:#f59e0b;font-weight:bold;letter-spacing:2px;font-size:13px">FORWARD MOTION FREIGHT</span>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:24px">${bodyHtml}</div>
+  </div>`;
+}
+
+function welcomeCarrierEmail({ name, email, tempPw }) {
+  return emailShell(`
+    <h2 style="margin:0 0 12px;font-size:20px">Welcome aboard, ${name || 'driver'}!</h2>
+    <p>Your Forward Motion Freight driver portal is set up and ready. Here's how to get rolling:</p>
+    <ol style="padding-left:18px">
+      <li><strong>Sign in:</strong> <a href="${PORTAL_URL}" style="color:#2563eb">${PORTAL_URL}</a><br>
+        Email: <strong>${email}</strong><br>
+        Temporary password: <strong>${tempPw}</strong></li>
+      <li>You'll be prompted to set your own password.</li>
+      <li>A quick 2-minute setup confirms your carrier profile (equipment, lanes, docs).</li>
+      <li>Take the optional dashboard tour — then you're ready to roll.</li>
+    </ol>
+    <p>Inside you'll find your assigned loads, pay, compliance dates, document vault, and your own cost-per-mile calculator — all in one place.</p>
+    <p style="color:#6b7280;font-size:13px">Questions? Just reply to this email and we'll get you sorted.</p>
+    <p style="margin-top:18px">Keep the wheels turning,<br><strong>Forward Motion Freight — Dispatch</strong></p>`);
+}
+
+function welcomeDispatcherEmail({ name, email, tempPw }) {
+  return emailShell(`
+    <h2 style="margin:0 0 12px;font-size:20px">Welcome to the deal desk${name ? ', ' + name : ''}.</h2>
+    <p>Your Forward OS dispatcher account is ready.</p>
+    <ol style="padding-left:18px">
+      <li><strong>Sign in:</strong> <a href="${PORTAL_URL}" style="color:#2563eb">${PORTAL_URL}</a><br>
+        Email: <strong>${email}</strong><br>
+        Temporary password: <strong>${tempPw}</strong></li>
+      <li>Set your own password when prompted.</li>
+      <li>Flip on <strong>Guided Mode</strong> (top of the screen) — it walks you through every tab.</li>
+      <li>Take the dashboard tour for a 60-second orientation.</li>
+    </ol>
+    <p>Your day starts on the Dashboard (weekly dispatch total + live Market Pulse). Work a deal in the Rate Calculator, vet the broker in Broker Check, then send the load. Carriers and their logins live under "Carriers &amp; Access."</p>
+    <p style="margin-top:18px"><strong>Forward Motion Freight — Operations</strong></p>`);
+}
+
 async function createDriverAccount(email, password) {
   const secondary = initializeApp(firebaseConfig, 'driver-creator-' + Date.now());
   const secondaryAuth = getAuth(secondary);
@@ -3128,6 +3186,8 @@ function ManageDriversView() {
         createdAt: serverTimestamp(),
       }), { merge: true });
       setCreated({ email: email.trim(), pw });
+      queueEmail(email.trim(), 'Welcome to Forward Motion Freight — your portal is ready',
+        welcomeCarrierEmail({ name: '', email: email.trim(), tempPw: pw }));
       setEmail(''); setPw('');
       fetchUsers();
     } catch (err) {
@@ -4313,6 +4373,8 @@ function CarriersView() {
           }), { merge: true });
           linkedUid = uid;
           setCreatedLogin({ email: form.newLoginEmail.trim(), pw: form.newLoginPw });
+          queueEmail(form.newLoginEmail.trim(), 'Welcome to Forward Motion Freight — your portal is ready',
+            welcomeCarrierEmail({ name: form.driverName.trim() || form.name.trim(), email: form.newLoginEmail.trim(), tempPw: form.newLoginPw }));
         } catch (err) {
           console.error('inline login creation failed', err);
           const inUse = err.code === 'auth/email-already-in-use';
@@ -6556,6 +6618,8 @@ function WorkspacesView() {
       const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), createdAt: serverTimestamp(), config: {} });
       await setDoc(doc(db, 'users', uid), { email: form.email.trim(), approved: true, mustChangePassword: true, orgId: orgRef.id, role: 'admin', createdAt: serverTimestamp() }, { merge: true });
       setCreated({ email: form.email.trim(), pw: form.pw, workspace: form.workspaceName.trim() });
+      queueEmail(form.email.trim(), 'Your Forward OS dispatcher access is ready',
+        welcomeDispatcherEmail({ name: '', email: form.email.trim(), tempPw: form.pw }));
       setForm({ workspaceName: '', email: '', pw: '' });
       fetchOrgs();
     } catch (e2) {

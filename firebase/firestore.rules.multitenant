@@ -135,6 +135,15 @@ service cloud.firestore {
       allow update, delete: if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
     }
 
+    // ---- outbound mail queue (Trigger Email extension) ----
+    // A dispatcher queues welcome emails by creating docs here; the Firebase
+    // "Trigger Email from Firestore" extension delivers them server-side (it
+    // bypasses these rules), so clients get create-only and nothing else.
+    match /mail/{id} {
+      allow create: if isDispatcher();
+      allow read, update, delete: if false;
+    }
+
     // ---- workspaces registry (super-admin provisions; a dispatcher may read their own) ----
     match /orgs/{id} {
       allow read:  if isSuper() || (isDispatcher() && id == myOrg());
