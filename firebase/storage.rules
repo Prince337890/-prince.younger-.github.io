@@ -1,0 +1,36 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin()  { return signedIn() && request.auth.token.email == 'prince.younger3@gmail.com'; }
+    function okFile() {
+      return request.resource.size < 15 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType == 'application/pdf');
+    }
+
+    // Carrier onboarding documents (W-9, COI, NOA) — owner or admin write, owner+admin read
+    match /carrier_docs/{uid}/{allPaths=**} {
+      allow read:  if isAdmin() || request.auth.uid == uid;
+      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+    }
+
+    // Credential uploads (TWIC/Hazmat/Tanker cards) — owner or admin write, owner+admin read
+    match /credentials/{uid}/{allPaths=**} {
+      allow read:  if isAdmin() || request.auth.uid == uid;
+      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+    }
+
+    // Load documents (RateCon e-sign, BOL/POD photos) — owner or admin write, owner+admin read
+    // The dispatcher (admin) uploads the broker RateCon into the driver's folder;
+    // the driver uploads BOL/POD/detention photos to their own folder.
+    match /load_docs/{uid}/{allPaths=**} {
+      allow read:  if isAdmin() || request.auth.uid == uid;
+      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+    }
+
+    // Deny everything else
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

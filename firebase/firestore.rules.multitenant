@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // Forward OS — Multi-Tenant Rules (Lite)
+    // Isolation key: every workspace doc carries an `orgId`. A user's
+    // orgId/role live on their own users/{uid} doc. We resolve them with
+    // get() at evaluation time. PUBLISH ONLY AFTER the data backfill has
+    // stamped every existing doc with an orgId (use Workspaces -> One-Time
+    // Data Migration). Before that, these rules will block reads.
+    // ============================================================
+
+    // ---- helpers ----
+    function signedIn() { return request.auth != null; }
+
+    // Super-admin (you) — full cross-workspace access; provisions workspaces.
+    function isSuper() {
+      return signedIn() && request.auth.token.email in ['prince.younger3@gmail.com'];
+    }
+
+    function myUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function myOrg()  { return myUser().orgId; }
+    function myRole() { return myUser().role; }
+
+    // A dispatcher = the workspace owner/operator (role 'admin'), or you.
+    function isDispatcher() { return signedIn() && (isSuper() || myRole() == 'admin'); }
+
+    // Does an existing doc belong to the caller's workspace?
+    function ownDoc(res)   { return isSuper() || (isDispatcher() && res.data.orgId == myOrg()); }
+    // Is an incoming write stamped with the caller's workspace?
+    function ownNew(req)   { return isSuper() || (isDispatcher() && req.resource.data.orgId == myOrg()); }
+    // Any signed-in member of the same workspace (dispatcher OR their drivers).
+    function memberRead(res) { return isSuper() || (signedIn() && res.data.orgId == myOrg()); }
+    function memberNew(req)   { return isSuper() || (signedIn() && req.resource.data.orgId == myOrg()); }
+
+    // ---- user accounts ----
+    // Self-write covers a carrier's own availability, vipRequested,
+    // credentials, and CPM inputs (all on their user doc). A dispatcher can
+    // read/manage the user docs inside their own workspace.
+    match /users/{uid} {
+      allow read:   if request.auth.uid == uid || isSuper()
+                    || (isDispatcher() && resource.data.orgId == myOrg());
+      allow create: if request.auth.uid == uid || ownNew(request);
+      allow update: if request.auth.uid == uid || ownDoc(resource);
+      allow delete: if ownDoc(resource);
+    }
+
+    // ---- loads (driver owns by uid; dispatcher owns by orgId) ----
+    match /loads/{id} {
+      allow read:   if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
+      allow create: if ownNew(request);
+      allow update: if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
+      allow delete: if ownDoc(resource);
+    }
+
+    // ---- carriers ----
+    // Dispatcher manages everything in their workspace. The linked driver can
+    // read their own profile and update ONLY their availability.
+    match /carriers/{id} {
+      allow read:   if (signedIn() && resource.data.linkedDriverUid == request.auth.uid) || ownDoc(resource);
+      allow create: if ownNew(request);
+      allow delete: if ownDoc(resource);
+      allow update: if ownDoc(resource)
+        || (signedIn()
+            && resource.data.linkedDriverUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availability']));
+    }
+
+    // ---- schedule events (each user owns their own) ----
+    match /schedule_events/{id} {
+      allow read:           if isDispatcher() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create:         if isDispatcher() || (signedIn() && request.resource.data.uid == request.auth.uid);
+      allow update, delete: if isDispatcher() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---- compliance (one doc per driver uid) ----
+    match /compliance/{uid} {
+      allow read:  if request.auth.uid == uid || ownDoc(resource);
+      allow write: if ownNew(request) || ownDoc(resource);
+    }
+
+    // ---- expenses (dispatcher dispatch-fee / expense tracker) ----
+    match /expenses/{id} {
+      allow read:   if ownDoc(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+
+    // ---- lane intel ----
+    // Any workspace member can read and ADD entries (drivers post delivery
+    // debriefs that surface in Facility & Market Intel); only a dispatcher edits/deletes.
+    match /lane_intel/{id} {
+      allow read:           if memberRead(resource);
+      allow create:         if memberNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+
+    // ---- shared reference data: members read, dispatcher writes ----
+    match /safe_parking/{id} {
+      allow read:   if memberRead(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+    match /vehicles/{id} {
+      allow read:   if memberRead(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+    match /fleet_drivers/{id} {
+      allow read:   if memberRead(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+    match /hos_status/{id} {
+      allow read:   if memberRead(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+
+    // ---- workspaces registry (super-admin provisions; a dispatcher may read their own) ----
+    match /orgs/{id} {
+      allow read:  if isSuper() || (isDispatcher() && id == myOrg());
+      allow write: if isSuper();
+    }
+  }
+}
