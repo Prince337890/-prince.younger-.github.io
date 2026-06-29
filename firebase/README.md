@@ -18,19 +18,24 @@ until you finish the cutover steps below.
 
 The app code is already multi-tenant-ready and **non-breaking**: until a user has
 an `orgId`, everything behaves exactly like the single-tenant version. The cutover
-is a deliberate, one-time sequence. Do not skip or reorder steps — publishing the
-new rules *before* the backfill would block reads on documents that don't have an
-`orgId` yet.
+is a deliberate, one-time sequence. Do not skip or reorder steps.
 
-1. **Sign in as yourself** (the super-admin email) and open **Workspaces** in the
-   sidebar (it only appears for you).
-2. Under **One-Time Data Migration**, type a name in the "Workspace name" field
+> **Publish the new rules FIRST.** Your current live rules have no `orgs` block,
+> so "Create my home workspace" would be denied under them. The new rules let
+> *you* (super-admin, matched by email) read and write everything regardless of
+> `orgId`, so your console still loads and the backfill runs. The only thing that
+> breaks in the gap before backfill is a *driver / other dispatcher* logging in —
+> so run these steps back-to-back while you're the only one signed in.
+
+1. **Publish** `firestore.rules.multitenant` (Firestore → Rules → paste → Publish).
+2. **Reload** the app, sign in as yourself, open **Workspaces** in the sidebar
+   (it only appears for you).
+3. Under **One-Time Data Migration**, type a name in the "Workspace name" field
    above, then click **1. Create my home workspace**. This creates your `orgs`
    document and stamps your own user with `orgId` + `role: admin`.
-3. In the same card, pick your new workspace in the dropdown and click
+4. In the same card, pick your new workspace in the dropdown and click
    **Run backfill**. This stamps every existing carrier, load, intel note,
    expense, etc. with your `orgId`. Watch the log until it says **Done**.
-4. **Publish** `firestore.rules.multitenant` (Firestore → Rules → paste → Publish).
 5. **Reload** the app.
 
 After that, each new dispatcher you provision in Workspaces gets their own
