@@ -4049,8 +4049,8 @@ function CarrierIntakeView({ orgId }) {
   const submit = async (e) => {
     e.preventDefault();
     setErr('');
-    if (!f.name.trim() || !f.mcNumber.trim() || !f.phone.trim()) {
-      setErr('Company name, MC/DOT number, and phone are required.');
+    if (!f.name.trim() || (!f.mcNumber.trim() && !f.dotNumber.trim()) || !f.phone.trim()) {
+      setErr('Company name, an MC or DOT number, and a phone number are required.');
       return;
     }
     setSaving(true);
@@ -4185,7 +4185,7 @@ function CarriersView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const blank = {
-    name: '', mcNumber: '', dotNumber: '', ein: '', driverName: '', phone: '', homeBase: '', trailerType: '',
+    name: '', mcNumber: '', dotNumber: '', ein: '', driverName: '', phone: '', email: '', homeBase: '', trailerType: '',
     mpg: '', numTrucks: '', maxCapacity: '', minRpm: '', factoringCompany: '', hazmat: false, twic: false,
     preferredLanes: '', noGo: '', multiStop: '',
     linkedDriverUid: '', currentDriveHours: '', feePct: '10', vipConcierge: false, availability: 'Available',
@@ -4269,6 +4269,10 @@ function CarriersView() {
       ein: p.ein || f.ein,
       driverName: p.driverName || f.driverName,
       phone: p.phone || f.phone,
+      email: p.email || f.email,
+      // Pre-fill the inline login email with what the carrier submitted, unless
+      // you've already picked/typed one — saves re-keying it.
+      newLoginEmail: f.newLoginEmail || p.email || '',
       homeBase: p.homeBase || f.homeBase,
       trailerType: p.trailerType || f.trailerType,
       numTrucks: p.numTrucks ? String(p.numTrucks) : f.numTrucks,
@@ -4326,6 +4330,7 @@ function CarriersView() {
         ein: form.ein.trim(),
         driverName: form.driverName.trim(),
         phone: form.phone.trim(),
+        email: form.email.trim(),
         homeBase: form.homeBase.trim(),
         trailerType: form.trailerType.trim(),
         mpg: Number(form.mpg) || 0,
