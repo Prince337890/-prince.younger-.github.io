@@ -231,6 +231,21 @@ const MARKET_PULSE = {
   ],
 };
 
+// ============================================================================
+// ===== Multi-tenancy (Lite) — org-scoping helpers ===========================
+// ACTIVE_ORG is set from the signed-in user's doc after login. While it's null
+// (single-tenant / pre-migration) the helpers fall back to unscoped behavior,
+// so the app keeps working exactly as before until the full cutover.
+// ============================================================================
+let ACTIVE_ORG = null;
+function setActiveOrg(orgId) { ACTIVE_ORG = orgId || null; }
+// Org-filtered query for dispatcher-wide reads; unscoped when no org is set.
+function orgScoped(name) {
+  return ACTIVE_ORG ? query(collection(db, name), where('orgId', '==', ACTIVE_ORG)) : collection(db, name);
+}
+// Stamp the active org onto a document being created.
+function stampOrg(obj) { return ACTIVE_ORG ? { ...obj, orgId: ACTIVE_ORG } : obj; }
+
 // "Guided Mode" (training wheels) — when on, the UI nudges new dispatchers
 // through workflows with checklists and contextual hints. Read app-wide.
 const GuidedModeContext = React.createContext(false);
@@ -293,6 +308,8 @@ export default function App() {
   const [myStatus, setMyStatus] = useState('Available'); // carrier self-set availability
   const [vipRequested, setVipRequested] = useState(false); // carrier asked dispatch for VIP
   const [showTour, setShowTour] = useState(false); // first-login walkthrough
+  const [myOrgId, setMyOrgId] = useState(null); // multi-tenancy: the user's workspace
+  const [myRole, setMyRole] = useState(null);   // 'admin' (dispatcher) | 'driver'
   const [guidedMode, setGuidedMode] = useState(() => { try { return localStorage.getItem('fm_guided') === '1'; } catch (_) { return false; } });
   const toggleGuided = () => setGuidedMode((g) => { const nv = !g; try { localStorage.setItem('fm_guided', nv ? '1' : '0'); } catch (_) {} return nv; });
 
@@ -331,6 +348,10 @@ export default function App() {
         setVipOn(admin || !data || data.vipConcierge !== false); // off only when explicitly disabled
         setMyStatus((data && data.availability) || 'Available');
         setVipRequested(!!(data && data.vipRequested));
+        // Multi-tenancy: resolve the user's workspace + role (null until migrated).
+        setActiveOrg(data && data.orgId);
+        setMyOrgId((data && data.orgId) || null);
+        setMyRole((data && data.role) || (admin ? 'admin' : 'driver'));
         setUser(u);
         setAccessDenied(false);
       } catch (e) {
@@ -343,6 +364,7 @@ export default function App() {
   }, []);
 
   const isAdmin = !!user && isAdminEmail(user.email);
+  const isSuper = isAdmin; // super-admin (you) — provisions workspaces
 
   // Show the first-login tour once the user is fully signed in (not mid pw-change/onboarding).
   useEffect(() => {
@@ -416,6 +438,7 @@ export default function App() {
       case 'upgrades': return <UpgradesView key={'upg-' + viewUid} uid={viewUid} />;
       case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
       case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} onReplayTour={() => setShowTour(true)} />;
+      case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
@@ -492,6 +515,7 @@ export default function App() {
               <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
+              {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
             </>
           ) : (
             /* ----- CARRIER / driver tools (and admin "view as") ----- */
@@ -6081,6 +6105,107 @@ function TourOverlay({ role, onClose }) {
               : <PrimaryButton onClick={() => setI((n) => n + 1)} className="text-sm px-5">Next</PrimaryButton>}
           </div>
         </div>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- SUPER-ADMIN: WORKSPACES (multi-tenant provisioning) ----------
+function WorkspacesView() {
+  const [orgs, setOrgs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ workspaceName: '', email: '', pw: '' });
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [created, setCreated] = useState(null);
+  const [err, setErr] = useState('');
+  const genPw = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let p = ''; for (let i = 0; i < 10; i++) p += chars[Math.floor(Math.random() * chars.length)];
+    setForm((f) => ({ ...f, pw: p }));
+  };
+
+  const fetchOrgs = async () => {
+    setLoading(true);
+    try { const snap = await getDocs(collection(db, 'orgs')); setOrgs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); }
+    catch (e) { console.error('orgs load failed', e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { fetchOrgs(); }, []);
+
+  const provision = async (e) => {
+    e.preventDefault(); setErr(''); setCreated(null);
+    if (!form.workspaceName.trim() || !form.email.trim() || form.pw.length < 6) { setErr('Workspace name, dispatcher email, and a 6+ character password are all required.'); return; }
+    setSaving(true);
+    try {
+      const uid = await createDriverAccount(form.email.trim(), form.pw);
+      const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), createdAt: serverTimestamp(), config: {} });
+      await setDoc(doc(db, 'users', uid), { email: form.email.trim(), approved: true, mustChangePassword: true, orgId: orgRef.id, role: 'admin', createdAt: serverTimestamp() }, { merge: true });
+      setCreated({ email: form.email.trim(), pw: form.pw, workspace: form.workspaceName.trim() });
+      setForm({ workspaceName: '', email: '', pw: '' });
+      fetchOrgs();
+    } catch (e2) {
+      console.error('provision failed', e2);
+      setErr(e2.code === 'auth/email-already-in-use'
+        ? 'That email already has a login. Use a different email, or assign the existing user to a workspace directly in Firestore.'
+        : (e2.message || 'Failed').replace('Firebase: ', ''));
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Workspaces</h2>
+        <Badge tone="indigo" className="font-bold tracking-wide">SUPER-ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Provision an isolated workspace for each dispatcher you onboard. Each workspace only ever sees its own carriers, loads, and intel.</p>
+      <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs px-4 py-3">
+        ⚠️ Provisioning writes to the <strong>orgs</strong> collection and sets each user's <strong>orgId/role</strong>. It only works once the <strong>multi-tenant Firestore rules are published</strong>. Don't switch everyone over until the full conversion + data backfill is done.
+      </div>
+
+      <Card className="p-6">
+        <form onSubmit={provision} className="space-y-4">
+          <h3 className="font-bold">Provision a Dispatcher Workspace</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Workspace name"><input className={INPUT_CLS} value={form.workspaceName} onChange={set('workspaceName')} placeholder="Cole Dispatch Co." /></Field>
+            <Field label="Dispatcher email"><input className={INPUT_CLS} type="email" value={form.email} onChange={set('email')} placeholder="dispatcher@example.com" /></Field>
+            <Field label="Temporary password" className="sm:col-span-2">
+              <div className="flex gap-2">
+                <input className={INPUT_CLS} value={form.pw} onChange={set('pw')} placeholder="6+ characters" />
+                <button type="button" onClick={genPw} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 rounded-lg shrink-0">Generate</button>
+              </div>
+            </Field>
+          </div>
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+          <PrimaryButton type="submit" disabled={saving} className="px-5">{saving ? 'Provisioning…' : 'Create Workspace + Dispatcher'}</PrimaryButton>
+
+          {created && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-sm">
+              <div className="font-semibold text-emerald-400 mb-2">✓ Workspace “{created.workspace}” created — share these with the dispatcher:</div>
+              <div className="font-mono text-slate-200">Email: {created.email}</div>
+              <div className="font-mono text-slate-200">Temp password: {created.pw}</div>
+              <div className="text-xs text-slate-400 mt-2">They'll set their own password on first login.</div>
+            </div>
+          )}
+        </form>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="font-bold mb-4">Workspaces ({orgs.length})</h3>
+        {loading ? <div className="text-slate-400 text-sm">Loading…</div>
+          : orgs.length === 0 ? <div className="text-slate-500 text-sm">No workspaces yet. (Or the orgs rule isn't published.)</div>
+          : (
+            <div className="space-y-2">
+              {orgs.map((o) => (
+                <div key={o.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">{o.name}</div>
+                    <div className="text-xs text-slate-500">{o.ownerEmail} · {o.id.slice(0, 8)}…</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
       </Card>
     </div>
   );
