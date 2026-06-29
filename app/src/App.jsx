@@ -33,7 +33,7 @@ const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
 // --- Google Maps (client-side distance lookup) ---
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDhJu-V7Cth7A-VBvKkEbDIJzvMXPTN1J4';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyBwhjnErrb0u91XdcPvavYknLNQBVSCzJI';
 
 // Apps Script /exec URL that returns carrier-packet form submissions (JSONP).
 const CARRIER_PACKET_API_URL = 'https://script.google.com/macros/s/AKfycby0hAu4ahT-tn8GZRqeFmKxQS0i0snSdv1SQCxfBnU2moRT6XoIJnTl9NxnQVTr_E5J/exec';
@@ -4480,6 +4480,29 @@ function TriHaulView() {
   // Auto-update from the Rate Calculator on open.
   useEffect(() => { pullFromCalc(false); }, [pullFromCalc]);
 
+  // Fill each leg's miles from Google Maps (A->B, and B->C / C->A once Point C is set).
+  const [mapsBusy, setMapsBusy] = useState(false);
+  const [mapsMsg, setMapsMsg] = useState('');
+  const autoDistances = async () => {
+    setMapsMsg('');
+    const A = t.originCity.trim(), B = t.destCity.trim(), C = t.pointC.trim();
+    if (!A || !B) { setMapsMsg('Enter Point A and Point B first.'); return; }
+    setMapsBusy(true);
+    try {
+      const ab = await getDrivingMiles(A, B);
+      const updates = { abMiles: String(Math.round(ab)) };
+      if (C) {
+        const [bc, ca] = await Promise.all([getDrivingMiles(B, C), getDrivingMiles(C, A)]);
+        updates.bcMiles = String(Math.round(bc));
+        updates.caMiles = String(Math.round(ca));
+      }
+      setT((s) => ({ ...s, ...updates }));
+      setMapsMsg(C ? 'All three legs filled from Google Maps ✓' : 'A→B filled — add Point C and re-run for all three legs.');
+    } catch (e) {
+      setMapsMsg('Couldn’t fetch distances: ' + (e.message || 'error') + '. Check that the Maps APIs + billing are on.');
+    } finally { setMapsBusy(false); }
+  };
+
   const stateOf = (city) => { const m = (city || '').match(/,\s*([A-Za-z]{2})\b/); return m ? m[1].toUpperCase() : ''; };
   const suggestions = TRIHAUL_MARKETS[stateOf(t.destCity)] || TRIHAUL_FALLBACK;
 
@@ -4522,7 +4545,9 @@ function TriHaulView() {
 
       <div className="flex flex-wrap gap-2 items-center">
         <GhostButton onClick={() => pullFromCalc(true)} className="text-sm">⤵ Pull current lane from Rate Calculator</GhostButton>
+        <GhostButton onClick={autoDistances} disabled={mapsBusy} className="text-sm">{mapsBusy ? 'Calculating…' : '📍 Auto-fill leg distances'}</GhostButton>
         {pulled && <span className="text-xs text-emerald-400">{pulled}</span>}
+        {mapsMsg && <span className="text-xs text-slate-400">{mapsMsg}</span>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
