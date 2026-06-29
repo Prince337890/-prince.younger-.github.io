@@ -350,9 +350,12 @@ export default function App() {
           { email: u.email, approved: true, lastLogin: serverTimestamp() },
           { merge: true }
         );
+        // A provisioned dispatcher has role:'admin' on a non-super email — treat them
+        // as admin so they skip the carrier onboarding wizard (but still change pw).
+        const roleAdmin = admin || (data && data.role === 'admin');
         setNeedsPwChange(!admin && data && data.mustChangePassword === true);
-        setNeedsOnboarding(!admin && !(data && data.onboardingComplete === true));
-        setVipOn(admin || !data || data.vipConcierge !== false); // off only when explicitly disabled
+        setNeedsOnboarding(!roleAdmin && !(data && data.onboardingComplete === true));
+        setVipOn(roleAdmin || !data || data.vipConcierge !== false); // off only when explicitly disabled
         setMyStatus((data && data.availability) || 'Available');
         setVipRequested(!!(data && data.vipRequested));
         // Multi-tenancy: resolve the user's workspace + role (null until migrated).
@@ -370,8 +373,8 @@ export default function App() {
     });
   }, []);
 
-  const isAdmin = !!user && isAdminEmail(user.email);
-  const isSuper = isAdmin; // super-admin (you) — provisions workspaces
+  const isSuper = !!user && isAdminEmail(user.email); // super-admin (you) — provisions workspaces
+  const isAdmin = isSuper || myRole === 'admin';       // dispatcher console access (role-based)
 
   // Show the first-login tour once the user is fully signed in (not mid pw-change/onboarding).
   useEffect(() => {
@@ -383,7 +386,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isAdmin) { setCarrierOpts([]); return; }
-    getDocs(collection(db, 'carriers'))
+    getDocs(orgScoped('carriers'))
       .then((snap) => setCarrierOpts(
         snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.linkedDriverUid)
       ))
@@ -473,6 +476,31 @@ export default function App() {
   }
   if (needsOnboarding) {
     return <OnboardingWizard onDone={() => setNeedsOnboarding(false)} />;
+  }
+  // Multi-tenancy guard: a dispatcher whose account isn't attached to a workspace
+  // would otherwise read across every org (ACTIVE_ORG null = unscoped). Block the
+  // console until a super-admin assigns them an orgId. Super-admins are exempt.
+  if (isAdmin && !isSuper && !myOrgId) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-[#0b1220] text-slate-100 font-sans p-6">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30">
+            <Building size={26} className="text-amber-400" />
+          </div>
+          <h1 className="text-xl font-semibold mb-2">Workspace pending</h1>
+          <p className="text-slate-400 text-sm leading-relaxed mb-6">
+            Your dispatcher account isn't attached to a workspace yet. An administrator
+            needs to assign you to one before your console unlocks. This usually takes a moment.
+          </p>
+          <button
+            onClick={() => signOut(auth)}
+            className="rounded-lg border border-slate-700 bg-slate-900/60 px-5 py-2 text-sm text-slate-300 hover:bg-slate-800 transition"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -675,7 +703,7 @@ function AdminWeeklyGross() {
   useEffect(() => {
     (async () => {
       try {
-        const snap = await getDocs(collection(db, 'loads'));
+        const snap = await getDocs(orgScoped('loads'));
         const rows = snap.docs.map((d) => d.data());
         const sow = startOfWeek();
         let gross = 0, fee = 0, count = 0;
@@ -1448,14 +1476,14 @@ function DeliveryDebriefModal({ load, onClose }) {
     const summary = skip ? '' : (outcome === 'smooth' ? 'Smooth delivery.' : 'Issues: ' + (issueList.join(', ') || 'unspecified') + '.') + (notes.trim() ? ' ' + notes.trim() : '');
     try {
       if (!skip) {
-        await addDoc(collection(db, 'lane_intel'), {
+        await addDoc(collection(db, 'lane_intel'), stampOrg({
           location: load.destination || 'Delivery facility',
           category: 'Receiver',
           note: `[${load.loadId || 'Load'}] ${summary}`.trim(),
           createdAtMs: Date.now(),
           createdAt: serverTimestamp(),
           source: 'driver_debrief',
-        });
+        }));
         await updateDoc(doc(db, 'loads', load.id), {
           deliveryReport: { outcome, issues: issueList, notes: notes.trim(), podUrl: podUrl || '', at: serverTimestamp() },
         }).catch(() => {});
@@ -1943,7 +1971,7 @@ function SafeParkingView() {
 
   const fetchSpots = async () => {
     try {
-      const snap = await getDocs(collection(db, 'safe_parking'));
+      const snap = await getDocs(orgScoped('safe_parking'));
       setSpots(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error('Error loading parking spots:', err);
@@ -1958,7 +1986,7 @@ function SafeParkingView() {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      const ref = await addDoc(collection(db, 'safe_parking'), { ...form, createdAt: serverTimestamp() });
+      const ref = await addDoc(collection(db, 'safe_parking'), stampOrg({ ...form, createdAt: serverTimestamp() }));
       setSpots((p) => [{ id: ref.id, ...form }, ...p]);
       setForm(blank); setShowForm(false);
     } catch (err) {
@@ -2069,7 +2097,7 @@ function ComplianceView({ uid }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await setDoc(doc(db, 'compliance', targetUid), { ...form, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, 'compliance', targetUid), stampOrg({ ...form, updatedAt: serverTimestamp() }), { merge: true });
       setData((d) => ({ ...(d || {}), ...form }));
       setEditing(false);
     } catch (err) {
@@ -2471,7 +2499,7 @@ function AssignLoadView() {
   useEffect(() => {
     const loadDrivers = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
+        const snap = await getDocs(orgScoped('users'));
         setDrivers(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
       } catch (e) {
         console.error('Error loading drivers:', e);
@@ -2490,13 +2518,13 @@ function AssignLoadView() {
     setSaving(true);
     setDone('');
     try {
-      await addDoc(collection(db, 'loads'), {
+      await addDoc(collection(db, 'loads'), stampOrg({
         ...form,
         uid: form.driverUid,
         gross_pay: Number(form.gross_pay) || 0,
         status: 'Dispatched',
         createdAt: serverTimestamp(),
-      });
+      }));
       const drv = drivers.find((d) => d.uid === form.driverUid);
       setDone(`Load ${form.loadId} assigned to ${drv?.email || 'driver'} ✓`);
       setForm({ ...blank, loadId: 'FM-' + Math.floor(1000 + Math.random() * 9000) });
@@ -2596,8 +2624,8 @@ function AllLoadsView() {
     setLoading(true);
     try {
       const [loadSnap, userSnap] = await Promise.all([
-        getDocs(collection(db, 'loads')),
-        getDocs(collection(db, 'users')),
+        getDocs(orgScoped('loads')),
+        getDocs(orgScoped('users')),
       ]);
       const userMap = {};
       const list = [];
@@ -3078,7 +3106,7 @@ function ManageDriversView() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'users'));
+      const snap = await getDocs(orgScoped('users'));
       setList(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
     } catch (e) {
       console.error('Error loading drivers:', e);
@@ -3104,12 +3132,13 @@ function ManageDriversView() {
     setSaving(true);
     try {
       const uid = await createDriverAccount(email.trim(), pw);
-      await setDoc(doc(db, 'users', uid), {
+      await setDoc(doc(db, 'users', uid), stampOrg({
         email: email.trim(),
         approved: true,
         mustChangePassword: true,
+        role: 'driver',
         createdAt: serverTimestamp(),
-      }, { merge: true });
+      }), { merge: true });
       setCreated({ email: email.trim(), pw });
       setEmail(''); setPw('');
       fetchUsers();
@@ -3249,9 +3278,9 @@ function FleetView() {
     setLoading(true);
     try {
       const [v, d, h] = await Promise.all([
-        getDocs(collection(db, 'vehicles')),
-        getDocs(collection(db, 'fleet_drivers')),
-        getDocs(collection(db, 'hos_status')),
+        getDocs(orgScoped('vehicles')),
+        getDocs(orgScoped('fleet_drivers')),
+        getDocs(orgScoped('hos_status')),
       ]);
       setVehicles(v.docs.map((x) => ({ id: x.id, ...x.data() })));
       setDrivers(d.docs.map((x) => ({ id: x.id, ...x.data() })));
@@ -3270,9 +3299,9 @@ function FleetView() {
     try {
       const ts = serverTimestamp();
       await Promise.all([
-        ...DEMO_VEHICLES.map(({ id, ...data }) => setDoc(doc(db, 'vehicles', id), { ...data, syncedAt: ts }, { merge: true })),
-        ...DEMO_DRIVERS.map(({ id, ...data }) => setDoc(doc(db, 'fleet_drivers', id), { ...data, syncedAt: ts }, { merge: true })),
-        ...DEMO_HOS.map(({ id, ...data }) => setDoc(doc(db, 'hos_status', id), { ...data, syncedAt: ts }, { merge: true })),
+        ...DEMO_VEHICLES.map(({ id, ...data }) => setDoc(doc(db, 'vehicles', id), stampOrg({ ...data, syncedAt: ts }), { merge: true })),
+        ...DEMO_DRIVERS.map(({ id, ...data }) => setDoc(doc(db, 'fleet_drivers', id), stampOrg({ ...data, syncedAt: ts }), { merge: true })),
+        ...DEMO_HOS.map(({ id, ...data }) => setDoc(doc(db, 'hos_status', id), stampOrg({ ...data, syncedAt: ts }), { merge: true })),
       ]);
       setMsg('Demo fleet data loaded ✓');
       await fetchAll();
@@ -3411,7 +3440,7 @@ function NegotiationCalcView() {
 
   const [carriers, setCarriers] = useState([]);
   useEffect(() => {
-    getDocs(collection(db, 'carriers'))
+    getDocs(orgScoped('carriers'))
       .then((snap) => setCarriers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
       .catch((e) => console.error('Error loading carriers:', e));
   }, []);
@@ -3557,7 +3586,7 @@ function NegotiationCalcView() {
     setAssigning(true);
     try {
       const loadId = 'FM-' + Math.floor(1000 + Math.random() * 9000);
-      await addDoc(collection(db, 'loads'), {
+      await addDoc(collection(db, 'loads'), stampOrg({
         loadId,
         uid: selectedCarrierObj.linkedDriverUid,
         origin: (v.originCity.trim() || v.originZip.trim()),
@@ -3574,7 +3603,7 @@ function NegotiationCalcView() {
         status: asOffer ? 'Offered' : 'Dispatched',
         ...(asOffer ? { offerStatus: 'pending', offerSentAt: serverTimestamp() } : {}),
         createdAt: serverTimestamp(),
-      });
+      }));
       setAssignMsg(asOffer
         ? `Offer ${loadId} sent to ${selectedCarrierObj.name} — awaiting their accept/decline ✓`
         : `Load ${loadId} assigned to ${selectedCarrierObj.name} ✓`);
@@ -4052,8 +4081,8 @@ function CarriersView() {
     setLoading(true);
     try {
       const [cSnap, uSnap] = await Promise.all([
-        getDocs(collection(db, 'carriers')),
-        getDocs(collection(db, 'users')),
+        getDocs(orgScoped('carriers')),
+        getDocs(orgScoped('users')),
       ]);
       setList(cSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setDrivers(uSnap.docs.map((d) => ({ uid: d.id, ...d.data() })));
@@ -4122,10 +4151,10 @@ function CarriersView() {
         if (form.newLoginPw.length < 6) { alert('Temporary password must be at least 6 characters.'); setSaving(false); return; }
         try {
           const uid = await createDriverAccount(form.newLoginEmail.trim(), form.newLoginPw);
-          await setDoc(doc(db, 'users', uid), {
+          await setDoc(doc(db, 'users', uid), stampOrg({
             email: form.newLoginEmail.trim(), approved: true, mustChangePassword: true,
-            vipConcierge: !!form.vipConcierge, createdAt: serverTimestamp(),
-          }, { merge: true });
+            role: 'driver', vipConcierge: !!form.vipConcierge, createdAt: serverTimestamp(),
+          }), { merge: true });
           linkedUid = uid;
           setCreatedLogin({ email: form.newLoginEmail.trim(), pw: form.newLoginPw });
         } catch (err) {
@@ -4138,7 +4167,7 @@ function CarriersView() {
           return;
         }
       }
-      await addDoc(collection(db, 'carriers'), {
+      await addDoc(collection(db, 'carriers'), stampOrg({
         name: form.name.trim(),
         mcNumber: form.mcNumber.trim(),
         driverName: form.driverName.trim(),
@@ -4159,7 +4188,7 @@ function CarriersView() {
         verification: verify,
         verified: allVerified,
         createdAt: serverTimestamp(),
-      });
+      }));
       // Mirror the VIP flag onto the linked driver's user doc so their portal reflects it.
       if (linkedUid) {
         try { await setDoc(doc(db, 'users', linkedUid), { vipConcierge: !!form.vipConcierge }, { merge: true }); } catch (_) {}
@@ -4651,7 +4680,7 @@ function LaneIntelView() {
   const fetchNotes = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'lane_intel'));
+      const snap = await getDocs(orgScoped('lane_intel'));
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       rows.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
       setNotes(rows);
@@ -4669,13 +4698,13 @@ function LaneIntelView() {
     if (!form.location.trim() || !form.note.trim()) return;
     setSaving(true);
     try {
-      await addDoc(collection(db, 'lane_intel'), {
+      await addDoc(collection(db, 'lane_intel'), stampOrg({
         location: form.location.trim(),
         category: form.category,
         note: form.note.trim(),
         createdAtMs: Date.now(),
         createdAt: serverTimestamp(),
-      });
+      }));
       setForm({ location: '', category: 'Market / Lane', note: '' });
       fetchNotes();
     } catch (e) {
@@ -5675,8 +5704,8 @@ function ExpensesView() {
     setLoading(true);
     try {
       const [eSnap, lSnap] = await Promise.all([
-        getDocs(collection(db, 'expenses')),
-        getDocs(collection(db, 'loads')),
+        getDocs(orgScoped('expenses')),
+        getDocs(orgScoped('loads')),
       ]);
       const rows = eSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -5701,7 +5730,7 @@ function ExpensesView() {
     setSaving(true);
     try {
       const payload = { category: form.category, amount: Number(form.amount) || 0, date: form.date, note: form.note.trim(), createdAt: serverTimestamp() };
-      const ref = await addDoc(collection(db, 'expenses'), payload);
+      const ref = await addDoc(collection(db, 'expenses'), stampOrg(payload));
       setExpenses((p) => [{ id: ref.id, ...payload }, ...p]);
       setForm({ ...blank, date: form.date });
       setShowForm(false);
@@ -6016,7 +6045,7 @@ function VipServicesView() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [uSnap, cSnap] = await Promise.all([getDocs(collection(db, 'users')), getDocs(collection(db, 'carriers'))]);
+      const [uSnap, cSnap] = await Promise.all([getDocs(orgScoped('users')), getDocs(orgScoped('carriers'))]);
       const carriers = cSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       const byUid = {};
       carriers.forEach((c) => { if (c.linkedDriverUid) byUid[c.linkedDriverUid] = c; });
@@ -6264,6 +6293,48 @@ function WorkspacesView() {
   };
   useEffect(() => { fetchOrgs(); }, []);
 
+  // ---- one-time data backfill (super-admin) ----
+  const [bfOrg, setBfOrg] = useState('');
+  const [bfBusy, setBfBusy] = useState(false);
+  const [bfLog, setBfLog] = useState('');
+  const BACKFILL_COLS = ['users', 'carriers', 'loads', 'lane_intel', 'expenses', 'compliance', 'safe_parking', 'vehicles', 'fleet_drivers', 'hos_status'];
+
+  const createHomeOrg = async () => {
+    setErr('');
+    if (!form.workspaceName.trim()) { setErr('Enter a workspace name above first (used as your home workspace name).'); return; }
+    setBfBusy(true);
+    try {
+      const me = auth.currentUser;
+      const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: me.uid, ownerEmail: me.email, createdAt: serverTimestamp(), config: {} });
+      await setDoc(doc(db, 'users', me.uid), { orgId: orgRef.id, role: 'admin' }, { merge: true });
+      setBfLog(`Home workspace created (${orgRef.id.slice(0, 8)}…). Now run the backfill into it, then reload.`);
+      setBfOrg(orgRef.id);
+      fetchOrgs();
+    } catch (e2) { console.error('home org failed', e2); setErr(e2.message || 'Failed to create home workspace.'); }
+    finally { setBfBusy(false); }
+  };
+
+  const runBackfill = async () => {
+    setErr('');
+    if (!bfOrg) { setErr('Pick the workspace to stamp existing data into.'); return; }
+    if (!window.confirm(`Stamp every unscoped document with orgId "${bfOrg.slice(0, 8)}…"? Run this ONCE, as a one-time migration.`)) return;
+    setBfBusy(true); setBfLog('Starting…');
+    try {
+      let total = 0;
+      for (const col of BACKFILL_COLS) {
+        const snap = await getDocs(collection(db, col));
+        let stamped = 0;
+        for (const d of snap.docs) {
+          if (!d.data().orgId) { await setDoc(doc(db, col, d.id), { orgId: bfOrg }, { merge: true }); stamped++; }
+        }
+        total += stamped;
+        setBfLog((prev) => `${prev}\n${col}: stamped ${stamped} / ${snap.size}`);
+      }
+      setBfLog((prev) => `${prev}\n\n✓ Done — ${total} document(s) stamped. Publish the multi-tenant rules, then reload.`);
+    } catch (e2) { console.error('backfill failed', e2); setErr(e2.message || 'Backfill failed — check the console.'); }
+    finally { setBfBusy(false); }
+  };
+
   const provision = async (e) => {
     e.preventDefault(); setErr(''); setCreated(null);
     if (!form.workspaceName.trim() || !form.email.trim() || form.pw.length < 6) { setErr('Workspace name, dispatcher email, and a 6+ character password are all required.'); return; }
@@ -6337,6 +6408,32 @@ function WorkspacesView() {
               ))}
             </div>
           )}
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="font-bold mb-1">One-Time Data Migration</h3>
+        <p className="text-slate-400 text-sm mb-4">
+          Your existing carriers, loads, and intel were created before workspaces existed, so they have no <code className="text-slate-300">orgId</code>.
+          Stamp them all into your home workspace once, then publish the multi-tenant rules. Order matters: <strong>create home workspace → backfill → publish rules → reload</strong>.
+        </p>
+        <div className="space-y-3">
+          <button type="button" onClick={createHomeOrg} disabled={bfBusy}
+            className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 px-4 py-2 rounded-lg disabled:opacity-50">
+            1. Create my home workspace
+          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-400">2. Stamp existing data into</span>
+            <select className={SELECT_CLS + ' max-w-xs'} value={bfOrg} onChange={(e) => setBfOrg(e.target.value)}>
+              <option value="">Select workspace…</option>
+              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.id.slice(0, 8)}…)</option>)}
+            </select>
+            <button type="button" onClick={runBackfill} disabled={bfBusy || !bfOrg}
+              className="text-sm bg-amber-500/90 hover:bg-amber-500 text-slate-900 font-semibold px-4 py-2 rounded-lg disabled:opacity-50">
+              {bfBusy ? 'Working…' : 'Run backfill'}
+            </button>
+          </div>
+          {bfLog && <pre className="text-xs text-slate-300 bg-slate-950/60 border border-slate-800 rounded-lg p-3 whitespace-pre-wrap font-mono">{bfLog}</pre>}
+        </div>
       </Card>
     </div>
   );
@@ -6570,10 +6667,10 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
     try {
       if (isAdmin) {
         const [loadSnap, carrierSnap, compSnap, userSnap] = await Promise.all([
-          getDocs(collection(db, 'loads')),
-          getDocs(collection(db, 'carriers')),
-          getDocs(collection(db, 'compliance')),
-          getDocs(collection(db, 'users')),
+          getDocs(orgScoped('loads')),
+          getDocs(orgScoped('carriers')),
+          getDocs(orgScoped('compliance')),
+          getDocs(orgScoped('users')),
         ]);
         const emailByUid = {};
         userSnap.docs.forEach((d) => { emailByUid[d.id] = d.data().email || d.id; });
