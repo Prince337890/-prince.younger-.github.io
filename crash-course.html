@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Free 2-Week Dispatcher Crash Course | Forward Motion Freight</title>
-    <meta name="description" content="A free, interactive 2-week crash course that takes you from zero to booking your first load — lessons, daily quizzes, and a final exam, from Forward Motion Freight.">
+    <meta name="description" content="A free, interactive 2-week crash course that takes you from zero to booking your first load — lessons, daily quizzes, a final exam, and a shareable certificate, from Forward Motion Freight.">
     <meta name="theme-color" content="#0a0f1a">
     <meta name="color-scheme" content="dark">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -23,13 +23,12 @@
         </div>
     </header>
 
-    <!-- HERO + email gate -->
     <section id="intro" class="px-5 py-16 sm:py-24">
         <div class="mx-auto max-w-3xl text-center">
             <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Free · No experience required</p>
             <h1 class="mt-4 font-display text-3xl font-extrabold tracking-tight text-white sm:text-5xl">The 2-Week Dispatcher Crash Course</h1>
             <p class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
-                Fourteen lessons, a quiz after every day, a review at the end of each week, and a final exam. Pass it and you’ll have the fundamentals to book your first load — and a clear next step.
+                Fourteen lessons, a quiz after every day, a review at the end of each week, and a final exam. Pass it and earn a shareable Certificate of Completion — plus a clear next step.
             </p>
             <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row">
                 <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
@@ -44,10 +43,8 @@
         </div>
     </section>
 
-    <!-- COURSE APP (hidden until unlocked) -->
     <section id="course" class="px-5 pb-24" style="display:none">
         <div class="mx-auto max-w-3xl">
-            <!-- progress -->
             <div class="mb-6">
                 <div class="flex items-center justify-between text-xs text-slate-400">
                     <span id="prog-label">Day 1 of 14</span>
@@ -83,6 +80,9 @@
           quiz:[
             {q:'How does a dispatcher primarily get paid?', o:['A percentage of each load’s gross','A salary from the broker','A flat fee from the shipper','Per mile the truck drives'], a:0},
             {q:'Who do you invoice for your fee?', o:['The carrier','The broker','The factoring company','The shipper'], a:0},
+            {q:'A dispatcher is best described as…', o:['A service the carrier hires','The carrier’s employee','A freight broker','A truck driver'], a:0},
+            {q:'Whose money do you never handle?', o:['The broker’s payment to the carrier','Your own invoice','Your fuel card','Your phone bill'], a:0},
+            {q:'Your core value to a carrier is…', o:['Higher rates, fewer empty miles, less paperwork','Cheaper insurance','A new truck','Free fuel'], a:0},
           ] },
         { d:2, t:'The Core Math: True RPM & Your Floor', s:'Calculate the real rate per mile and the number you never book under.',
           p:'Profit lives in one number: True RPM = gross linehaul ÷ (loaded miles + deadhead miles). A $2,100 load over 715 loaded + 25 deadhead = 740 total → $2.83/mi. Rookies forget the deadhead and book “losers.” Know each carrier’s break-even RPM and treat it as a hard floor. Then add leverage: when capacity is tight (e.g., reefers in produce season), counter harder.',
@@ -90,6 +90,9 @@
           quiz:[
             {q:'What is the True RPM formula?', o:['Gross ÷ (loaded + deadhead) miles','Gross ÷ loaded miles only','Gross × total miles','Gross − fuel cost'], a:0},
             {q:'A $2,100 load: 715 loaded + 25 deadhead miles. True RPM ≈ ?', o:['$2.83','$2.94','$3.10','$2.10'], a:0},
+            {q:'Rookies most often forget to include…', o:['Deadhead miles','Loaded miles','The fuel surcharge','The pickup city'], a:0},
+            {q:'A carrier’s break-even RPM is…', o:['The hard floor you never book under','A nice-to-have target','The broker’s offer','The fuel price'], a:0},
+            {q:'When capacity is tight, you should…', o:['Counter harder and push the rate up','Take the first offer','Lower your rate','Skip the load'], a:0},
           ] },
         { d:3, t:'Strategic Routing: The Triangle Method', s:'Stop booking cheap backhauls — build a loaded triangle home.',
           p:'A premium dispatcher never traps a driver in a “dead zone” (no outbound freight). Instead of an out-and-back (which forces a cheap, money-losing backhaul), route through a strong secondary market before heading home — e.g., Atlanta → Chicago → Dallas → Atlanta. More revenue, loaded miles, and a higher blended RPM even with extra distance. Bonus: route around the driver’s life — safe parking, gyms, good food — to keep them loyal.',
@@ -97,6 +100,9 @@
           quiz:[
             {q:'The Triangle Method mainly helps you avoid…', o:['A cheap, money-losing backhaul','Driving in daylight','Loaded miles','Using a broker'], a:0},
             {q:'A “dead zone” is…', o:['An area with little or no outbound freight','A no-cell-signal area','A reduced-speed zone','A closed weigh station'], a:0},
+            {q:'A triangle route looks like…', o:['A → B → C → A through a strong third market','A → B → A only','One-way with no return','Random lanes'], a:0},
+            {q:'Even with extra distance, the triangle can deliver…', o:['A higher blended rate per mile','Fewer loaded miles','A lower total revenue','No paperwork'], a:0},
+            {q:'Routing around parking, gyms, and food is a…', o:['Driver-retention edge','Waste of time','Legal requirement','Broker demand'], a:0},
           ] },
         { d:4, t:'Carrier Onboarding & the Paperwork Packet', s:'Legally lock in the relationship before you book a single load.',
           p:'Before booking freight, set the carrier up with a clean packet: a Dispatch Agreement (your fee %, payment terms, and a “No Forced Dispatch” clause) and a Limited Power of Attorney (LPOA) giving you authority strictly to sign rate confirmations. Collect and vault their MC Authority, W-9, Certificate of Insurance (COI), and Notice of Assignment (NOA) so a broker setup takes 3 minutes, not 30. Have an attorney review your actual agreement and LPOA.',
@@ -104,6 +110,9 @@
           quiz:[
             {q:'A Limited Power of Attorney (LPOA) lets you…', o:['Sign rate confirmations on the carrier’s behalf','Drive the truck','Access the carrier’s bank account','Change their insurance policy'], a:0},
             {q:'Which is NOT part of the onboarding packet?', o:['A signed RateCon for a future load','MC Authority','W-9','Certificate of Insurance'], a:0},
+            {q:'The Dispatch Agreement sets your…', o:['Fee %, payment terms, and no-forced-dispatch clause','Truck route','Insurance premium','Fuel discount'], a:0},
+            {q:'“No Forced Dispatch” primarily protects…', o:['The dispatcher’s liability','The broker','The shipper','The factoring company'], a:0},
+            {q:'You should have ___ review your agreement and LPOA.', o:['An attorney','A broker','A driver','A factoring rep'], a:0},
           ] },
         { d:5, t:'Broker Setup, RateCons & the Factoring Flow', s:'Securing the contract and the cash is step two.',
           p:'Use your document vault to rip through a broker’s onboarding portal — speed wins loads. On every load, audit the Rate Confirmation before signing: rate, pickup/delivery times, weight, detention policy. Carriers can’t wait 30–60 days for a broker check, so they submit the signed BOL to a factoring company for next-day payout — which is why you give the broker the NOA. Invoice the carrier your fee right after they’re funded.',
@@ -111,6 +120,9 @@
           quiz:[
             {q:'Why does the broker get the carrier’s NOA?', o:['So the broker pays the factoring company','To prove insurance','To set the rate','To dispatch the load'], a:0},
             {q:'Before signing a RateCon you should…', o:['Audit rate, times, weight, and detention terms','Sign instantly to win the load','Wait 30 days','Call the shipper first'], a:0},
+            {q:'Carriers use factoring because…', o:['They can’t wait 30–60 days for a broker check','They dislike dispatchers','It’s legally required','Brokers demand it'], a:0},
+            {q:'What makes a broker setup fast?', o:['An organized document vault','A bigger truck','A new MC','A cold call'], a:0},
+            {q:'You invoice your fee…', o:['Right after the carrier is funded','Before the load delivers','Only at year-end','When the broker pays you directly'], a:0},
           ] },
         { d:6, t:'Your Tech Stack: Work at the Speed of the Market', s:'The tools that let one person dispatch like a team.',
           p:'The market moves in minutes; your setup has to keep up. At minimum: a dispatch platform/TMS to run carriers, loads, and paperwork in one place (that’s Forward OS), a CRM so no broker or lead slips, and a way to automate the busywork — check-calls, load offers, notifications — so your time goes to deals, not data entry. A good AI assistant speeds up RPM math, counter-scripts, and message triage. Automate the repetitive; spend your hours negotiating.',
@@ -118,16 +130,25 @@
           quiz:[
             {q:'The guiding principle of your tech stack is…', o:['Automate the repetitive so you spend time negotiating','Replace yourself entirely with AI','Never use the phone','Avoid using a CRM'], a:0},
             {q:'A CRM mainly helps you avoid…', o:['Losing track of brokers and carrier leads','Paying taxes','Driving deadhead','Signing RateCons'], a:0},
+            {q:'A TMS puts which in one place?', o:['Carriers, loads, and paperwork','Only your fuel receipts','Only broker phone numbers','Only your invoices'], a:0},
+            {q:'A good AI assistant can speed up…', o:['RPM math, counter-scripts, and message triage','Truck maintenance','Tire changes','DOT inspections'], a:0},
+            {q:'The point of automating busywork is to…', o:['Free your time for deals and negotiating','Avoid carriers','Stop using a phone','Delete your records'], a:0},
           ] },
         { d:7, t:'Week 1 Review', s:'Lock in the foundation before you start dialing.',
-          p:'Before you hunt carriers, make sure you can do these cold: calculate True RPM in your head, explain why a backhaul can be a loser, name the four onboarding documents, and walk the factoring flow. If any are fuzzy, scroll back. The quiz below is your Week 1 review — pass it before moving into acquisition.',
-          b:['Can you calc True RPM instantly?','Can you explain triangle vs. backhaul?','Do you know the packet + factoring flow?'],
+          p:'Before you hunt carriers, make sure the Week 1 fundamentals are second nature: how you get paid, True RPM, the triangle, the onboarding packet, the factoring flow, and your tech stack. This is your Week 1 Review — ten questions across everything so far. Pass it (70%) before moving into acquisition.',
+          b:['Covers Days 1–6.','Ten questions, 70% to pass.','Scroll back to any day you’re unsure on.'],
           review:true,
           quiz:[
             {q:'True RPM divides gross by…', o:['Loaded + deadhead miles','Loaded miles only','Hours driven','Fuel gallons'], a:0},
-            {q:'The four onboarding documents are…', o:['MC Authority, W-9, COI, NOA','CDL, medical card, IFTA, ELD','BOL, POD, lumper, scale','Stripe, Zelle, ACH, EIN'], a:0},
+            {q:'You get paid as…', o:['A % of each load you book','A broker salary','A shipper retainer','Mileage reimbursement'], a:0},
+            {q:'The four onboarding documents are…', o:['MC Authority, W-9, COI, NOA','CDL, medical, IFTA, ELD','BOL, POD, lumper, scale','Stripe, Zelle, ACH, EIN'], a:0},
             {q:'Factoring exists because carriers…', o:['Can’t wait 30–60 days for a broker check','Don’t trust dispatchers','Refuse to sign RateCons','Have no insurance'], a:0},
             {q:'The Triangle Method’s main payoff is…', o:['Higher blended RPM with loaded miles home','Fewer total miles','Avoiding all brokers','Driving only at night'], a:0},
+            {q:'The NOA tells the broker to…', o:['Pay the factoring company','Set the rate','Skip the insurance','Cancel the load'], a:0},
+            {q:'An LPOA lets you…', o:['Sign rate confirmations for the carrier','Drive the truck','Open their bank account','Change their plates'], a:0},
+            {q:'The carrier’s break-even RPM is…', o:['Your hard floor — never book under it','A loose suggestion','The fuel price','The broker’s margin'], a:0},
+            {q:'A CRM prevents you from…', o:['Losing track of brokers and leads','Paying taxes','Driving deadhead','Signing RateCons'], a:0},
+            {q:'Who do you invoice for your fee?', o:['The carrier','The broker','The shipper','The factoring company'], a:0},
           ] },
         { d:8, t:'Finding Carriers: Sourcing & the “Sweet Spot”', s:'Where good owner-operators actually come from.',
           p:'Don’t buy generic lead lists. Pull carriers directly from the FMCSA SAFER database (or a tool like CarrierOK). Target the sweet spot: owner-operators with 1–3 trucks, MC authority generally older than 6 months (brokers reject brand-new MCs over fraud — unless you run the Day 11 play). Filter to your local region; pitching as “a local dispatcher based out of [your city]” builds instant trust.',
@@ -135,20 +156,29 @@
           quiz:[
             {q:'The best source for carrier leads is…', o:['The FMCSA SAFER database','A bought lead list','Random social-media DMs','The phone book'], a:0},
             {q:'The “sweet spot” carrier is…', o:['An owner-operator with 1–3 trucks','A 200-truck mega-fleet','A day-one brand-new MC','A freight broker'], a:0},
+            {q:'For an established carrier, MC authority should generally be…', o:['Older than ~6 months','Brand new','Expired','Exactly 30 days'], a:0},
+            {q:'What should you avoid?', o:['Generic bought lead lists','The SAFER database','Local carriers','Owner-operators'], a:0},
+            {q:'Pitching as a “local dispatcher” mainly…', o:['Builds instant trust','Raises your fee','Lowers the rate','Avoids paperwork'], a:0},
           ] },
         { d:9, t:'The Discovery Call', s:'Don’t just sell — interview them to make sure they’re profitable.',
           p:'When you get an owner-operator on the phone, qualify before you pitch. Phase 1 (hard qualifiers): MC age, factoring, equipment. Phase 2 (operations): bottom-dollar True RPM, home base, no-go states. Phase 3 (pain point): “What’s the most frustrating part of your day out there?” — then pitch your service straight at that pain.',
           b:['Qualify authority, factoring, and equipment first.','Get their floor RPM, home base, and no-go states.','Find the pain, then sell to it.'],
           quiz:[
             {q:'Phase 1 of the discovery call covers…', o:['Hard qualifiers: authority, factoring, equipment','The hard close','Small talk','Your pricing tiers'], a:0},
+            {q:'Phase 2 covers…', o:['Operations: floor RPM, home base, no-go states','Their childhood','Your fee only','The weather'], a:0},
+            {q:'Phase 3 uncovers…', o:['Their biggest pain point','Their credit score','Your commission','The broker’s name'], a:0},
             {q:'You interview before pitching in order to…', o:['Confirm they’re a profitable fit','Sound friendly','Stall for time','Collect their SSN'], a:0},
+            {q:'The pain-point answer is used to…', o:['Pitch your service straight at it','End the call','Set the fuel price','Pick a truck'], a:0},
           ] },
         { d:10, t:'Outbound That Works: The Multi-Touch Campaign', s:'A sequence that cuts through the spam every driver ignores.',
           p:'One call won’t land a carrier — run a sequence. Tuesday AM, an SMS pattern-interrupt: “I’m a local dispatcher based out of [city], looking for one reliable [equipment] owner-operator. Running or parked?” Wednesday PM, a value-first call — lead with market intel, not “how are you.” Thursday, the proof-of-work close: “Don’t sign anything. Let me run the board tomorrow; if I beat your usual rate I’ll text it. If not, we part as friends.”',
           b:['Open with an SMS pattern-interrupt, not a cold call.','Follow with a value-first call (lead with intel).','Close with risk-free “proof of work.”'],
           quiz:[
-            {q:'The Thursday “proof of work” close works by…', o:['Removing the carrier’s risk','Cutting your fee','Skipping the paperwork','Hiding the rate'], a:0},
             {q:'The first touch in the sequence is…', o:['An SMS pattern-interrupt','A long cold call','A mass email','A voicemail'], a:0},
+            {q:'The Wednesday call should lead with…', o:['Market intel, not “how are you”','Your life story','A hard close','Your fee'], a:0},
+            {q:'The Thursday “proof of work” close works by…', o:['Removing the carrier’s risk','Cutting your fee','Skipping the paperwork','Hiding the rate'], a:0},
+            {q:'A multi-touch sequence beats…', o:['A single cold call','A signed contract','A good rate','A loaded truck'], a:0},
+            {q:'The campaign runs across…', o:['Several days and channels','One phone call','A single email','A billboard'], a:0},
           ] },
         { d:11, t:'The New-Authority Opportunity', s:'The market everyone else ignores — new carriers stuck waiting.',
           p:'Major brokers make new carriers wait out a ~90-day window, leaving brand-new owner-operators stranded. That’s an opening. Build a list of brokers who accept day-one active authorities, and position yourself as the dispatcher who keeps a new truck moving while its authority matures.',
@@ -156,6 +186,9 @@
           quiz:[
             {q:'Why do many big brokers reject brand-new MCs?', o:['Fraud concerns during the ~90-day window','They’re too expensive','They never carry insurance','They don’t own trucks'], a:0},
             {q:'The new-authority play is to…', o:['Keep new carriers moving via day-one-friendly brokers','Refuse all new carriers','Charge them triple','Report them to FMCSA'], a:0},
+            {q:'You build a list of…', o:['Brokers who accept day-one authorities','Closed weigh stations','Cheap motels','Old load boards'], a:0},
+            {q:'The typical new-MC waiting period is about…', o:['90 days','1 day','2 years','10 years'], a:0},
+            {q:'You position yourself as…', o:['The solution for stranded new authorities','A broker','A factoring company','A truck dealer'], a:0},
           ] },
         { d:12, t:'Content Marketing & Brand', s:'Make leads come to you with short vertical video.',
           p:'Generate inbound interest with 9:16 vertical videos (TikTok/Reels). Sell the premium, professional angle — not loud “cheap loads” pitches. The silent-cinematic ad (a chaotic load board cutting to a clean golden-hour truck shot) and a standards-led hook (“Most dispatchers guess. We run on SOPs.”) both work. Consistency beats virality.',
@@ -163,6 +196,9 @@
           quiz:[
             {q:'The best format for inbound leads here is…', o:['9:16 vertical video','Long blog posts','Cold email blasts','Highway billboards'], a:0},
             {q:'The tone that works is…', o:['Premium and professional','Loud discount pitches','Spammy and aggressive','Totally silent'], a:0},
+            {q:'The silent-cinematic ad shows a…', o:['Chaos → calm transformation','Price chart','Talking head','Spreadsheet'], a:0},
+            {q:'What beats virality over time?', o:['Consistency','Luck','A single viral hit','Paid bots'], a:0},
+            {q:'The goal of the content is to…', o:['Generate inbound leads','Entertain only','Replace cold calls forever','Sell merch'], a:0},
           ] },
         { d:13, t:'The Daily Operating Rhythm', s:'A dispatcher without a routine drowns — here’s the schedule.',
           p:'Run your day with structure. 0700–0800 Morning Audit: check-calls; confirm every driver is loaded, rolling, legal on HOS; check weather. 0800–1100 War Room: cross-reference empty trucks with the board, calc RPMs, negotiate, lock loads. 1100–1300 Admin: broker setups, RateCon audits, pickup details, detention disputes. 1300–1500 Marketing: leads, outbound, calls. 1500–1700 Blueprint: check deliveries, map tomorrow’s triangles, invoice today’s funded loads.',
@@ -170,47 +206,84 @@
           quiz:[
             {q:'The 0800–1100 “War Room” block is for…', o:['Load hunting at peak market hours','Sleeping','Invoicing only','Posting TikToks'], a:0},
             {q:'The morning audit confirms each driver is…', o:['Loaded, rolling, and legal on HOS','Paid in full','Home for the day','Off duty'], a:0},
+            {q:'The 1100–1300 block is for…', o:['Admin: setups, RateCon audits, pickup details','Cold calls only','Sleeping','Marketing only'], a:0},
+            {q:'End-of-day blueprint includes…', o:['Mapping tomorrow’s triangles and invoicing','Ignoring deliveries','Turning off your phone','Buying a truck'], a:0},
+            {q:'The point of a daily routine is so…', o:['Multiple trucks don’t overwhelm you','You can skip work','You avoid carriers','You never use a board'], a:0},
           ] },
         { d:14, t:'Going Live: Your Launch Checklist', s:'Verify every system is green before your first live call.',
-          p:'Before you dial your first carrier, confirm: your tools are live (TMS/CRM, document vault organized for MC/COI paperwork), your intake link is ready to send prospects, your lead list is pulled and formatted, and your scripts are within reach. Then execute. The dispatchers who win aren’t the smartest — they’re the ones who start, stay consistent, and run their SOPs every single day. Next up: the final exam.',
+          p:'Before you dial your first carrier, confirm: your tools are live (TMS/CRM, document vault organized for MC/COI paperwork), your intake link is ready to send prospects, your lead list is pulled and formatted, and your scripts are within reach. Then execute. The dispatchers who win aren’t the smartest — they’re the ones who start, stay consistent, and run their SOPs every single day. Next: the Week 2 review, then your final exam.',
           b:['Tools live: TMS/CRM + organized document vault.','Intake link + lead list ready to go.','Scripts handy — then start. Consistency wins.'],
           quiz:[
             {q:'Who tends to win in dispatching?', o:['Those who start and stay consistent with SOPs','The smartest person in the room','The absolute cheapest','The loudest marketer'], a:0},
             {q:'Before your first call, which should be ready?', o:['Tools, intake link, lead list, and scripts','Your CDL','An ELD device','A truck'], a:0},
+            {q:'Your document vault should be organized to…', o:['Receive incoming MC/COI paperwork','Store family photos','Hold fuel receipts only','Replace your CRM'], a:0},
+            {q:'The intake link is for…', o:['Sending prospects to sign themselves up','Paying the broker','Filing taxes','Tracking the truck'], a:0},
+            {q:'The final mindset is to…', o:['Execute and run your SOPs daily','Wait for perfect conditions','Avoid the phone','Memorize theory'], a:0},
           ] },
       ];
 
-      const FINAL = { title:'Final Exam', sub:'Pass with 70% or higher to graduate.', pass:0.7, quiz:[
+      const WEEK2 = { title:'Week 2 Review', sub:'Days 8–14 · ten questions, 70% to pass.', quiz:[
+        {q:'The best place to source carriers is…', o:['The FMCSA SAFER database','Bought lead lists','Billboards','Cold email'], a:0},
+        {q:'The “sweet spot” carrier has…', o:['1–3 trucks','200+ trucks','A day-one MC','No authority'], a:0},
+        {q:'Discovery Phase 1 covers…', o:['Hard qualifiers (authority, factoring, equipment)','The close','Small talk','Your fee'], a:0},
+        {q:'The first outbound touch is…', o:['An SMS pattern-interrupt','A cold call','A billboard','An email blast'], a:0},
+        {q:'New MCs get rejected because of…', o:['Fraud concerns in the ~90-day window','High insurance','Too many trucks','Old equipment'], a:0},
+        {q:'The best content format is…', o:['9:16 vertical video','Long blogs','Billboards','Radio ads'], a:0},
+        {q:'The “War Room” block is for…', o:['Load hunting at peak hours','Invoicing','Sleeping','Marketing'], a:0},
+        {q:'The proof-of-work close works by…', o:['Removing the carrier’s risk','Cutting your fee','Hiding the rate','Skipping paperwork'], a:0},
+        {q:'Who wins in dispatch?', o:['Those who run SOPs consistently','The cheapest','The loudest','The luckiest'], a:0},
+        {q:'The morning audit confirms drivers are…', o:['Loaded, rolling, and legal on HOS','Paid','Home','Asleep'], a:0},
+      ] };
+
+      const FINAL = { title:'Final Exam', sub:'Twenty questions across the whole course · 75% to pass.', quiz:[
         {q:'True RPM is calculated as…', o:['Gross ÷ (loaded + deadhead) miles','Gross ÷ loaded miles','Gross × miles','Gross − fuel'], a:0},
-        {q:'You earn your money as…', o:['A % of each load you book for the carrier','A broker salary','A shipper retainer','Mileage reimbursement'], a:0},
+        {q:'You earn your money as…', o:['A % of each load you book','A broker salary','A shipper retainer','Mileage reimbursement'], a:0},
         {q:'The four onboarding documents are…', o:['MC Authority, W-9, COI, NOA','BOL, POD, lumper, scale','CDL, medical, IFTA, ELD','Stripe, Zelle, ACH, W-2'], a:0},
         {q:'The NOA is given to the broker so they…', o:['Pay the carrier’s factoring company','Set the rate','Skip insurance','Dispatch the load'], a:0},
         {q:'The best place to source carriers is…', o:['The FMCSA SAFER database','Bought lead lists','Billboards','Cold email'], a:0},
         {q:'The Triangle Method exists to…', o:['Avoid a cheap money-losing backhaul','Reduce loaded miles','Skip all brokers','Drive only at night'], a:0},
-        {q:'In a discovery call you qualify before you pitch to…', o:['Confirm the carrier is a profitable fit','Make small talk','Stall the call','Get personal data'], a:0},
+        {q:'In a discovery call you qualify first to…', o:['Confirm the carrier is a profitable fit','Make small talk','Stall the call','Get personal data'], a:0},
         {q:'The dispatchers who win are the ones who…', o:['Start and run their SOPs consistently','Know the most theory','Charge the least','Post the most videos'], a:0},
+        {q:'An LPOA lets you…', o:['Sign rate confirmations for the carrier','Drive the truck','Open their bank account','Change their plates'], a:0},
+        {q:'The carrier’s break-even RPM is…', o:['Your hard floor — never book under it','A loose target','The broker’s margin','The fuel price'], a:0},
+        {q:'The “sweet spot” carrier has…', o:['1–3 trucks','200+ trucks','A day-one MC','No insurance'], a:0},
+        {q:'The first outbound touch should be…', o:['An SMS pattern-interrupt','A cold call','A billboard','A voicemail'], a:0},
+        {q:'Factoring exists because carriers…', o:['Can’t wait 30–60 days for a broker check','Dislike dispatchers','Have no trucks','Refuse RateCons'], a:0},
+        {q:'A CRM helps you avoid…', o:['Losing track of brokers and leads','Paying taxes','Driving deadhead','Signing RateCons'], a:0},
+        {q:'The best content format is…', o:['9:16 vertical video','Long blogs','Billboards','Cold email'], a:0},
+        {q:'The 0800–1100 block is for…', o:['Load hunting at peak hours','Sleeping','Invoicing','Marketing'], a:0},
+        {q:'Big brokers block brand-new MCs for about…', o:['90 days','1 day','5 years','Forever'], a:0},
+        {q:'The Thursday proof-of-work close…', o:['Removes the carrier’s risk','Cuts your fee','Hides the rate','Skips paperwork'], a:0},
+        {q:'You invoice your fee to the carrier…', o:['Right after they’re funded','Before delivery','Once a year','Never'], a:0},
+        {q:'True RPM includes which miles besides loaded?', o:['Deadhead miles','Bonus miles','Toll miles','Idle miles'], a:0},
       ] };
 
       /* ---------------- ENGINE ---------------- */
-      const KEY = 'fm_course_progress_v1';
+      const KEY = 'fm_course_progress_v2';
       let state = { idx: 0, passed: {} };
       try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) state = s; } catch (_) {}
       const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
+      const learnerName = () => { try { return localStorage.getItem('fm_course_name') || ''; } catch (_) { return ''; } };
 
-      // Build linear screen list: 14 days (day 7 & 14 are reviews) + final + congrats.
+      // Linear screens: Days 1–14 (Day 7 = Week 1 review) + Week 2 review + Final + Congrats.
       const SCREENS = DAYS.map((d) => ({ type: d.review ? 'review' : 'day', data: d, id: 'd' + d.d }))
-        .concat([{ type: 'final', data: FINAL, id: 'final' }, { type: 'congrats', id: 'congrats' }]);
+        .concat([
+          { type: 'review2', data: WEEK2, id: 'week2' },
+          { type: 'final', data: FINAL, id: 'final' },
+          { type: 'congrats', id: 'congrats' },
+        ]);
+      const threshold = (sc) => sc.type === 'final' ? 0.75 : (sc.type === 'review' || sc.type === 'review2') ? 0.70 : 0.80;
 
       const el = (id) => document.getElementById(id);
       const screenEl = el('screen'), bar = el('prog-bar'), pct = el('prog-pct'), label = el('prog-label');
       const btnNext = el('btn-next'), btnBack = el('btn-back'), btnSkip = el('btn-skip');
+      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
-      const esc = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-      function quizHtml(sc) {
+      function quizHtml(sc, heading) {
         const q = sc.data.quiz;
         return `<div class="mt-6 rounded-2xl border border-[#7FB6DA]/20 bg-[#0a0f1a] p-6">
-          <div class="font-display font-bold text-white">${sc.type === 'day' ? 'Day ' + sc.data.d + ' Quiz' : esc(sc.data.title || (sc.data.t + ' Quiz'))}</div>
-          <p class="text-xs text-slate-500 mt-1">${sc.type === 'day' ? 'Answer both to complete the day.' : 'Pass to continue.'}</p>
+          <div class="font-display font-bold text-white">${esc(heading)}</div>
+          <p class="text-xs text-slate-500 mt-1">${q.length} questions · ${Math.round(threshold(sc) * 100)}% to pass.</p>
           <div class="mt-4 space-y-5">
             ${q.map((item, qi) => `
               <div data-q="${qi}">
@@ -231,9 +304,13 @@
       function render() {
         const sc = SCREENS[state.idx];
         const completedDays = DAYS.filter((d) => state.passed['d' + d.d]).length;
-        bar.style.width = Math.round((completedDays / DAYS.length) * 100) + '%';
-        pct.textContent = Math.round((completedDays / DAYS.length) * 100) + '%';
-        label.textContent = sc.type === 'congrats' ? 'Complete' : sc.type === 'final' ? 'Final Exam' : (sc.data.review ? 'Week Review' : 'Day ' + sc.data.d + ' of 14');
+        const pctVal = Math.round((completedDays / DAYS.length) * 100);
+        bar.style.width = pctVal + '%'; pct.textContent = pctVal + '%';
+        label.textContent = sc.type === 'congrats' ? 'Complete'
+          : sc.type === 'final' ? 'Final Exam'
+          : sc.type === 'review2' ? 'Week 2 Review'
+          : sc.data.review ? 'Week 1 Review'
+          : 'Day ' + sc.data.d + ' of 14';
         btnBack.style.visibility = state.idx > 0 && sc.type !== 'congrats' ? 'visible' : 'hidden';
         btnSkip.style.display = (sc.type === 'day') ? 'inline' : 'none';
         btnNext.style.display = sc.type === 'congrats' ? 'none' : 'inline-block';
@@ -244,22 +321,23 @@
           const d = sc.data;
           screenEl.innerHTML = `
             <div class="rounded-2xl border border-white/10 bg-[#0a0f1a] p-7">
-              <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d.review ? 'Week Review' : 'Day ' + d.d}</div>
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d.review ? 'Week 1 Review' : 'Day ' + d.d}</div>
               <h2 class="mt-1 font-display text-2xl font-extrabold text-white">${esc(d.t)}</h2>
               <p class="mt-1 text-sm text-slate-400">${esc(d.s)}</p>
-              ${!d.review ? '<p class="mt-4 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-400">Take your time — read it through before you test out. You can always Skip ahead, but the final exam covers all of it.</p>' : ''}
+              ${!d.review ? '<p class="mt-4 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-400">Take your time — read it through before you test out. You can Skip ahead, but the final exam covers all of it.</p>' : ''}
               <p class="mt-4 text-[15px] leading-relaxed text-slate-200">${esc(d.p)}</p>
               <ul class="mt-4 space-y-1.5">${d.b.map((x) => `<li class="flex gap-2 text-sm text-slate-400"><span class="text-[#7FB6DA]">•</span><span>${esc(x)}</span></li>`).join('')}</ul>
             </div>
-            ${quizHtml(sc)}`;
-        } else if (sc.type === 'final') {
+            ${quizHtml(sc, d.review ? 'Week 1 Review' : 'Day ' + d.d + ' Quiz')}`;
+        } else if (sc.type === 'review2' || sc.type === 'final') {
+          const icon = sc.type === 'final' ? '🎓' : '📋';
           screenEl.innerHTML = `
             <div class="rounded-2xl border border-[#7FB6DA]/30 bg-[#0a0f1a] p-7 text-center">
-              <div class="text-3xl">🎓</div>
-              <h2 class="mt-2 font-display text-2xl font-extrabold text-white">${esc(FINAL.title)}</h2>
-              <p class="mt-1 text-sm text-slate-400">${esc(FINAL.sub)} Eight questions covering the whole course.</p>
+              <div class="text-3xl">${icon}</div>
+              <h2 class="mt-2 font-display text-2xl font-extrabold text-white">${esc(sc.data.title)}</h2>
+              <p class="mt-1 text-sm text-slate-400">${esc(sc.data.sub)}</p>
             </div>
-            ${quizHtml(sc)}`;
+            ${quizHtml(sc, sc.data.title)}`;
         }
         btnNext.disabled = !state.passed[sc.id];
         wireQuiz(sc);
@@ -269,9 +347,8 @@
       function wireQuiz(sc) {
         const check = el('check'); if (!check) return;
         const result = el('quiz-result');
-        const threshold = sc.type === 'final' ? FINAL.pass : (sc.type === 'review' ? 0.75 : 1);
         check.addEventListener('click', () => {
-          const q = sc.data.quiz; let correct = 0; let answered = 0;
+          const q = sc.data.quiz; let correct = 0, answered = 0;
           q.forEach((item, qi) => {
             const sel = screenEl.querySelector(`input[name="q${qi}"]:checked`);
             const block = screenEl.querySelector(`[data-q="${qi}"]`);
@@ -288,23 +365,51 @@
           });
           if (answered < q.length) { result.textContent = 'Answer every question first.'; result.style.color = '#fbbf24'; return; }
           const ratio = correct / q.length;
-          if (ratio >= threshold) {
-            result.textContent = `You got ${correct}/${q.length} — passed! ✓`; result.style.color = '#34d399';
+          if (ratio >= threshold(sc)) {
+            result.textContent = `You scored ${correct}/${q.length} — passed! ✓`; result.style.color = '#34d399';
             state.passed[sc.id] = true; save(); btnNext.disabled = false;
           } else {
-            result.textContent = `You got ${correct}/${q.length}. Review the lesson and try again.`; result.style.color = '#f87171';
+            result.textContent = `You scored ${correct}/${q.length}. You need ${Math.ceil(threshold(sc) * q.length)} to pass — review and try again.`; result.style.color = '#f87171';
             btnNext.disabled = true;
           }
         });
       }
 
+      function makeCertificate(name) {
+        const c = document.createElement('canvas'); c.width = 1200; c.height = 850;
+        const x = c.getContext('2d');
+        x.fillStyle = '#0a0f1a'; x.fillRect(0, 0, 1200, 850);
+        x.strokeStyle = '#7FB6DA'; x.lineWidth = 6; x.strokeRect(34, 34, 1132, 782);
+        x.strokeStyle = 'rgba(127,182,218,.35)'; x.lineWidth = 2; x.strokeRect(52, 52, 1096, 746);
+        x.textAlign = 'center';
+        x.fillStyle = '#7FB6DA'; x.font = 'bold 26px Montserrat, Arial'; x.fillText('FORWARD MOTION FREIGHT', 600, 150);
+        x.fillStyle = '#94a3b8'; x.font = '20px Inter, Arial'; x.fillText('CERTIFICATE OF COMPLETION', 600, 200);
+        x.fillStyle = '#ffffff'; x.font = '300 30px Inter, Arial'; x.fillText('This certifies that', 600, 320);
+        x.fillStyle = '#ffffff'; x.font = 'bold 64px Montserrat, Arial'; x.fillText(name || 'Graduate', 600, 410);
+        x.strokeStyle = '#7FB6DA'; x.lineWidth = 2; x.beginPath(); x.moveTo(350, 440); x.lineTo(850, 440); x.stroke();
+        x.fillStyle = '#cbd5e1'; x.font = '24px Inter, Arial';
+        x.fillText('has successfully completed the', 600, 500);
+        x.fillStyle = '#ffffff'; x.font = 'bold 34px Montserrat, Arial'; x.fillText('2-Week Dispatcher Crash Course', 600, 550);
+        const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        x.fillStyle = '#64748b'; x.font = '20px Inter, Arial'; x.fillText('Completed ' + date, 600, 620);
+        x.fillStyle = '#7FB6DA'; x.font = 'bold 30px Montserrat, Arial'; x.fillText('Keep Moving Forward.', 600, 720);
+        x.fillStyle = '#475569'; x.font = '16px Inter, Arial'; x.fillText('forwardmotionfreight.com', 600, 770);
+        return c.toDataURL('image/png');
+      }
+
       function renderCongrats() {
+        const name = learnerName();
         screenEl.innerHTML = `
-          <div class="rounded-2xl border border-[#7FB6DA]/30 bg-gradient-to-br from-[#07101c] to-[#0a0f1a] p-10 text-center">
+          <div class="rounded-2xl border border-[#7FB6DA]/30 bg-gradient-to-br from-[#07101c] to-[#0a0f1a] p-8 sm:p-10 text-center">
             <div class="text-5xl">🎉</div>
-            <h2 class="mt-4 font-display text-3xl font-extrabold text-white">Congratulations — you passed!</h2>
-            <p class="mx-auto mt-3 max-w-lg text-slate-400">You’ve completed the Forward Motion Dispatcher Crash Course and the final exam. You’ve got the fundamentals to book your first load. Now get the platform that runs it all.</p>
-            <div class="mt-7 rounded-xl border border-white/10 bg-[#0a0f1a] p-5 text-left">
+            <h2 class="mt-4 font-display text-3xl font-extrabold text-white">Congratulations${name ? ', ' + esc(name) : ''} — you passed!</h2>
+            <p class="mx-auto mt-3 max-w-lg text-slate-400">You’ve completed the Forward Motion Dispatcher Crash Course and the final exam. Download your certificate, share it, and take your next step.</p>
+            <img id="cert-img" alt="Certificate of Completion" class="mx-auto mt-6 w-full max-w-xl rounded-xl border border-white/10" />
+            <div class="mt-5 flex flex-wrap justify-center gap-3">
+              <a id="cert-dl" download="Forward-Motion-Dispatcher-Certificate.png" class="rounded-xl bg-[#7FB6DA] px-6 py-3 font-bold text-[#06141f] hover:bg-[#A6D2EC] cursor-pointer">⬇ Download certificate</a>
+              <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fforwardmotionfreight.com%2Fcrash-course.html" target="_blank" rel="noopener" class="rounded-xl border border-white/15 px-6 py-3 font-semibold text-slate-200 hover:bg-white/5">Share on LinkedIn</a>
+            </div>
+            <div class="mt-8 rounded-xl border border-white/10 bg-[#0a0f1a] p-5 text-left">
               <div class="text-xs font-semibold uppercase tracking-wide text-[#7FB6DA]">Your next step</div>
               <p class="mt-2 text-sm text-slate-300">Forward OS is invite-only right now. Reply to your welcome email or reach out and we’ll set up your own dispatcher workspace — rate calculator, broker checks, TriHaul routing, CRM, and a driver portal, ready to go.</p>
             </div>
@@ -314,6 +419,7 @@
             </div>
             <p class="mt-6 font-display font-bold tracking-wide text-[#7FB6DA]">Keep Moving Forward.</p>
           </div>`;
+        try { const url = makeCertificate(name); el('cert-img').src = url; el('cert-dl').href = url; } catch (e) { console.error('cert failed', e); }
       }
 
       btnNext.addEventListener('click', () => { if (btnNext.disabled) return; if (state.idx < SCREENS.length - 1) { state.idx++; save(); render(); } });
@@ -341,7 +447,7 @@
         btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
         try {
           await addDoc(collection(db, 'course_leads'), { email, name, source: 'crash-course', createdAt: serverTimestamp() });
-          try { localStorage.setItem('fm_course_unlocked', '1'); } catch (_) {}
+          try { localStorage.setItem('fm_course_unlocked', '1'); localStorage.setItem('fm_course_name', name); } catch (_) {}
           startCourse();
         } catch (err) {
           console.error(err);
