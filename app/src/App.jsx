@@ -488,6 +488,7 @@ export default function App() {
       case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} onReplayTour={() => setShowTour(true)} />;
       case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
+      case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
@@ -597,6 +598,7 @@ export default function App() {
 
               <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">BUSINESS</div>
               <NavItem icon={<CreditCard size={18} />} label="Expenses" isActive={activeTab === 'expenses'} onClick={() => go('expenses')} />
+              <NavItem icon={<FileText size={18} />} label="Invoices" isActive={activeTab === 'invoices'} onClick={() => go('invoices')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
@@ -7342,6 +7344,156 @@ function CrmView({ onNavigate }) {
                   {r.lastContact && <span className="text-slate-500">Last contact: {r.lastContact}</span>}
                   {r.convertedCarrierId && <span className="text-emerald-400">✓ In Carriers</span>}
                 </div>
+              </Card>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
+// ---------- ADMIN: WEEKLY DISPATCH INVOICES ----------
+// Auto-builds a per-carrier invoice from delivered loads in a week (gross × the
+// load's fee %). Export to CSV or print/Save-PDF. No new collection — derived
+// entirely from existing loads/carriers.
+function InvoicesView() {
+  const [loads, setLoads] = useState([]);
+  const [carriers, setCarriers] = useState([]);
+  const [emailByUid, setEmailByUid] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [open, setOpen] = useState(null); // expanded carrier uid
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [lSnap, cSnap, uSnap] = await Promise.all([getDocs(orgScoped('loads')), getDocs(orgScoped('carriers')), getDocs(orgScoped('users'))]);
+        setLoads(lSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setCarriers(cSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const em = {}; uSnap.docs.forEach((d) => { em[d.id] = d.data().email || d.id; });
+        setEmailByUid(em);
+      } catch (e) { console.error('invoices load failed', e); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const weekRange = (offset) => {
+    const d = new Date();
+    const day = d.getDay() === 0 ? 6 : d.getDay() - 1;
+    d.setDate(d.getDate() - day + offset * 7); d.setHours(0, 0, 0, 0);
+    const end = new Date(d); end.setDate(end.getDate() + 7);
+    return { start: d, end };
+  };
+  const { start, end } = weekRange(weekOffset);
+  const fmtD = (dt) => dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const money = (x) => '$' + (Number(x) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const weekLabel = `${fmtD(start)} – ${fmtD(new Date(end.getTime() - 86400000))}`;
+
+  const carrierByUid = {};
+  carriers.forEach((c) => { if (c.linkedDriverUid) carrierByUid[c.linkedDriverUid] = c; });
+
+  const inWeek = (l) => {
+    const delivered = l.status === 'Delivered' || l.status === 'Cleared';
+    if (!delivered) return false;
+    const ds = l.delivery_date ? new Date(l.delivery_date + 'T00:00:00') : null;
+    return ds && ds >= start && ds < end;
+  };
+  const groups = {};
+  loads.filter(inWeek).forEach((l) => { const k = l.uid || 'unknown'; (groups[k] = groups[k] || []).push(l); });
+
+  const invoiceFor = (uid, items) => {
+    const c = carrierByUid[uid];
+    const name = (c && c.name) || emailByUid[uid] || 'Carrier';
+    const lines = items.map((l) => {
+      const gross = Number(l.gross_pay) || 0;
+      const pct = Number(l.feePct) || (c && Number(c.feePct)) || DEFAULT_FEE_PCT;
+      return { loadId: l.loadId || l.id, lane: `${l.origin || '?'} → ${l.destination || '?'}`, date: l.delivery_date || '', gross, pct, fee: gross * pct / 100 };
+    });
+    return { uid, name, mc: c && c.mcNumber, email: emailByUid[uid], lines,
+      totalGross: lines.reduce((s, x) => s + x.gross, 0), totalFee: lines.reduce((s, x) => s + x.fee, 0) };
+  };
+  const invoices = Object.entries(groups).map(([uid, items]) => invoiceFor(uid, items)).sort((a, b) => b.totalFee - a.totalFee);
+  const weekFee = invoices.reduce((s, i) => s + i.totalFee, 0);
+
+  const exportCsv = (inv) => {
+    const rows = [['Load', 'Lane', 'Delivered', 'Gross', 'Fee %', 'Dispatch Fee']];
+    inv.lines.forEach((x) => rows.push([x.loadId, x.lane, x.date, x.gross.toFixed(2), x.pct + '%', x.fee.toFixed(2)]));
+    rows.push(['', '', 'TOTAL', inv.totalGross.toFixed(2), '', inv.totalFee.toFixed(2)]);
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `invoice_${inv.name.replace(/\s+/g, '_')}_${weekLabel.replace(/[^\w]+/g, '-')}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  const printInvoice = (inv) => {
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print the invoice.'); return; }
+    const rowsHtml = inv.lines.map((x) => `<tr><td>${x.loadId}</td><td>${x.lane}</td><td>${x.date}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
+    w.document.write(`<!doctype html><html><head><title>Invoice — ${inv.name}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>Forward Motion Freight</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${inv.name}${inv.mc ? ' (' + inv.mc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Weekly Invoices</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Auto-built from each carrier's delivered loads this week — ready to export and bill.</p>
+      <GuidedHint>Pick a week, and the system totals each carrier's delivered loads × your dispatch fee. Export to CSV for your records or Print/Save-PDF to send the carrier. This is your weekly billing, done.</GuidedHint>
+
+      <div className="flex items-center gap-3">
+        <GhostButton onClick={() => setWeekOffset((w) => w - 1)} className="text-sm">← Prev</GhostButton>
+        <div className="text-center">
+          <div className="font-semibold text-white">Week of {weekLabel}</div>
+          <div className="text-xs text-slate-500">{weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : `${Math.abs(weekOffset)} weeks ${weekOffset < 0 ? 'ago' : 'ahead'}`}</div>
+        </div>
+        <GhostButton onClick={() => setWeekOffset((w) => w + 1)} className="text-sm">Next →</GhostButton>
+        <div className="ml-auto text-right">
+          <div className="text-[11px] uppercase tracking-wide text-slate-500">Total fees this week</div>
+          <div className="text-xl font-bold text-emerald-400 fm-profit">{money(weekFee)}</div>
+        </div>
+      </div>
+
+      {loading ? <div className="text-slate-500 text-center py-12">Loading…</div>
+        : invoices.length === 0 ? <div className="text-slate-500 text-center py-12">No delivered loads in this week.</div>
+        : (
+          <div className="space-y-3">
+            {invoices.map((inv) => (
+              <Card key={inv.uid} className="p-5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <button onClick={() => setOpen(open === inv.uid ? null : inv.uid)} className="text-left min-w-0">
+                    <div className="font-bold text-white">{inv.name}{inv.mc ? <span className="text-slate-400 font-normal"> · {inv.mc}</span> : ''}</div>
+                    <div className="text-xs text-slate-400">{inv.lines.length} load(s) · gross {money(inv.totalGross)}</div>
+                  </button>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500">Fee due</div>
+                      <div className="text-lg font-bold text-emerald-400">{money(inv.totalFee)}</div>
+                    </div>
+                    <button onClick={() => exportCsv(inv)} className="text-xs border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg hover:bg-slate-800">CSV</button>
+                    <button onClick={() => printInvoice(inv)} className="text-xs bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg">Print / PDF</button>
+                  </div>
+                </div>
+                {open === inv.uid && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="text-[11px] uppercase text-slate-500 text-left"><th className="py-1.5 pr-3">Load</th><th className="py-1.5 pr-3">Lane</th><th className="py-1.5 pr-3">Delivered</th><th className="py-1.5 pr-3 text-right">Gross</th><th className="py-1.5 pr-3 text-right">Fee%</th><th className="py-1.5 text-right">Fee</th></tr></thead>
+                      <tbody>
+                        {inv.lines.map((x, i) => (
+                          <tr key={i} className="border-t border-slate-800">
+                            <td className="py-1.5 pr-3 font-mono text-amber-400">{x.loadId}</td>
+                            <td className="py-1.5 pr-3 text-slate-300">{x.lane}</td>
+                            <td className="py-1.5 pr-3 text-slate-400">{x.date}</td>
+                            <td className="py-1.5 pr-3 text-right text-slate-200">{money(x.gross)}</td>
+                            <td className="py-1.5 pr-3 text-right text-slate-400">{x.pct}%</td>
+                            <td className="py-1.5 text-right font-semibold text-white">{money(x.fee)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
