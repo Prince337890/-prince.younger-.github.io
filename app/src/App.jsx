@@ -1316,7 +1316,7 @@ function ProfileView({ uid, displayName }) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <Info label={impersonating ? 'Carrier' : 'Email'} value={impersonating ? displayName : (u?.email || '—')} />
-          <Info label="Account ID" value={acctUid ? acctUid.slice(0, 10) + '…' : '—'} />
+          <Info label="Support ID" value={acctUid ? acctUid.slice(0, 10) + '…' : '—'} />
           <Info label="Role" value="Carrier / Driver" />
           <Info label="Member Since" value={impersonating ? '—' : (u?.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleDateString() : '—')} />
         </div>
@@ -1890,7 +1890,7 @@ function LaneManagementView({ uid }) {
         </div>
       </Card>
 
-      <LoadStepChecklist load={active} onPersist={(steps) => updateDoc(doc(db, 'loads', active.id), { steps }).catch((e) => console.error('checklist save failed', e))} />
+      <LoadStepChecklist load={active} forCarrier onPersist={(steps) => updateDoc(doc(db, 'loads', active.id), { steps }).catch((e) => console.error('checklist save failed', e))} />
 
       <DetentionCard load={active} onSaved={fetchLoads} />
 
@@ -6858,7 +6858,11 @@ const LOAD_STEPS = [
   ] },
 ];
 
-function LoadStepChecklist({ load, onPersist, title = 'Paperwork to Collect' }) {
+function LoadStepChecklist({ load, onPersist, title = 'Paperwork to Collect', forCarrier = false }) {
+  // The broker-paperwork stage (Carrier Setup Packet, RateCon to broker, surety
+  // bond) is the dispatcher's job — carriers only see the pickup (BOL) and
+  // delivery (POD) stages.
+  const stages = forCarrier ? LOAD_STEPS.filter((m) => m.key !== 'dispatched') : LOAD_STEPS;
   const remindersOn = (() => { try { return localStorage.getItem('fm_paperwork') !== '0'; } catch (_) { return true; } })();
   const [steps, setSteps] = useState(() => (load && load.steps) || {});
   useEffect(() => { setSteps((load && load.steps) || {}); }, [load && load.id]);
@@ -6867,6 +6871,7 @@ function LoadStepChecklist({ load, onPersist, title = 'Paperwork to Collect' }) 
   const st = (load && load.status) || '';
   const currentKey = (st === 'Delivered' || st === 'Cleared') ? 'delivered'
     : (st === 'Arrived at Shipper' || st === 'Loaded' || st === 'In Transit') ? 'shipper'
+    : forCarrier ? 'shipper' // carriers don't see the broker stage — their first action is the BOL at pickup
     : 'dispatched';
   const confirmStage = (mk) => {
     setSteps((s) => {
@@ -6882,7 +6887,7 @@ function LoadStepChecklist({ load, onPersist, title = 'Paperwork to Collect' }) 
       <p className="text-sm text-slate-400 mt-1">Make sure you have these in hand, then confirm before moving the load forward. (Turn these reminders off in Settings anytime.)</p>
       <GuidedHint>Missing paperwork is the #1 reason a load pays late — or not at all. Secure the RateCon and send your NOA the moment an offer is accepted, get the BOL signed at pickup, and the signed POD at delivery.</GuidedHint>
       <div className="space-y-4 mt-4">
-        {LOAD_STEPS.map((m) => {
+        {stages.map((m) => {
           const confirmed = !!steps[m.key + ':confirmed'];
           const isCurrent = m.key === currentKey;
           return (
