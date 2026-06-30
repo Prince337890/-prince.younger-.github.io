@@ -478,7 +478,7 @@ export default function App() {
       case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
       case 'lanes': return <LaneManagementView key={'lane-' + viewUid} uid={viewUid} />;
       case 'parking': return <SafeParkingView />;
-      case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} />;
+      case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'vault': return <DigitalVaultView key={'vault-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
       case 'wellness': return <WellnessView />;
@@ -723,7 +723,7 @@ export default function App() {
         {viewAs && (
           <div className="bg-indigo-600 text-white px-4 md:px-8 py-2 flex items-center justify-between gap-3">
             <div className="text-sm font-semibold truncate">👁 CARRIER VIEW — {viewAs.name}<span className="font-normal opacity-80 hidden sm:inline"> · you're seeing their portal</span></div>
-            <button onClick={() => setViewAs(null)} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg shrink-0">Return to Admin</button>
+            <button onClick={() => { setViewAs(null); setActiveTab('dashboard'); }} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg shrink-0">Return to Admin</button>
           </div>
         )}
 
@@ -2237,9 +2237,9 @@ function SafeParkingView() {
 }
 
 // ---------- COMPLIANCE ----------
-function ComplianceView({ uid }) {
+function ComplianceView({ uid, isAdmin }) {
   const targetUid = uid || auth.currentUser?.uid;
-  const admin = ADMIN_EMAILS.map((e) => e.toLowerCase()).includes((auth.currentUser?.email || '').toLowerCase());
+  const admin = !!isAdmin;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
