@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
-  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen
+  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -12,7 +12,7 @@ import {
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
   createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail, updateProfile
 } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -551,6 +551,7 @@ export default function App() {
 
   return (
     <GuidedModeContext.Provider value={isAdmin && guidedMode}>
+    <style>{PROFIT_GLOW_CSS}</style>
     <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
@@ -1159,6 +1160,29 @@ function PendingOfferScreen({ offer, onResolved }) {
     } catch (e) { console.error('Decline failed:', e); alert('Could not decline — please try again.'); setBusy(false); }
   };
 
+  // Hours-of-Service fit: pull the carrier's own self-reported drive hours and
+  // check this load against an 11-hour daily clock so they know BEFORE they accept.
+  const [driveAvail, setDriveAvail] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        const h = snap.exists() && snap.data().hosSelf;
+        if (h && (h.driveAvail || h.driveAvail === 0)) setDriveAvail(Number(h.driveAvail));
+      } catch (_) { /* ignore */ }
+    })();
+  }, []);
+  const estDriveH = totalMi / 50; // ~50 mph planning average
+  const hosDays = estDriveH > 0 ? Math.ceil(estDriveH / 11) : 0;
+  let hos = null;
+  if (totalMi > 0) {
+    if (driveAvail == null) hos = { tone: 'slate', text: `~${estDriveH.toFixed(1)} h of driving. Add your hours in Profile to see how it fits your clock.` };
+    else if (estDriveH <= driveAvail) hos = { tone: 'emerald', text: `Fits your hours — ~${estDriveH.toFixed(1)} h driving, you have ${driveAvail} h available.` };
+    else if (estDriveH <= 11) hos = { tone: 'amber', text: `~${estDriveH.toFixed(1)} h driving fits an 11-hour day, but you only have ${driveAvail} h left today — you'd finish on a fresh clock.` };
+    else hos = { tone: 'amber', text: `~${estDriveH.toFixed(1)} h driving = ${hosDays} days with HOS resets. Plan fuel & rest before you accept.` };
+  }
+  const hosCls = { emerald: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300', amber: 'bg-amber-500/10 border-amber-500/30 text-amber-200', slate: 'bg-slate-800/60 border-slate-700 text-slate-300' };
+
   return (
     <div className="max-w-xl mx-auto">
       <div className="text-center mb-5">
@@ -1174,7 +1198,7 @@ function PendingOfferScreen({ offer, onResolved }) {
           <span className="font-mono text-amber-500 font-bold">{offer.loadId || 'New Load'}</span>
           <div className="text-right">
             <div className="text-xs text-slate-500">Gross Rate</div>
-            <div className="text-xl font-bold text-emerald-400">{money(gross)}</div>
+            <div className="text-xl font-bold text-emerald-400 fm-profit">{money(gross)}</div>
           </div>
         </div>
         <div className="p-6 space-y-4">
@@ -1199,6 +1223,11 @@ function PendingOfferScreen({ offer, onResolved }) {
             <div><div className="text-[10px] text-slate-500">DELIVERY</div><div className="text-sm text-slate-200">{offer.delivery_date || offer.delivery_time || '—'}</div></div>
           </div>
         </div>
+        {hos && (
+          <div className={`mx-6 mb-2 rounded-lg border px-3 py-2.5 text-xs font-medium ${hosCls[hos.tone]}`}>
+            <span className="font-semibold">Hours of Service:</span> {hos.text}
+          </div>
+        )}
         <div className="p-4 border-t border-slate-800 space-y-2">
           <PrimaryButton onClick={accept} disabled={busy} className="w-full py-3">
             {busy ? 'Working…' : '✓ Accept Offer'}
@@ -1298,19 +1327,94 @@ function QuoteOfTheDay({ forDispatcher = false }) {
 function ProfileView({ uid, displayName }) {
   const u = auth.currentUser;
   const impersonating = !!displayName;
-  const title = displayName || u?.email || 'Driver';
   const acctUid = uid || u?.uid;
+  const isSelf = !impersonating && acctUid === u?.uid;
+
+  const [name, setName] = useState(displayName || '');
+  const [photoURL, setPhotoURL] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [savingName, setSavingName] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [hos, setHos] = useState({ driveAvail: '', dutyUsed: '', cycleUsed: '' });
+  const [hosUpdated, setHosUpdated] = useState(null);
+  const [hosMsg, setHosMsg] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', acctUid));
+        if (snap.exists()) {
+          const d = snap.data();
+          setName(d.displayName || displayName || (d.email ? d.email.split('@')[0] : ''));
+          setPhotoURL(d.photoURL || '');
+          if (d.hosSelf) { setHos({ driveAvail: d.hosSelf.driveAvail ?? '', dutyUsed: d.hosSelf.dutyUsed ?? '', cycleUsed: d.hosSelf.cycleUsed ?? '' }); setHosUpdated(d.hosSelf.updatedAt || null); }
+        }
+      } catch (e) { console.error('profile load failed', e); }
+    })();
+  }, [acctUid]);
+
+  const title = name || displayName || u?.email || 'Driver';
+
+  const saveName = async () => {
+    setSavingName(true);
+    try {
+      await setDoc(doc(db, 'users', acctUid), { displayName: name.trim() }, { merge: true });
+      if (isSelf) { try { await updateProfile(auth.currentUser, { displayName: name.trim() }); } catch (_) {} }
+      setEditingName(false);
+    } catch (e) { console.error('name save failed', e); alert('Could not save your name — try again.'); }
+    finally { setSavingName(false); }
+  };
+
+  const onPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadToStorage(`avatars/${acctUid}/${Date.now()}_${file.name}`, file);
+      await setDoc(doc(db, 'users', acctUid), { photoURL: url }, { merge: true });
+      if (isSelf) { try { await updateProfile(auth.currentUser, { photoURL: url }); } catch (_) {} }
+      setPhotoURL(url);
+    } catch (err) {
+      console.error('avatar upload failed', err);
+      alert(err.code === 'storage/unauthorized' ? 'Photo upload needs Storage rules published.' : 'Upload failed — try a smaller image.');
+    } finally { setUploading(false); }
+  };
+
+  const saveHos = async () => {
+    setHosMsg('');
+    try {
+      const payload = { driveAvail: Number(hos.driveAvail) || 0, dutyUsed: Number(hos.dutyUsed) || 0, cycleUsed: Number(hos.cycleUsed) || 0, updatedAt: serverTimestamp() };
+      await setDoc(doc(db, 'users', acctUid), { hosSelf: payload }, { merge: true });
+      setHosMsg('Hours saved ✓'); setTimeout(() => setHosMsg(''), 2500);
+    } catch (e) { console.error('hos save failed', e); setHosMsg('Could not save'); }
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold">{impersonating ? 'Carrier Profile' : 'My Profile'}</h2>
-      <GuidedHint>Basic account info for the carrier. Their operating details (equipment, rates, lanes) live in the <strong>Carriers</strong> tab and the onboarding profile.</GuidedHint>
+      <GuidedHint>Edit your display name, photo, and your current hours of service here. Your operating details (equipment, rates, lanes) live in the onboarding profile.</GuidedHint>
       <Card className="p-6">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold uppercase">
-            {title ? title[0] : 'D'}
-          </div>
-          <div className="min-w-0">
-            <div className="text-lg font-bold truncate">{title}</div>
+          <label className={`relative w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-2xl font-bold uppercase overflow-hidden shrink-0 ${uploading ? 'opacity-60' : 'cursor-pointer group'}`}>
+            {photoURL
+              ? <img src={photoURL} alt="" className="w-full h-full object-cover" />
+              : <span>{title ? title[0] : 'D'}</span>}
+            <span className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/50 text-[10px] font-medium normal-case">{uploading ? '…' : 'Change'}</span>
+            <input type="file" accept="image/*" className="hidden" onChange={onPhoto} disabled={uploading} />
+          </label>
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input className={INPUT_CLS + ' max-w-xs'} value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" />
+                <button onClick={saveName} disabled={savingName} className="text-xs bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg">{savingName ? '…' : 'Save'}</button>
+                <button onClick={() => setEditingName(false)} className="text-xs text-slate-400 px-2">Cancel</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="text-lg font-bold truncate">{title}</div>
+                <button onClick={() => setEditingName(true)} className="text-xs text-amber-400 hover:underline shrink-0">Edit</button>
+              </div>
+            )}
             <div className="text-sm text-emerald-400">● Active</div>
           </div>
         </div>
@@ -1319,6 +1423,21 @@ function ProfileView({ uid, displayName }) {
           <Info label="Support ID" value={acctUid ? acctUid.slice(0, 10) + '…' : '—'} />
           <Info label="Role" value="Carrier / Driver" />
           <Info label="Member Since" value={impersonating ? '—' : (u?.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleDateString() : '—')} />
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <PanelHeader icon={<Clock size={18} />} title="Hours of Service (self-reported)" />
+        <p className="text-sm text-slate-400 mt-1 mb-4">Until your ELD is connected, keep these current so your dispatcher only sends loads you can legally run. Updating here lets the system check each offer against your clock.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Field label="Drive hours available today"><input className={INPUT_CLS} type="number" inputMode="decimal" value={hos.driveAvail} onChange={(e) => setHos((s) => ({ ...s, driveAvail: e.target.value }))} placeholder="11" /></Field>
+          <Field label="On-duty hours used (14h day)"><input className={INPUT_CLS} type="number" inputMode="decimal" value={hos.dutyUsed} onChange={(e) => setHos((s) => ({ ...s, dutyUsed: e.target.value }))} placeholder="3" /></Field>
+          <Field label="Cycle hours used (70h/8d)"><input className={INPUT_CLS} type="number" inputMode="decimal" value={hos.cycleUsed} onChange={(e) => setHos((s) => ({ ...s, cycleUsed: e.target.value }))} placeholder="40" /></Field>
+        </div>
+        <div className="flex items-center gap-3 mt-4">
+          <PrimaryButton onClick={saveHos} className="px-5">Save my hours</PrimaryButton>
+          {hosMsg && <span className="text-xs text-emerald-400">{hosMsg}</span>}
+          {!hosMsg && hosUpdated && <span className="text-xs text-slate-500">Last updated {hosUpdated.toDate ? hosUpdated.toDate().toLocaleString() : ''}</span>}
         </div>
       </Card>
     </div>
@@ -6242,6 +6361,17 @@ function DriverExpensesView({ uid }) {
     try { await setDoc(doc(db, 'users', targetUid), { cpm: f }, { merge: true }); setSaved('Saved ✓'); setTimeout(() => setSaved(''), 2000); }
     catch (e) { console.error('CPM save failed', e); setSaved('Could not save'); }
   };
+  // Push the updated break-even to the dispatcher (stored on the carrier's own
+  // user doc, which the dispatcher reads) so they negotiate from the real floor.
+  const shareWithDispatcher = async () => {
+    try {
+      await setDoc(doc(db, 'users', targetUid), {
+        cpm: f,
+        cpmShared: { breakeven: Number(breakeven.toFixed(2)), milesPerMonth: n(f.milesPerMonth), at: serverTimestamp() },
+      }, { merge: true });
+      setSaved('Sent to your dispatcher ✓'); setTimeout(() => setSaved(''), 2500);
+    } catch (e) { console.error('CPM share failed', e); setSaved('Could not send'); }
+  };
   const money = (x) => '$' + (x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const rpm = (x) => '$' + (x || 0).toFixed(2);
   const field = INPUT_CLS;
@@ -6273,6 +6403,7 @@ function DriverExpensesView({ uid }) {
           <Field label="Miles you drive per month"><input className={field} type="number" inputMode="decimal" value={f.milesPerMonth} onChange={set('milesPerMonth')} placeholder="10000" /></Field>
           <div className="flex items-center gap-3">
             <PrimaryButton onClick={save} className="px-5">Save</PrimaryButton>
+            <GhostButton onClick={shareWithDispatcher} className="px-4">📤 Send updated CPM to dispatcher</GhostButton>
             {saved && <span className="text-sm text-emerald-400">{saved}</span>}
           </div>
         </Card>
@@ -6298,7 +6429,7 @@ function DriverExpensesView({ uid }) {
             </div>
             {checkReady ? (
               <div className={`mt-4 rounded-xl border p-4 ${profitPerMile >= 0 ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-red-500/10 border-red-500/40'}`}>
-                <div className="text-sm font-bold text-white">{rpm(checkRpm)}/mi — {profitPerMile >= 0 ? `${rpm(profitPerMile)}/mi profit ✓` : `${rpm(Math.abs(profitPerMile))}/mi LOSS ✕`}</div>
+                <div className={`text-sm font-bold text-white ${profitPerMile >= 0 ? 'fm-profit' : ''}`}>{rpm(checkRpm)}/mi — {profitPerMile >= 0 ? `${rpm(profitPerMile)}/mi profit ✓` : `${rpm(Math.abs(profitPerMile))}/mi LOSS ✕`}</div>
                 <div className="text-xs text-slate-400 mt-1">{profitPerMile >= 0 ? 'This load clears your break-even. Good to run.' : 'This load is below your cost — pass or negotiate up.'}</div>
               </div>
             ) : <p className="text-xs text-slate-500 mt-3">Enter a load's pay and miles to see if it beats your break-even.</p>}
@@ -6775,16 +6906,19 @@ function PanelHeader({ icon, title, accent = 'amber', badge, action, className =
 
 // Compact stat tile — label over a bold value, with a left accent rail so a
 // row of metrics reads like a dashboard readout.
-function StatTile({ label, value, accent = 'white', className = '' }) {
+function StatTile({ label, value, accent = 'white', className = '', glow = false }) {
   const v = { white: 'text-white', emerald: 'text-emerald-400', amber: 'text-amber-400', blue: 'text-blue-400', red: 'text-red-400', slate: 'text-slate-300' }[accent] || 'text-white';
   const rail = { white: 'border-l-slate-600', emerald: 'border-l-emerald-500', amber: 'border-l-amber-500', blue: 'border-l-blue-400', red: 'border-l-red-500', slate: 'border-l-slate-600' }[accent] || 'border-l-slate-600';
   return (
     <div className={`bg-slate-800/40 border border-slate-700/60 border-l-2 ${rail} rounded-lg p-4 ${className}`}>
       <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">{label}</div>
-      <div className={`text-xl font-bold ${v}`}>{value}</div>
+      <div className={`text-xl font-bold ${v} ${glow ? 'fm-profit' : ''}`}>{value}</div>
     </div>
   );
 }
+
+// Subtle pulse on profit / "money in your pocket" figures. Injected once.
+const PROFIT_GLOW_CSS = `@keyframes fmProfitGlow{0%,100%{text-shadow:0 0 0 rgba(16,185,129,0)}50%{text-shadow:0 0 16px rgba(16,185,129,.6)}}.fm-profit{animation:fmProfitGlow 2.6s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.fm-profit{animation:none}}`;
 
 // Colored status pill.
 function Badge({ children, tone = 'slate', className = '' }) {
