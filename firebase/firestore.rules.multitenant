@@ -135,6 +135,16 @@ service cloud.firestore {
       allow update, delete: if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
     }
 
+    // ---- digital vault documents ----
+    // A carrier owns their own docs (uid); the dispatcher manages the org's.
+    // Deletion is by archive (an update), so no client delete for carriers.
+    match /vault_docs/{id} {
+      allow read:   if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
+      allow create: if (signedIn() && request.resource.data.uid == request.auth.uid && memberNew(request)) || ownNew(request);
+      allow update: if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
+      allow delete: if ownDoc(resource);
+    }
+
     // ---- outbound mail queue (Trigger Email extension) ----
     // A dispatcher queues welcome emails by creating docs here; the Firebase
     // "Trigger Email from Firestore" extension delivers them server-side (it

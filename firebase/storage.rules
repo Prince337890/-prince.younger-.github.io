@@ -30,6 +30,12 @@ service firebase.storage {
       allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
     }
 
+    // Digital Vault documents — owner or admin write, owner+admin read
+    match /vault/{uid}/{allPaths=**} {
+      allow read:  if isAdmin() || request.auth.uid == uid;
+      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+    }
+
     // Profile photos — owner or admin write, owner+admin read
     match /avatars/{uid}/{allPaths=**} {
       allow read:  if isAdmin() || request.auth.uid == uid;

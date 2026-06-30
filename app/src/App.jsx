@@ -479,7 +479,7 @@ export default function App() {
       case 'lanes': return <LaneManagementView key={'lane-' + viewUid} uid={viewUid} />;
       case 'parking': return <SafeParkingView />;
       case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} />;
-      case 'vault': return <DigitalVaultView />;
+      case 'vault': return <DigitalVaultView key={'vault-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
       case 'wellness': return <WellnessView />;
       case 'pets': return <PetLogisticsView />;
@@ -2344,44 +2344,81 @@ function ComplianceView({ uid }) {
 }
 
 // ---------- DIGITAL VAULT ----------
-const VAULT_CATEGORIES = ['BOL', 'Rate Con', 'Lumper Receipt', 'Scale Ticket'];
-const SAMPLE_DOCUMENTS = [
-  { id: 1, name: 'BOL_Atlanta-Dallas.pdf', category: 'BOL', loadId: 'FM-8829', date: 'Oct 24, 2024', status: 'Approved' },
-  { id: 2, name: 'RateCon_FM-8829.pdf', category: 'Rate Con', loadId: 'FM-8829', date: 'Oct 24, 2024', status: 'Approved' },
-  { id: 3, name: 'Lumper_Dallas.jpg', category: 'Lumper Receipt', loadId: 'FM-8830', date: 'Oct 26, 2024', status: 'Pending Approval' },
-];
+const VAULT_CATEGORIES = ['BOL', 'POD', 'Rate Con', 'Lumper Receipt', 'Scale Ticket', 'COI', 'W-9', 'Authority', 'Other'];
 
-function DigitalVaultView() {
-  const [docs, setDocs] = useState(SAMPLE_DOCUMENTS);
+// Real document vault: files in Storage (vault/{uid}/), records in Firestore
+// (vault_docs, org-scoped). Carrier manages their own; a dispatcher viewing the
+// carrier can approve/reject. Deleting ARCHIVES (kept on file for records).
+function DigitalVaultView({ uid, isAdmin = false }) {
+  const targetUid = uid || auth.currentUser?.uid;
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
+  const [showArchived, setShowArchived] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const [category, setCategory] = useState('BOL');
-  const [loadId, setLoadId] = useState('');
+  const [form, setForm] = useState({ file: null, fileName: '', category: 'BOL', loadId: '' });
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
 
-  const filtered = filter === 'All' ? docs : docs.filter((d) => d.category === filter);
+  const fetchDocs = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'vault_docs'), where('uid', '==', targetUid)));
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      rows.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+      setDocs(rows);
+    } catch (e) { console.error('vault load failed', e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { fetchDocs(); }, [targetUid]);
 
   const statusStyle = (status) => {
     if (status === 'Approved') return 'text-emerald-400 bg-emerald-400/10';
-    if (status === 'Pending Approval') return 'text-amber-400 bg-amber-400/10';
-    return 'text-red-400 bg-red-400/10';
+    if (status === 'Rejected') return 'text-red-400 bg-red-400/10';
+    return 'text-amber-400 bg-amber-400/10';
   };
 
-  const handleFile = (e) => {
-    const f = e.target.files[0];
-    if (f) setFileName(f.name);
+  const onFile = (e) => { const f = e.target.files[0]; if (f) setForm((s) => ({ ...s, file: f, fileName: f.name })); };
+
+  const upload = async (e) => {
+    e.preventDefault(); setErr('');
+    if (!form.file) { setErr('Choose a file first.'); return; }
+    setUploading(true);
+    try {
+      const path = `vault/${targetUid}/${Date.now()}_${form.file.name}`;
+      const url = await uploadToStorage(path, form.file);
+      await addDoc(collection(db, 'vault_docs'), stampOrg({
+        uid: targetUid, name: form.file.name, category: form.category, loadId: form.loadId.trim(),
+        url, storagePath: path, status: 'Pending Approval', archived: false,
+        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        createdAtMs: Date.now(), createdAt: serverTimestamp(), uploadedBy: auth.currentUser?.email || '',
+      }));
+      setForm({ file: null, fileName: '', category: 'BOL', loadId: '' });
+      setShowForm(false);
+      fetchDocs();
+    } catch (e2) {
+      console.error('vault upload failed', e2);
+      setErr(e2.code === 'storage/unauthorized' ? 'Publish the updated Storage rules to enable the vault.' : (e2.message || 'Upload failed'));
+    } finally { setUploading(false); }
   };
 
-  const handleUpload = (e) => {
-    e.preventDefault();
-    if (!fileName || !loadId) return;
-    setDocs([{
-      id: Date.now(), name: fileName, category, loadId,
-      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-      status: 'Pending Approval',
-    }, ...docs]);
-    setFileName(''); setLoadId(''); setCategory('BOL'); setShowForm(false);
+  const setStatus = async (d, status) => {
+    try { await updateDoc(doc(db, 'vault_docs', d.id), { status }); setDocs((p) => p.map((x) => (x.id === d.id ? { ...x, status } : x))); }
+    catch (e) { console.error('status update failed', e); }
   };
+  const archive = async (d) => {
+    if (!window.confirm(`Archive "${d.name}"? It's removed from the active vault but kept on file for your records.`)) return;
+    try { await updateDoc(doc(db, 'vault_docs', d.id), { archived: true, archivedAt: serverTimestamp() }); fetchDocs(); }
+    catch (e) { console.error('archive failed', e); }
+  };
+  const restore = async (d) => {
+    try { await updateDoc(doc(db, 'vault_docs', d.id), { archived: false }); fetchDocs(); }
+    catch (e) { console.error('restore failed', e); }
+  };
+
+  const visible = docs
+    .filter((d) => (showArchived ? d.archived : !d.archived))
+    .filter((d) => filter === 'All' || d.category === filter);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -2398,32 +2435,32 @@ function DigitalVaultView() {
 
       {showForm && (
         <Card className="p-6">
-          <form onSubmit={handleUpload} className="space-y-4">
+          <form onSubmit={upload} className="space-y-4">
           <h3 className="font-bold">New Document</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field label="File">
-              <input type="file" onChange={handleFile}
+            <Field label="File (image or PDF)">
+              <input type="file" accept="image/*,application/pdf" onChange={onFile}
                 className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-slate-200 file:cursor-pointer hover:file:bg-slate-700" />
             </Field>
             <Field label="Category">
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={SELECT_CLS}>
+              <select value={form.category} onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))} className={SELECT_CLS}>
                 {VAULT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Load ID">
-              <input type="text" value={loadId} onChange={(e) => setLoadId(e.target.value)} placeholder="e.g. FM-8831" className={INPUT_CLS} />
+            <Field label="Load ID (optional)">
+              <input type="text" value={form.loadId} onChange={(e) => setForm((s) => ({ ...s, loadId: e.target.value }))} placeholder="e.g. FM-8831" className={INPUT_CLS} />
             </Field>
           </div>
+          {err && <p className="text-red-400 text-sm">{err}</p>}
           <div className="flex items-center gap-3 flex-wrap">
-            <PrimaryButton type="submit">Add to Vault</PrimaryButton>
-            <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
-            <span className="text-xs text-slate-500">Demo — the file isn't stored yet; this adds the record only.</span>
+            <PrimaryButton type="submit" disabled={uploading}>{uploading ? 'Uploading…' : 'Add to Vault'}</PrimaryButton>
+            <button type="button" onClick={() => { setShowForm(false); setErr(''); }} className="text-slate-400 hover:text-white text-sm">Cancel</button>
           </div>
           </form>
         </Card>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {['All', ...VAULT_CATEGORIES].map((c) => (
           <button key={c} onClick={() => setFilter(c)}
             className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
@@ -2432,22 +2469,38 @@ function DigitalVaultView() {
             {c}
           </button>
         ))}
+        <button onClick={() => setShowArchived((s) => !s)}
+          className={`ml-auto text-xs px-3 py-1.5 rounded-full border transition-colors ${showArchived ? 'bg-slate-700 text-white border-slate-600' : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'}`}>
+          {showArchived ? '← Back to active' : 'View archived'}
+        </button>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="text-slate-500 text-center py-12">No documents in this category yet.</div>
+      {loading ? (
+        <div className="text-slate-500 text-center py-12">Loading your vault…</div>
+      ) : visible.length === 0 ? (
+        <div className="text-slate-500 text-center py-12">{showArchived ? 'Nothing archived.' : 'No documents here yet — hit Upload to add your first.'}</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map((d) => (
+          {visible.map((d) => (
             <Card key={d.id} className="p-5 flex items-start gap-4 hover:border-slate-700 transition-colors">
-              <div className="p-3 bg-slate-800 text-amber-500 rounded-xl shrink-0"><FileText size={22} /></div>
+              <a href={d.url || undefined} target="_blank" rel="noopener noreferrer" className="p-3 bg-slate-800 text-amber-500 rounded-xl shrink-0 hover:bg-slate-700"><FileText size={22} /></a>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold text-white truncate">{d.name}</div>
-                <div className="text-xs text-slate-400 mt-1">Load {d.loadId} • {d.date}</div>
-                <div className="flex items-center gap-2 mt-3">
+                <a href={d.url || undefined} target="_blank" rel="noopener noreferrer" className="font-semibold text-white truncate block hover:text-amber-400">{d.name}</a>
+                <div className="text-xs text-slate-400 mt-1">{d.loadId ? `Load ${d.loadId} • ` : ''}{d.date}</div>
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
                   <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">{d.category}</span>
                   <span className={`text-xs px-2 py-1 rounded ${statusStyle(d.status)}`}>{d.status}</span>
                 </div>
+                {!showArchived && (
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    {isAdmin && d.status !== 'Approved' && <button onClick={() => setStatus(d, 'Approved')} className="text-xs text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 rounded-lg hover:bg-emerald-500/20">Approve</button>}
+                    {isAdmin && d.status !== 'Rejected' && <button onClick={() => setStatus(d, 'Rejected')} className="text-xs text-red-400 border border-red-500/30 bg-red-500/10 px-2.5 py-1 rounded-lg hover:bg-red-500/20">Reject</button>}
+                    <button onClick={() => archive(d)} className="text-xs text-slate-400 border border-slate-700 px-2.5 py-1 rounded-lg hover:bg-slate-800">Archive</button>
+                  </div>
+                )}
+                {showArchived && (
+                  <div className="mt-3"><button onClick={() => restore(d)} className="text-xs text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-lg hover:bg-amber-500/10">Restore</button></div>
+                )}
               </div>
             </Card>
           ))}
