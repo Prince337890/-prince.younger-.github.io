@@ -4668,6 +4668,17 @@ function CarriersView() {
     } catch (e) { console.error('Error toggling VIP:', e); }
   };
 
+  // Onboarding-packet status from the linked driver's user doc.
+  const agreementStatus = (c) => {
+    if (!c.linkedDriverUid) return null;
+    const d = drivers.find((x) => x.uid === c.linkedDriverUid);
+    if (!d) return null;
+    const a = !!d.dispatchAgreement, p = !!d.lpoa;
+    if (a && p) return 'signed';
+    if (a || p) return 'partial';
+    return 'none';
+  };
+
   const driverEmail = (uid) => {
     const d = drivers.find((x) => x.uid === uid);
     return d ? d.email : '';
@@ -4829,7 +4840,16 @@ function CarriersView() {
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white truncate flex items-center gap-2">{c.name} {c.mcNumber ? <span className="text-slate-500 font-normal">· {c.mcNumber}</span> : null}{c.verified && <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5 shrink-0"><CheckCircle2 size={11} /> Verified</span>}</div>
                     <div className="text-xs text-slate-400 mt-0.5">{c.mpg || '—'} mpg · {c.maxCapacity ? Number(c.maxCapacity).toLocaleString() : '—'} lbs · ${Number(c.minRpm || 0).toFixed(2)}/mi min · {c.trailerType || '—'}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">Driver: {c.linkedDriverUid ? (driverEmail(c.linkedDriverUid) || 'linked') : <span className="text-amber-400">not linked</span>}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                      <span>Driver: {c.linkedDriverUid ? (driverEmail(c.linkedDriverUid) || 'linked') : <span className="text-amber-400">not linked</span>}</span>
+                      {(() => {
+                        const st = agreementStatus(c);
+                        if (st === 'signed') return <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded">Agreements ✓</span>;
+                        if (st === 'partial') return <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded">Agreements: partial</span>;
+                        if (st === 'none') return <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">Agreements: pending</span>;
+                        return null;
+                      })()}
+                    </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Remove</button>
