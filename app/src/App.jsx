@@ -479,6 +479,7 @@ export default function App() {
       case 'lanes': return <LaneManagementView key={'lane-' + viewUid} uid={viewUid} />;
       case 'parking': return <SafeParkingView />;
       case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
+      case 'agreements': return <CarrierAgreementsView key={'agr-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'vault': return <DigitalVaultView key={'vault-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
       case 'wellness': return <WellnessView />;
@@ -617,6 +618,7 @@ export default function App() {
               <NavItem icon={<Map size={18} />} label="Lane Management" isActive={activeTab === 'lanes'} onClick={() => go('lanes')} />
               <NavItem icon={<MapPin size={18} />} label="Safe Parking" isActive={activeTab === 'parking'} onClick={() => go('parking')} />
               <NavItem icon={<ShieldCheck size={18} />} label="Compliance" isActive={activeTab === 'compliance'} onClick={() => go('compliance')} />
+              <NavItem icon={<FileText size={18} />} label="Agreements & W-9" isActive={activeTab === 'agreements'} onClick={() => go('agreements')} />
               <NavItem icon={<FileText size={18} />} label="Digital Vault" isActive={activeTab === 'vault'} onClick={() => go('vault')} />
               <NavItem icon={<Wallet size={18} />} label="Financial Routing" isActive={activeTab === 'financials'} onClick={() => go('financials')} />
               <NavItem icon={<Activity size={18} />} label="My CPM & Expenses" isActive={activeTab === 'mycpm'} onClick={() => go('mycpm')} />
@@ -6045,6 +6047,173 @@ const CREDENTIALS = [
     'Receive your code — required for many intermodal, government, and EDI loads.',
   ] },
 ];
+
+// ---------- CARRIER: AGREEMENTS & W-9 (onboarding packet, e-signed) ----------
+// Captures the W-9 once, then reuses that data to fill the Dispatch Agreement
+// and Limited Power of Attorney — both e-signed (typed legal name + intent +
+// timestamp, ESIGN/UETA-valid). All stored on the carrier's own user doc.
+const W9_CLASSES = ['Individual / Sole Proprietor', 'Single-Member LLC', 'LLC — taxed as C-corp', 'LLC — taxed as S-corp', 'C Corporation', 'S Corporation', 'Partnership'];
+
+// Module-level so they keep a stable identity (no input remount/focus loss).
+function ESignBox({ value, onChange, agree, onAgree, onSign, label }) {
+  return (
+    <div className="mt-4 rounded-lg bg-slate-800/50 border border-slate-700 p-4">
+      <label className="block text-xs text-slate-400 mb-1">Type your full legal name to sign</label>
+      <input className={INPUT_CLS} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Full legal name" />
+      <label className="flex items-start gap-2 mt-3 text-xs text-slate-400 cursor-pointer">
+        <input type="checkbox" checked={agree} onChange={(e) => onAgree(e.target.checked)} className="mt-0.5 accent-amber-500" />
+        <span>{label}</span>
+      </label>
+      <PrimaryButton onClick={onSign} disabled={!value.trim() || !agree} className="mt-3 px-5">✍️ Sign &amp; Submit</PrimaryButton>
+    </div>
+  );
+}
+function ESigned({ rec }) {
+  const when = rec.signedAtMs ? new Date(rec.signedAtMs).toLocaleString() : '';
+  return (
+    <div className="mt-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm text-emerald-300">
+      ✓ Signed by <strong>{rec.signedName}</strong> on {when}{rec.company ? ` · ${rec.company}` : ''}
+    </div>
+  );
+}
+
+function CarrierAgreementsView({ uid, isAdmin }) {
+  const targetUid = uid || auth.currentUser?.uid;
+  const canSign = !isAdmin; // a dispatcher viewing-as sees it read-only
+  const [loading, setLoading] = useState(true);
+  const [carrier, setCarrier] = useState(null);
+  const [company, setCompany] = useState('your dispatcher');
+  const [w9, setW9] = useState({ legalName: '', businessName: '', ein: '', address: '', city: '', state: '', zip: '', classification: 'Single-Member LLC' });
+  const [agreement, setAgreement] = useState(null);
+  const [lpoa, setLpoa] = useState(null);
+  const [w9Msg, setW9Msg] = useState('');
+  const [sigA, setSigA] = useState(''); const [agreeA, setAgreeA] = useState(false);
+  const [sigP, setSigP] = useState(''); const [agreeP, setAgreeP] = useState(false);
+  const set = (k) => (e) => setW9((s) => ({ ...s, [k]: e.target.value }));
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    try {
+      const [uSnap, cSnap] = await Promise.all([
+        getDoc(doc(db, 'users', targetUid)),
+        getDocs(query(collection(db, 'carriers'), where('linkedDriverUid', '==', targetUid))),
+      ]);
+      const ud = uSnap.exists() ? uSnap.data() : {};
+      const c = cSnap.docs[0] ? { id: cSnap.docs[0].id, ...cSnap.docs[0].data() } : null;
+      setCarrier(c);
+      setAgreement(ud.dispatchAgreement || null);
+      setLpoa(ud.lpoa || null);
+      const name = (ud.w9 && ud.w9.legalName) || (c && c.driverName) || ud.displayName || '';
+      setW9({
+        legalName: name, businessName: (ud.w9 && ud.w9.businessName) || (c && c.name) || '',
+        ein: (ud.w9 && ud.w9.ein) || (c && c.ein) || '', address: (ud.w9 && ud.w9.address) || '',
+        city: (ud.w9 && ud.w9.city) || '', state: (ud.w9 && ud.w9.state) || '', zip: (ud.w9 && ud.w9.zip) || '',
+        classification: (ud.w9 && ud.w9.classification) || 'Single-Member LLC',
+      });
+      setSigA(name); setSigP(name);
+      if (ACTIVE_ORG) { try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists() && o.data().name) setCompany(o.data().name); } catch (_) {} }
+    } catch (e) { console.error('agreements load failed', e); } finally { setLoading(false); }
+  })(); }, [targetUid]);
+
+  const feePct = (carrier && Number(carrier.feePct)) || DEFAULT_FEE_PCT;
+  const mc = (carrier && carrier.mcNumber) || '—';
+  const legal = w9.legalName || (carrier && carrier.driverName) || 'Carrier';
+  const biz = w9.businessName || (carrier && carrier.name) || legal;
+  const fmt = (ms) => ms ? new Date(ms).toLocaleString() : '';
+
+  const saveW9 = async () => {
+    try { await setDoc(doc(db, 'users', targetUid), { w9: { ...w9, updatedAt: serverTimestamp() } }, { merge: true }); setW9Msg('Saved ✓'); setTimeout(() => setW9Msg(''), 2000); }
+    catch (e) { console.error('w9 save failed', e); setW9Msg('Could not save'); }
+  };
+  const signAgreement = async () => {
+    if (!sigA.trim() || !agreeA) return;
+    const rec = { signedName: sigA.trim(), feePct, company, signedAtMs: Date.now(), signedAt: serverTimestamp() };
+    try { await setDoc(doc(db, 'users', targetUid), { dispatchAgreement: rec }, { merge: true }); setAgreement(rec); }
+    catch (e) { console.error('agreement sign failed', e); alert('Could not record signature.'); }
+  };
+  const signLpoa = async () => {
+    if (!sigP.trim() || !agreeP) return;
+    const rec = { signedName: sigP.trim(), company, signedAtMs: Date.now(), signedAt: serverTimestamp() };
+    try { await setDoc(doc(db, 'users', targetUid), { lpoa: rec }, { merge: true }); setLpoa(rec); }
+    catch (e) { console.error('lpoa sign failed', e); alert('Could not record signature.'); }
+  };
+
+  const field = INPUT_CLS;
+  if (loading) return <div className="max-w-3xl mx-auto text-slate-400">Loading…</div>;
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Agreements &amp; W-9</h2>
+        {isAdmin && <Badge tone="amber" className="font-bold tracking-wide">CARRIER VIEW</Badge>}
+      </div>
+      <p className="text-slate-400">Complete this once. Your W-9 details fill the Dispatch Agreement and Power of Attorney automatically — no re-typing.</p>
+      <GuidedHint>The carrier completes their W-9, then e-signs the Dispatch Agreement and a Limited Power of Attorney (so you can sign rate confirmations on their behalf). Everything’s captured one time and reused.</GuidedHint>
+
+      {/* W-9 */}
+      <Card className="p-6">
+        <PanelHeader icon={<FileText size={18} />} title="W-9 Information" />
+        <p className="text-sm text-slate-400 mt-1 mb-4">Used for tax reporting and to pre-fill your agreements. Stored privately on your account.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Legal name (as on tax return)"><input className={field} value={w9.legalName} onChange={set('legalName')} disabled={!canSign} /></Field>
+          <Field label="Business name (if different)"><input className={field} value={w9.businessName} onChange={set('businessName')} disabled={!canSign} /></Field>
+          <Field label="EIN / Tax ID"><input className={field} value={w9.ein} onChange={set('ein')} placeholder="12-3456789" disabled={!canSign} /></Field>
+          <Field label="Federal tax classification">
+            <select className={SELECT_CLS} value={w9.classification} onChange={set('classification')} disabled={!canSign}>
+              {W9_CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+          <Field label="Street address" className="sm:col-span-2"><input className={field} value={w9.address} onChange={set('address')} disabled={!canSign} /></Field>
+          <Field label="City"><input className={field} value={w9.city} onChange={set('city')} disabled={!canSign} /></Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="State"><input className={field} value={w9.state} onChange={set('state')} disabled={!canSign} /></Field>
+            <Field label="ZIP"><input className={field} value={w9.zip} onChange={set('zip')} disabled={!canSign} /></Field>
+          </div>
+        </div>
+        {canSign && (
+          <div className="flex items-center gap-3 mt-4">
+            <PrimaryButton onClick={saveW9} className="px-5">Save W-9</PrimaryButton>
+            {w9Msg && <span className="text-xs text-emerald-400">{w9Msg}</span>}
+          </div>
+        )}
+      </Card>
+
+      {/* Dispatch Agreement */}
+      <Card className="p-6">
+        <PanelHeader icon={<FileText size={18} />} title="Dispatch Service Agreement" />
+        <div className="mt-3 rounded-lg bg-slate-950/50 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed space-y-2 max-h-72 overflow-y-auto">
+          <p className="font-semibold text-white">DISPATCH SERVICE AGREEMENT</p>
+          <p>This Agreement is between <strong>{company}</strong> (“Dispatcher”) and <strong>{biz}</strong>, MC# {mc} (“Carrier”).</p>
+          <p><strong>1. Services.</strong> Dispatcher will locate and book freight, negotiate rates, and provide administrative support on Carrier’s behalf.</p>
+          <p><strong>2. Fee.</strong> Carrier agrees to pay Dispatcher a dispatch fee of <strong>{feePct}%</strong> of the gross linehaul revenue of each load booked by Dispatcher, due within 24 hours of Carrier’s receipt of payment (including factoring advances).</p>
+          <p><strong>3. No Forced Dispatch.</strong> Carrier is never obligated to accept any load and may decline any load for any reason.</p>
+          <p><strong>4. Independent Contractors.</strong> The parties are independent contractors; nothing here creates employment, partnership, or joint venture (other than the limited authority granted in the Power of Attorney).</p>
+          <p><strong>5. Authority &amp; Insurance.</strong> Carrier represents it holds active operating authority and required insurance and will keep them current.</p>
+          <p><strong>6. Term.</strong> Either party may terminate with written notice; fees earned before termination remain due.</p>
+          <p><strong>7. Liability.</strong> Dispatcher is not a motor carrier or broker and assumes no liability for cargo, freight charges, or Carrier’s operations.</p>
+        </div>
+        {agreement ? <ESigned rec={agreement} />
+          : canSign ? <ESignBox value={sigA} onChange={setSigA} agree={agreeA} onAgree={setAgreeA} onSign={signAgreement} label="I have read and agree to this Dispatch Service Agreement, and I’m signing it electronically." />
+          : <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>}
+      </Card>
+
+      {/* LPOA */}
+      <Card className="p-6">
+        <PanelHeader icon={<FileText size={18} />} title="Limited Power of Attorney" />
+        <div className="mt-3 rounded-lg bg-slate-950/50 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed space-y-2 max-h-72 overflow-y-auto">
+          <p className="font-semibold text-white">LIMITED POWER OF ATTORNEY</p>
+          <p><strong>{biz}</strong>, MC# {mc} (“Carrier”), appoints <strong>{company}</strong> as its limited attorney-in-fact for the sole and limited purpose of:</p>
+          <p>• signing rate confirmations and broker-carrier load agreements on Carrier’s behalf, and</p>
+          <p>• completing broker setup packets using Carrier’s documents already on file.</p>
+          <p>This authority does <strong>not</strong> extend to banking, to any contract unrelated to load booking, or to any obligation beyond load tender. Carrier may revoke this authority at any time in writing.</p>
+        </div>
+        {lpoa ? <ESigned rec={lpoa} />
+          : canSign ? <ESignBox value={sigP} onChange={setSigP} agree={agreeP} onAgree={setAgreeP} onSign={signLpoa} label="I grant this Limited Power of Attorney and I’m signing it electronically." />
+          : <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>}
+      </Card>
+    </div>
+  );
+}
 
 function UpgradesView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
