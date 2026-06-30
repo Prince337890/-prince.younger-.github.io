@@ -159,7 +159,7 @@ async function uploadToStorage(path, file) {
 
 // Public portal URL — used in outbound welcome emails. Change this in ONE place
 // when the app moves off vercel.app to a custom domain.
-const PORTAL_URL = 'https://forward-motion-app-bdim.vercel.app';
+const PORTAL_URL = 'https://portal.forwardmotionfreight.com';
 
 // Queue a transactional email. Writes a doc to the `mail` collection that the
 // Firebase "Trigger Email from Firestore" extension picks up and sends. Never
@@ -3428,7 +3428,7 @@ function ManageDriversView() {
             <div className="text-xs text-slate-400 mt-2">They'll be asked to set their own password on first login.</div>
             <button type="button"
               onClick={() => {
-                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://forward-motion-app-bdim.vercel.app\n     Email: ${created.email}\n     Temporary password: ${created.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nFrom there you'll see your assigned loads, pay, compliance, and more — all in one place.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
+                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${created.email}\n     Temporary password: ${created.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nFrom there you'll see your assigned loads, pay, compliance, and more — all in one place.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
                 if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
@@ -4791,7 +4791,7 @@ function CarriersView() {
             <div className="text-xs text-slate-400 mt-2">They'll set their own password on first login.</div>
             <button type="button"
               onClick={() => {
-                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://forward-motion-app-bdim.vercel.app\n     Email: ${createdLogin.email}\n     Temporary password: ${createdLogin.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
+                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${createdLogin.email}\n     Temporary password: ${createdLogin.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
                 if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
