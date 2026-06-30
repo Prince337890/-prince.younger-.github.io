@@ -493,6 +493,7 @@ export default function App() {
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
       case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
+      case 'crm': return isAdmin ? <CrmView onNavigate={go} /> : <DashboardView />;
       case 'vip': return isAdmin ? <VipServicesView /> : <DashboardView />;
       case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
@@ -590,6 +591,7 @@ export default function App() {
 
               <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">CARRIERS &amp; ACCESS</div>
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<BookOpen size={18} />} label="CRM / Network" isActive={activeTab === 'crm'} onClick={() => go('crm')} />
               <NavItem icon={<User size={18} />} label="Logins &amp; Access" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<HeartPulse size={18} />} label="VIP Services" isActive={activeTab === 'vip'} onClick={() => go('vip')} />
 
@@ -6743,13 +6745,33 @@ function WorkspacesView() {
     setForm((f) => ({ ...f, pw: p }));
   };
 
+  const [ownerStatus, setOwnerStatus] = useState({}); // uid -> active(bool)
   const fetchOrgs = async () => {
     setLoading(true);
-    try { const snap = await getDocs(collection(db, 'orgs')); setOrgs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); }
-    catch (e) { console.error('orgs load failed', e); }
+    try {
+      const [oSnap, uSnap] = await Promise.all([getDocs(collection(db, 'orgs')), getDocs(collection(db, 'users'))]);
+      setOrgs(oSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const st = {}; uSnap.docs.forEach((d) => { st[d.id] = d.data().approved !== false; });
+      setOwnerStatus(st);
+    } catch (e) { console.error('orgs load failed', e); }
     finally { setLoading(false); }
   };
   useEffect(() => { fetchOrgs(); }, []);
+
+  // Deactivate / reactivate a dispatcher's access (login can't be hard-deleted
+  // from the browser, so we revoke approval — their workspace data is kept).
+  const toggleDispatcher = async (o) => {
+    if (!o.ownerUid) { alert('No owner on file for this workspace.'); return; }
+    const active = ownerStatus[o.ownerUid] !== false;
+    const next = !active;
+    if (!window.confirm(next
+      ? `Reactivate ${o.ownerEmail}? They'll be able to log in again.`
+      : `Deactivate ${o.ownerEmail}? They'll be blocked from logging in (their workspace data is kept).`)) return;
+    try {
+      await setDoc(doc(db, 'users', o.ownerUid), { approved: next }, { merge: true });
+      setOwnerStatus((s) => ({ ...s, [o.ownerUid]: next }));
+    } catch (e) { console.error('toggle dispatcher failed', e); alert('Could not update — check the console.'); }
+  };
 
   // ---- one-time data backfill (super-admin) ----
   const [bfOrg, setBfOrg] = useState('');
@@ -6858,14 +6880,29 @@ function WorkspacesView() {
           : orgs.length === 0 ? <div className="text-slate-500 text-sm">No workspaces yet. (Or the orgs rule isn't published.)</div>
           : (
             <div className="space-y-2">
-              {orgs.map((o) => (
-                <div key={o.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white truncate">{o.name}</div>
-                    <div className="text-xs text-slate-500">{o.ownerEmail} · {o.id.slice(0, 8)}…</div>
+              {orgs.map((o) => {
+                const isMe = o.ownerUid && o.ownerUid === auth.currentUser?.uid;
+                const active = !o.ownerUid || ownerStatus[o.ownerUid] !== false;
+                return (
+                  <div key={o.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-white truncate">{o.name}</div>
+                      <div className="text-xs text-slate-500">{o.ownerEmail} · {o.id.slice(0, 8)}…</div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isMe ? <span className="text-[11px] text-slate-400">You</span>
+                        : active ? <span className="text-[11px] text-emerald-400">● Active</span>
+                        : <span className="text-[11px] text-red-400">● Deactivated</span>}
+                      {!isMe && (
+                        <button onClick={() => toggleDispatcher(o)}
+                          className={`text-xs border px-2.5 py-1 rounded-lg ${active ? 'text-red-400 border-red-500/30 hover:bg-red-500/10' : 'text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10'}`}>
+                          {active ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
       </Card>
@@ -7104,6 +7141,215 @@ function LoadStepChecklist({ load, onPersist, title = 'Paperwork to Collect', fo
   );
 }
 
+// ---------- ADMIN: CRM / NETWORK ----------
+const LEAD_STATUSES = ['New Lead', 'Contacted', 'Negotiating', 'Onboarded'];
+const LEAD_STATUS_TONE = {
+  'New Lead': 'bg-slate-700 text-slate-200',
+  'Contacted': 'bg-blue-500/20 text-blue-300',
+  'Negotiating': 'bg-amber-500/20 text-amber-300',
+  'Onboarded': 'bg-emerald-500/20 text-emerald-300',
+};
+
+function CrmView({ onNavigate }) {
+  const [tab, setTab] = useState('lead'); // 'lead' | 'broker'
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('recent'); // 'recent' | 'name' | 'status'
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const blank = { name: '', company: '', phone: '', email: '', mc: '', equipment: '', serviceAreas: '', notes: '' };
+  const [form, setForm] = useState(blank);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [tagDraft, setTagDraft] = useState({}); // id -> draft tag text
+
+  const fetchRows = async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(orgScoped('crm_contacts'));
+      setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error('crm load failed', e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { fetchRows(); }, []);
+
+  const addContact = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      const payload = stampOrg({
+        type: tab, name: form.name.trim(), company: form.company.trim(), phone: form.phone.trim(),
+        email: form.email.trim(), mc: form.mc.trim(), equipment: form.equipment.trim(),
+        serviceAreas: form.serviceAreas.trim(), notes: form.notes.trim(), tags: [],
+        status: tab === 'lead' ? 'New Lead' : '', lastContact: '',
+        createdAtMs: Date.now(), createdAt: serverTimestamp(),
+      });
+      const ref = await addDoc(collection(db, 'crm_contacts'), payload);
+      setRows((p) => [{ id: ref.id, ...payload }, ...p]);
+      setForm(blank); setShowForm(false);
+    } catch (e2) { console.error('crm add failed', e2); alert('Could not save — check the console.'); }
+    finally { setSaving(false); }
+  };
+
+  const patch = async (row, changes) => {
+    setRows((p) => p.map((r) => (r.id === row.id ? { ...r, ...changes } : r)));
+    try { await updateDoc(doc(db, 'crm_contacts', row.id), changes); }
+    catch (e) { console.error('crm update failed', e); fetchRows(); }
+  };
+  const remove = async (row) => {
+    if (!window.confirm(`Remove ${row.name} from your network?`)) return;
+    setRows((p) => p.filter((r) => r.id !== row.id));
+    try { await deleteDoc(doc(db, 'crm_contacts', row.id)); } catch (e) { console.error('crm delete failed', e); }
+  };
+  const addTag = (row) => {
+    const t = (tagDraft[row.id] || '').trim();
+    if (!t) return;
+    const tags = Array.from(new Set([...(row.tags || []), t]));
+    patch(row, { tags });
+    setTagDraft((s) => ({ ...s, [row.id]: '' }));
+  };
+  const removeTag = (row, t) => patch(row, { tags: (row.tags || []).filter((x) => x !== t) });
+
+  // Lead -> Onboarded auto-creates a carrier so there's no double entry.
+  const setStatus = async (row, status) => {
+    await patch(row, { status });
+    if (status === 'Onboarded' && !row.convertedCarrierId) {
+      if (window.confirm(`Mark ${row.name} as onboarded and add them to your Carriers list now?`)) {
+        try {
+          const cref = await addDoc(collection(db, 'carriers'), stampOrg({
+            name: row.company || row.name, mcNumber: row.mc || '', driverName: row.name || '',
+            phone: row.phone || '', trailerType: row.equipment || '', preferredLanes: row.serviceAreas || '',
+            feePct: DEFAULT_FEE_PCT, availability: 'Available', vipConcierge: false,
+            fromCrm: true, createdAt: serverTimestamp(),
+          }));
+          await patch(row, { convertedCarrierId: cref.id });
+          alert(`${row.name} added to Carriers. Open the Carriers tab to finish their profile & create a login.`);
+        } catch (e) { console.error('convert failed', e); alert('Could not auto-create the carrier — add them manually in Carriers.'); }
+      }
+    }
+  };
+
+  const list = rows
+    .filter((r) => (r.type || 'lead') === tab)
+    .filter((r) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return [r.name, r.company, r.serviceAreas, r.equipment, (r.tags || []).join(' ')].join(' ').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (sort === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (sort === 'status') return LEAD_STATUSES.indexOf(a.status) - LEAD_STATUSES.indexOf(b.status);
+      return (b.createdAtMs || 0) - (a.createdAtMs || 0);
+    });
+
+  const field = INPUT_CLS;
+  const today = () => { try { return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch (_) { return ''; } };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">CRM / Network</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Your relationships are your business. Track the brokers you trust and the carriers you're courting — searchable, taggable, and always growing.</p>
+      <GuidedHint>Log every broker you'd work with again and every carrier lead you cold-call. Tag them ("Quick Pay", "Heavy Haul", "Difficult Access") so when a load hits your desk you can filter your network in seconds. Move a lead to "Onboarded" and it drops straight into your Carriers list.</GuidedHint>
+
+      <div className="flex items-center gap-2">
+        <button onClick={() => setTab('lead')} className={`px-4 py-2 rounded-lg text-sm font-semibold border ${tab === 'lead' ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'}`}>Lead Pipeline</button>
+        <button onClick={() => setTab('broker')} className={`px-4 py-2 rounded-lg text-sm font-semibold border ${tab === 'broker' ? 'bg-amber-500 text-slate-950 border-amber-500' : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'}`}>Trusted Brokers</button>
+        <PrimaryButton onClick={() => { setForm(blank); setShowForm((s) => !s); }} className="ml-auto text-sm"><Plus size={16} /> Add {tab === 'lead' ? 'Lead' : 'Broker'}</PrimaryButton>
+      </div>
+
+      {showForm && (
+        <Card className="p-6">
+          <form onSubmit={addContact} className="space-y-4">
+            <h3 className="font-bold">{tab === 'lead' ? 'New Carrier Lead' : 'New Trusted Broker'}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label={tab === 'lead' ? 'Contact / Driver name' : 'Contact name'}><input className={field} value={form.name} onChange={set('name')} placeholder="Jordan Bell" /></Field>
+              <Field label={tab === 'lead' ? 'Company (carrier)' : 'Brokerage'}><input className={field} value={form.company} onChange={set('company')} placeholder={tab === 'lead' ? 'Bell Trucking LLC' : 'TQL / RXO / Coyote'} /></Field>
+              <Field label="Phone"><input className={field} value={form.phone} onChange={set('phone')} /></Field>
+              <Field label="Email"><input className={field} type="email" value={form.email} onChange={set('email')} /></Field>
+              <Field label={tab === 'lead' ? 'MC / DOT' : 'Brokerage MC'}><input className={field} value={form.mc} onChange={set('mc')} placeholder="MC-123456" /></Field>
+              {tab === 'lead' && <Field label="Equipment"><input className={field} value={form.equipment} onChange={set('equipment')} placeholder="Reefer / Flatbed" /></Field>}
+              <Field label={tab === 'lead' ? 'Service areas / lanes' : 'Lanes they cover'} className="sm:col-span-2"><input className={field} value={form.serviceAreas} onChange={set('serviceAreas')} placeholder="TX ↔ Southeast" /></Field>
+              <Field label="Notes" className="sm:col-span-2"><input className={field} value={form.notes} onChange={set('notes')} placeholder={tab === 'lead' ? 'Where you found them, follow-up timing…' : 'Reliability, pay speed, accessorials…'} /></Field>
+            </div>
+            <div className="flex items-center gap-3">
+              <PrimaryButton type="submit" disabled={saving} className="px-5">{saving ? 'Saving…' : 'Save'}</PrimaryButton>
+              <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input className={field + ' max-w-xs'} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${tab === 'lead' ? 'leads' : 'brokers'} or tags…`} />
+        <select className={SELECT_CLS + ' max-w-[10rem]'} value={sort} onChange={(e) => setSort(e.target.value)}>
+          <option value="recent">Newest first</option>
+          <option value="name">Name A–Z</option>
+          {tab === 'lead' && <option value="status">By stage</option>}
+        </select>
+        <span className="text-xs text-slate-500 ml-auto">{list.length} {tab === 'lead' ? 'lead(s)' : 'broker(s)'}</span>
+      </div>
+
+      {loading ? <div className="text-slate-500 text-center py-12">Loading your network…</div>
+        : list.length === 0 ? <div className="text-slate-500 text-center py-12">No {tab === 'lead' ? 'leads' : 'brokers'} yet — add your first.</div>
+        : (
+          <div className="space-y-3">
+            {list.map((r) => (
+              <Card key={r.id} className="p-5">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="font-bold text-white">{r.name}{r.company ? <span className="text-slate-400 font-normal"> · {r.company}</span> : ''}</div>
+                    <div className="text-xs text-slate-400 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {r.phone && <a href={`tel:${r.phone}`} className="hover:text-amber-400">{r.phone}</a>}
+                      {r.email && <span>{r.email}</span>}
+                      {r.mc && <span>{r.mc}</span>}
+                      {r.equipment && <span>{r.equipment}</span>}
+                      {r.serviceAreas && <span>{r.serviceAreas}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {tab === 'lead' && (
+                      <select value={r.status || 'New Lead'} onChange={(e) => setStatus(r, e.target.value)}
+                        className={`text-xs font-semibold rounded-lg px-2 py-1.5 border border-slate-700 ${LEAD_STATUS_TONE[r.status] || 'bg-slate-700 text-slate-200'}`}>
+                        {LEAD_STATUSES.map((s) => <option key={s} value={s} className="bg-slate-900 text-white">{s}</option>)}
+                      </select>
+                    )}
+                    {tab === 'broker' && (
+                      <button onClick={() => onNavigate && onNavigate('brokercheck')} className="text-xs text-blue-300 border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 rounded-lg hover:bg-blue-500/20">Check authority</button>
+                    )}
+                    <button onClick={() => remove(r)} className="text-xs text-red-400 border border-red-500/30 px-2.5 py-1.5 rounded-lg hover:bg-red-500/10">Remove</button>
+                  </div>
+                </div>
+
+                {r.notes && <p className="text-sm text-slate-300 mt-3">{r.notes}</p>}
+
+                <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                  {(r.tags || []).map((t) => (
+                    <span key={t} className="text-[11px] bg-slate-800 text-slate-300 border border-slate-700 rounded-full pl-2.5 pr-1 py-0.5 flex items-center gap-1">
+                      {t}<button onClick={() => removeTag(r, t)} className="text-slate-500 hover:text-red-400 w-4">×</button>
+                    </span>
+                  ))}
+                  <input value={tagDraft[r.id] || ''} onChange={(e) => setTagDraft((s) => ({ ...s, [r.id]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(r); } }}
+                    placeholder="+ tag" className="text-[11px] bg-slate-900 border border-slate-800 rounded-full px-2.5 py-1 w-20 focus:w-28 transition-all outline-none" />
+                </div>
+
+                <div className="flex items-center gap-3 mt-3 text-xs">
+                  <button onClick={() => patch(r, { lastContact: today() })} className="text-amber-400 hover:underline">Log contact today</button>
+                  {r.lastContact && <span className="text-slate-500">Last contact: {r.lastContact}</span>}
+                  {r.convertedCarrierId && <span className="text-emerald-400">✓ In Carriers</span>}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
 // ---------- NOTIFICATIONS BELL ----------
 // Live header alerts built entirely from existing Firestore data (no new
 // collections, rules, or Storage). Admin sees fleet-wide signals; a driver
@@ -7160,7 +7406,9 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
           out.push({ id: 'avail-' + c.id, tone: 'slate', icon: '⏸', text: `${c.name || 'Carrier'} is ${c.availability}`, tab: 'carriers' });
         });
         userSnap.docs.forEach((d) => {
-          if (d.data().vipRequested) out.push({ id: 'vip-' + d.id, tone: 'amber', icon: '⭐', text: `${d.data().email || 'A carrier'} requested VIP concierge`, tab: 'vip' });
+          const ud = d.data();
+          if (ud.vipRequested) out.push({ id: 'vip-' + d.id, tone: 'amber', icon: '⭐', text: `${ud.email || 'A carrier'} requested VIP concierge`, tab: 'vip' });
+          if (ud.cpmShared && ud.cpmShared.breakeven) out.push({ id: 'cpm-' + d.id, tone: 'blue', icon: '📤', text: `${ud.email || 'A carrier'} shared an updated break-even: $${Number(ud.cpmShared.breakeven).toFixed(2)}/mi`, tab: 'carriers' });
         });
       } else if (uid) {
         const [compSnap, loadSnap] = await Promise.all([

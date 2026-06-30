@@ -135,6 +135,13 @@ service cloud.firestore {
       allow update, delete: if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
     }
 
+    // ---- CRM / network (dispatcher's brokers + carrier leads) ----
+    match /crm_contacts/{id} {
+      allow read:           if ownDoc(resource);
+      allow create:         if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+
     // ---- digital vault documents ----
     // A carrier owns their own docs (uid); the dispatcher manages the org's.
     // Deletion is by archive (an update), so no client delete for carriers.
