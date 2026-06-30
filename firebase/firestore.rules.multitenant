@@ -161,10 +161,14 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
-    // ---- workspaces registry (super-admin provisions; a dispatcher may read their own) ----
+    // ---- workspaces registry ----
+    // Any workspace member (dispatcher OR their drivers) can read their own org
+    // doc (e.g. to dial the dispatch phone). Provisioning/removal stays super-
+    // admin; the workspace's own dispatcher may update its settings (phone, etc.).
     match /orgs/{id} {
-      allow read:  if isSuper() || (isDispatcher() && id == myOrg());
-      allow write: if isSuper();
+      allow read:          if isSuper() || (signedIn() && id == myOrg());
+      allow create, delete: if isSuper();
+      allow update:        if isSuper() || (isDispatcher() && id == myOrg());
     }
   }
 }

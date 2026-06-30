@@ -1167,6 +1167,7 @@ function PendingOfferScreen({ offer, onResolved }) {
   // Hours-of-Service fit: pull the carrier's own self-reported drive hours and
   // check this load against an 11-hour daily clock so they know BEFORE they accept.
   const [driveAvail, setDriveAvail] = useState(null);
+  const [dispatchPhone, setDispatchPhone] = useState('');
   useEffect(() => {
     (async () => {
       try {
@@ -1174,8 +1175,12 @@ function PendingOfferScreen({ offer, onResolved }) {
         const h = snap.exists() && snap.data().hosSelf;
         if (h && (h.driveAvail || h.driveAvail === 0)) setDriveAvail(Number(h.driveAvail));
       } catch (_) { /* ignore */ }
+      try {
+        if (ACTIVE_ORG) { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setDispatchPhone(o.data().dispatchPhone || ''); }
+      } catch (_) { /* ignore */ }
     })();
   }, []);
+  const callPhone = dispatchPhone || DISPATCHER_PHONE;
   const estDriveH = totalMi / 50; // ~50 mph planning average
   const hosDays = estDriveH > 0 ? Math.ceil(estDriveH / 11) : 0;
   let hos = null;
@@ -1238,8 +1243,8 @@ function PendingOfferScreen({ offer, onResolved }) {
           </PrimaryButton>
           <div className="grid grid-cols-2 gap-2">
             <GhostButton onClick={() => setShowDecline(true)} disabled={busy} className="py-2.5">Decline</GhostButton>
-            <a href={DISPATCHER_PHONE ? `tel:${DISPATCHER_PHONE}` : undefined}
-              className={`text-center border border-slate-700 text-slate-300 font-semibold py-2.5 rounded-lg transition-colors ${DISPATCHER_PHONE ? 'hover:bg-slate-800' : 'opacity-50 pointer-events-none'}`}>
+            <a href={callPhone ? `tel:${callPhone}` : undefined}
+              className={`text-center border border-slate-700 text-slate-300 font-semibold py-2.5 rounded-lg transition-colors ${callPhone ? 'hover:bg-slate-800' : 'opacity-50 pointer-events-none'}`}>
               Call Dispatcher
             </a>
           </div>
@@ -6610,6 +6615,19 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
   const [paperwork, setPaperwork] = useState(() => { try { return localStorage.getItem('fm_paperwork') !== '0'; } catch (_) { return true; } });
   const togglePaperwork = () => setPaperwork((p) => { const nv = !p; try { localStorage.setItem('fm_paperwork', nv ? '1' : '0'); } catch (_) {} return nv; });
   const u = auth.currentUser;
+
+  // Per-workspace dispatch phone — what carriers dial on "Call Dispatcher".
+  const [phone, setPhone] = useState('');
+  const [phoneMsg, setPhoneMsg] = useState('');
+  useEffect(() => {
+    if (!isAdmin || !ACTIVE_ORG) return;
+    (async () => { try { const s = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (s.exists()) setPhone(s.data().dispatchPhone || ''); } catch (_) {} })();
+  }, [isAdmin]);
+  const savePhone = async () => {
+    if (!ACTIVE_ORG) { setPhoneMsg('Create your workspace first (Workspaces tab).'); return; }
+    try { await setDoc(doc(db, 'orgs', ACTIVE_ORG), { dispatchPhone: phone.trim() }, { merge: true }); setPhoneMsg('Saved ✓'); setTimeout(() => setPhoneMsg(''), 2000); }
+    catch (e) { console.error('phone save failed', e); setPhoneMsg('Could not save — make sure the updated org rules are published.'); }
+  };
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold">Settings</h2>
@@ -6649,8 +6667,14 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
               <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${guidedMode ? 'left-6' : 'left-0.5'}`} />
             </button>
           </div>
-          <div className="mt-3 rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2.5 text-xs text-slate-400">
-            The dispatcher phone, fee defaults, and market snapshot are set in code for now (DISPATCHER_PHONE, DEFAULT_FEE_PCT, MARKET_PULSE). Live, editable settings arrive with the backend phase.
+          <div className="mt-4 pt-3 border-t border-slate-800">
+            <div className="text-sm font-semibold text-white mb-1">Dispatch phone</div>
+            <div className="text-xs text-slate-400 mb-2">The number your carriers reach when they tap “Call Dispatcher” on a load offer. This is per-workspace, so each dispatcher sets their own.</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input className={INPUT_CLS + ' max-w-xs'} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+              <PrimaryButton onClick={savePhone} className="px-4">Save</PrimaryButton>
+              {phoneMsg && <span className="text-xs text-emerald-400">{phoneMsg}</span>}
+            </div>
           </div>
         </Card>
       )}
