@@ -5808,26 +5808,54 @@ function DispatchQuiz() {
   );
 }
 
-// 2-week dispatcher crash course. EDIT the `body` text as the lessons are
-// finalized — this mirrors the public crash-course.html outline.
+// 2-week dispatcher crash course (PUBLIC edition). Industry strategy any
+// dispatcher can learn — proprietary AI/automation playbook is kept separate.
 const CRASH_COURSE = [
-  ['Week 1 — Foundations', [
-    ['Day 1', 'What a Dispatcher Actually Does', 'The business model, where you fit, and exactly how you get paid.'],
-    ['Day 2', 'Authority, MC/DOT & the Carrier Packet', 'Setting up a carrier: operating authority, W-9, COI, and the NOA.'],
-    ['Day 3', 'Reading the Freight Market', 'Load boards, lanes, supply vs. demand, and what a “good” rate even is.'],
-    ['Day 4', 'Know Your Floor — Rate & RPM', 'Cost per mile, break-even, and the rate you must never book under.'],
-    ['Day 5', 'Negotiating With Brokers', 'Scripts, leverage, and how to push a rate without losing the load.'],
-    ['Day 6', 'Vetting Brokers & Avoiding Fraud', 'Surety bonds, double-brokering red flags, and protecting your carrier.'],
-    ['Day 7', 'Week 1 Review + Practice', 'Tie it together and test yourself before the real work begins.'],
+  ['Week 1 — Foundations & Setup', [
+    { d: 'Day 1', t: 'What a Dispatcher Does & How You Get Paid', s: 'The business model, where you fit, and how the money flows.',
+      p: 'A dispatcher finds and books freight for carriers, negotiates the rate, handles the paperwork, and keeps the truck moving — for a percentage of each load (commonly 5–10%). You’re a service the carrier hires, not an employee. The money flows: you book → the carrier hauls → the broker pays (often the carrier’s factoring company funds it next-day) → you invoice the carrier your fee. Make the carrier more money than you cost them and you never run out of clients.',
+      b: ['You earn a % of gross per load — set your fee (5–10% is typical).', 'You bill the carrier; you never touch the broker’s money.', 'Your value = higher rates + fewer empty miles + zero paperwork stress.'] },
+    { d: 'Day 2', t: 'The Core Math: True RPM & Your Floor', s: 'Calculate the real rate per mile and the number you never book under.',
+      p: 'Profit lives in one number: True RPM = gross linehaul ÷ (loaded miles + deadhead miles). A $2,100 load over 715 loaded + 25 deadhead = 740 total → $2.83/mi. Rookies forget the deadhead and book “losers.” Know each carrier’s break-even RPM (their cost per mile) and treat it as a hard floor. Then add leverage: when capacity is tight (e.g., reefers in Southeast produce season), counter harder.',
+      b: ['True RPM = gross ÷ (loaded + deadhead) miles.', 'Always know the carrier’s break-even — it’s your floor.', 'Tight capacity = leverage to push the rate up.'] },
+    { d: 'Day 3', t: 'Strategic Routing: The Triangle Method', s: 'Stop booking cheap backhauls — build a loaded triangle home.',
+      p: 'A premium dispatcher never traps a driver in a “dead zone” (no outbound freight). Instead of a simple out-and-back (which forces a cheap, money-losing backhaul), route through a strong secondary market before heading home — e.g., Atlanta → Chicago → Dallas → Atlanta. More revenue, loaded miles, and a higher blended RPM even with extra distance. Bonus: route around the driver’s life — end days near safe parking, gyms, or good food to keep them healthy and loyal.',
+      b: ['Map multi-day operations, not one load at a time.', 'Triangle beats out-and-back when the backhaul is weak.', 'Route for driver wellness — it’s a retention edge.'] },
+    { d: 'Day 4', t: 'Carrier Onboarding & the Paperwork Packet', s: 'Legally lock in the relationship before you book a single load.',
+      p: 'Before booking freight, set the carrier up with a clean packet: a Dispatch Agreement (your fee %, payment terms, and a “No Forced Dispatch” clause that protects your liability) and a Limited Power of Attorney (LPOA) giving you authority strictly to sign rate confirmations on their behalf. Collect and vault their MC Authority, W-9, Certificate of Insurance (COI), and Notice of Assignment (NOA) so a broker setup takes 3 minutes, not 30. Have an attorney review your actual Dispatch Agreement and LPOA before relying on them.',
+      b: ['Dispatch Agreement: fee %, terms, no-forced-dispatch.', 'LPOA: authority to sign RateCons only.', 'Vault MC Authority, W-9, COI, NOA for fast setups.'] },
+    { d: 'Day 5', t: 'Broker Setup, RateCons & the Factoring Flow', s: 'Finding the load is step one; securing the contract and the cash is step two.',
+      p: 'Use your document vault to rip through a broker’s onboarding portal — speed wins loads. On every load, audit the Rate Confirmation before signing: linehaul rate, pickup/delivery times, weight, and detention policy. Sign via e-sign using your LPOA. Carriers can’t wait 30–60 days for a broker check, so they submit the signed BOL to a factoring company for next-day payout — which is why you give the broker the NOA (so they pay the factor). Invoice the carrier your fee right after they’re funded.',
+      b: ['Audit every RateCon line by line before signing.', 'The NOA tells the broker to pay the factoring company.', 'Invoice your fee the moment the carrier is funded.'] },
+    { d: 'Day 6', t: 'Your Tech Stack: Work at the Speed of the Market', s: 'The tools that let one person dispatch like a team.',
+      p: 'The market moves in minutes; your setup has to keep up. At minimum: a dispatch platform/TMS to run carriers, loads, and paperwork in one place (that’s what Forward OS does), a CRM so no broker or carrier lead slips, and a way to automate the busywork — check-call texts, load offers, notifications — so your time goes to deals, not data entry. A good AI assistant can speed up RPM math, draft counter-scripts, and triage messages. Principle: automate the repetitive so your hours go to negotiating and selling.',
+      b: ['One system for carriers, loads, and documents (TMS).', 'A CRM so no broker or lead slips through.', 'Automate check-calls/notifications; use AI to move faster.'] },
+    { d: 'Day 7', t: 'Week 1 Review & Self-Check', s: 'Lock in the foundation before you start dialing.',
+      p: 'Before you hunt carriers, make sure you can do these cold: calculate True RPM in your head, explain why a backhaul can be a loser, name the four onboarding documents, and walk the factoring flow. If any are fuzzy, re-read the day. Then set up one test carrier end-to-end in your tools so the mechanics are muscle memory before real money is on the line.',
+      b: ['Can you calc True RPM instantly?', 'Can you explain triangle vs. backhaul?', 'Do you know the packet (Authority, W-9, COI, NOA) + factoring flow?'] },
   ]],
-  ['Week 2 — Running Loads', [
-    ['Day 8', 'Booking a Load & the RateCon', 'Locking the deal and reading a Rate Confirmation line by line.'],
-    ['Day 9', 'The Paperwork Flow', 'BOL, POD, lumpers, and detention — collect, confirm, get paid.'],
-    ['Day 10', 'Hours of Service & Trip Planning', 'Keeping loads legal and on time without burning the clock.'],
-    ['Day 11', 'Killing Deadhead', 'Backhauls and the triangle route that lifts your rate per mile.'],
-    ['Day 12', 'Managing Carriers', 'Communication, availability, and keeping good drivers happy.'],
-    ['Day 13', 'Getting Paid', 'Invoicing, factoring, and collecting your dispatch fee.'],
-    ['Day 14', 'Building Your Book & Going Live', 'Finding carriers and brokers, and landing your first client.'],
+  ['Week 2 — Acquisition & Operations', [
+    { d: 'Day 8', t: 'Finding Carriers: Sourcing & the “Sweet Spot”', s: 'Where good owner-operators actually come from.',
+      p: 'Don’t buy generic lead lists. Pull carriers directly from the FMCSA SAFER database (or a tool like CarrierOK). Target the sweet spot: owner-operators with 1–3 trucks. Their MC authority should generally be older than 6 months — brokers reject brand-new MCs over fraud concerns (unless you run the new-authority play in Day 11). Filter to your local state/region; pitching as “a local dispatcher based out of [your city]” builds instant trust.',
+      b: ['Source from FMCSA SAFER, not bought lists.', 'Sweet spot: 1–3 truck owner-operators, MC 6+ months.', 'Lead with local — it builds trust fast.'] },
+    { d: 'Day 9', t: 'The Discovery Call', s: 'Don’t just sell — interview them to make sure they’re profitable.',
+      p: 'When you get an owner-operator on the phone, qualify before you pitch. Phase 1 (hard qualifiers): “How old is your MC authority? Are you set up with factoring? What equipment are you running?” Phase 2 (operations): “What’s your bottom-dollar True RPM? Where’s home base? Any states you won’t run?” Phase 3 (pain point): “What’s the most frustrating part of your day out there?” — then pitch your service straight at that pain.',
+      b: ['Qualify authority, factoring, and equipment first.', 'Get their floor RPM, home base, and no-go states.', 'Find the pain, then sell to it.'] },
+    { d: 'Day 10', t: 'Outbound That Works: The Multi-Touch Campaign', s: 'A sequence that cuts through the spam every driver ignores.',
+      p: 'One call won’t land a carrier — run a sequence. Tuesday AM, an SMS pattern-interrupt: “Hey [Name], I’m a local dispatcher based out of [city]. Looking for one reliable [equipment] owner-operator to feed direct freight. Running or parked?” Wednesday PM, a value-first call to non-responders — lead with market intel, not “how are you.” Thursday, the proof-of-work close: “Don’t sign anything. Let me run the board tomorrow; if I beat your usual rate I’ll text it. If you like it, we do paperwork. If not, we part as friends.”',
+      b: ['Open with an SMS pattern-interrupt, not a cold call.', 'Follow with a value-first call (lead with intel).', 'Close with risk-free “proof of work.”'] },
+    { d: 'Day 11', t: 'The New-Authority Opportunity', s: 'The market everyone else ignores — new carriers stuck waiting.',
+      p: 'Major brokers make new carriers wait out a ~90-day window, leaving brand-new owner-operators stranded. That’s an opening. Build an internal list of brokers who accept day-one active authorities, and position yourself as the dispatcher who keeps a new truck moving while its authority matures. Pitch: “We don’t let a calendar hold your truck back — we have the broker connections to keep you rolling now.”',
+      b: ['New MCs are blocked ~90 days by big brokers.', 'Build a list of day-one-friendly brokers.', 'Own the “stranded new authority” niche.'] },
+    { d: 'Day 12', t: 'Content Marketing & Brand', s: 'Make leads come to you with short vertical video.',
+      p: 'Generate inbound interest with 9:16 vertical videos (TikTok/Reels). Sell the premium, professional angle — not loud “cheap loads” pitches. Two formats that work: the silent-cinematic ad (a chaotic load board smoothly cutting to a clean golden-hour truck shot, with text like “Tired of the chaos? Upgrade your dispatch.”) and a hook that leads with your standard: “Most dispatchers guess. We run on SOPs. You drive — we’ve got it handled.” Consistency beats virality.',
+      b: ['9:16 vertical video; premium tone, not loud sales.', 'Show the “chaos → calm” transformation.', 'Post consistently; brand beats one viral hit.'] },
+    { d: 'Day 13', t: 'The Daily Operating Rhythm', s: 'A dispatcher without a routine drowns — here’s the schedule.',
+      p: 'Run your day with structure so multiple trucks don’t overwhelm you. 0700–0800 Morning Audit: check-call texts; confirm every driver is loaded, rolling, and legal on HOS; check weather on routes. 0800–1100 War Room (peak market): cross-reference empty trucks with the board, calc True RPMs, negotiate, lock loads. 1100–1300 Admin: broker setups, RateCon audits, sign via LPOA, send pickup details, handle detention disputes. 1300–1500 Marketing Sprint: pull leads, send outbound, make calls. 1500–1700 Tomorrow’s Blueprint: check delivery progress, map tomorrow’s triangle routes, send your fee invoices for today’s funded loads.',
+      b: ['Morning: audit every truck — loaded, rolling, legal.', 'Mid-day: hunt loads, then handle admin.', 'Afternoon: market, then blueprint tomorrow + invoice.'] },
+    { d: 'Day 14', t: 'Going Live: Your Launch Checklist', s: 'Verify every system is green before your first live call.',
+      p: 'Before you dial your first carrier, confirm: your tools are live (TMS/CRM, document vault organized to receive MC/COI paperwork), your intake link is ready to send prospects, your lead list is pulled and formatted for the outbound sprint, and your scripts are within reach. Then execute. The dispatchers who win aren’t the smartest — they’re the ones who start, stay consistent, and run their SOPs every single day.',
+      b: ['Tools live: TMS/CRM + organized document vault.', 'Intake link + lead list ready to go.', 'Scripts handy — then start. Consistency wins.'] },
   ]],
 ];
 
@@ -5897,17 +5925,22 @@ function TrainingView() {
           {CRASH_COURSE.map(([week, days]) => (
             <div key={week} className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-400">{week}</div>
-              {days.map(([d, title, body]) => (
-                <details key={d} className="group rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              {days.map((x) => (
+                <details key={x.d} className="group rounded-xl border border-slate-800 bg-slate-900/50 p-4">
                   <summary className="flex cursor-pointer items-center justify-between gap-3">
                     <span className="min-w-0">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-400">{d}</span>
-                      <span className="block font-bold text-white">{title}</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-400">{x.d}</span>
+                      <span className="block font-bold text-white">{x.t}</span>
+                      <span className="block text-xs text-slate-500 mt-0.5">{x.s}</span>
                     </span>
                     <span className="text-amber-400 transition-transform group-open:rotate-45 shrink-0">+</span>
                   </summary>
-                  <p className="mt-3 text-sm text-slate-400">{body}</p>
-                  <p className="mt-2 text-xs text-slate-600">Full lesson coming soon.</p>
+                  <p className="mt-3 text-sm text-slate-300 leading-relaxed">{x.p}</p>
+                  <ul className="mt-3 space-y-1.5">
+                    {x.b.map((bullet, i) => (
+                      <li key={i} className="flex gap-2 text-sm text-slate-400"><span className="text-amber-400 shrink-0">•</span><span>{bullet}</span></li>
+                    ))}
+                  </ul>
                 </details>
               ))}
             </div>
