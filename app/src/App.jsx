@@ -196,7 +196,7 @@ function welcomeCarrierEmail({ name, email, tempPw }) {
     </ol>
     <p>Inside you'll find your assigned loads, pay, compliance dates, document vault, and your own cost-per-mile calculator — all in one place.</p>
     <p style="color:#6b7280;font-size:13px">Questions? Just reply to this email and we'll get you sorted.</p>
-    <p style="margin-top:18px">Keep the wheels turning,<br><strong>Forward Motion Freight — Dispatch</strong></p>`);
+    <p style="margin-top:18px">Keep moving forward,<br><strong>Forward Motion Freight — Dispatch</strong></p>`);
 }
 
 function welcomeDispatcherEmail({ name, email, tempPw }) {
@@ -212,7 +212,7 @@ function welcomeDispatcherEmail({ name, email, tempPw }) {
       <li>Take the dashboard tour for a 60-second orientation.</li>
     </ol>
     <p>Your day starts on the Dashboard (weekly dispatch total + live Market Pulse). Work a deal in the Rate Calculator, vet the broker in Broker Check, then send the load. Carriers and their logins live under "Carriers &amp; Access."</p>
-    <p style="margin-top:18px"><strong>Forward Motion Freight — Operations</strong></p>`);
+    <p style="margin-top:18px">Keep moving forward,<br><strong>Forward Motion Freight — Operations</strong></p>`);
 }
 
 async function createDriverAccount(email, password) {
@@ -574,6 +574,7 @@ export default function App() {
             ×
           </button>
         </div>
+        <div className="px-6 -mt-3 mb-1 text-[10px] font-semibold tracking-[0.15em] text-amber-500/70 uppercase">Keep Moving Forward</div>
 
         <nav className="flex-1 overflow-y-auto py-4">
           {isAdmin && !viewAs ? (
@@ -3237,7 +3238,8 @@ function LoginView({ accessDenied }) {
     <div className="relative flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-4 overflow-hidden">
       <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-amber-500/10 blur-[120px]" />
       <div className="relative w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
-        <div className="flex justify-center mb-8"><BrandLockup size={42} stack /></div>
+        <div className="flex justify-center mb-2"><BrandLockup size={42} stack /></div>
+        <p className="text-center text-amber-400/90 font-semibold tracking-wide text-sm mb-8">Keep Moving Forward.</p>
 
         <h2 className="text-xl font-bold mb-2">Sign In</h2>
         <p className="text-sm text-slate-400 mb-6">Access is invite-only. Use the email and temporary password your dispatcher gave you.</p>
@@ -3428,7 +3430,7 @@ function ManageDriversView() {
             <div className="text-xs text-slate-400 mt-2">They'll be asked to set their own password on first login.</div>
             <button type="button"
               onClick={() => {
-                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${created.email}\n     Temporary password: ${created.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nFrom there you'll see your assigned loads, pay, compliance, and more — all in one place.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
+                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${created.email}\n     Temporary password: ${created.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nFrom there you'll see your assigned loads, pay, compliance, and more — all in one place.\n\nQuestions? Just reply to this email.\n\nKeep moving forward,\n— Forward Motion Freight Dispatch`;
                 if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
@@ -4791,7 +4793,7 @@ function CarriersView() {
             <div className="text-xs text-slate-400 mt-2">They'll set their own password on first login.</div>
             <button type="button"
               onClick={() => {
-                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${createdLogin.email}\n     Temporary password: ${createdLogin.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nQuestions? Just reply to this email.\n\n— Forward Motion Freight Dispatch`;
+                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${createdLogin.email}\n     Temporary password: ${createdLogin.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nQuestions? Just reply to this email.\n\nKeep moving forward,\n— Forward Motion Freight Dispatch`;
                 if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
