@@ -135,6 +135,16 @@ service cloud.firestore {
       allow update, delete: if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
     }
 
+    // ---- crash-course email leads (PUBLIC submit from the marketing site) ----
+    // Anyone can sign up (open create with a valid-looking email); only the
+    // super-admin reads/manages the list.
+    match /course_leads/{id} {
+      allow create: if request.resource.data.email is string
+                    && request.resource.data.email.size() > 3
+                    && request.resource.data.email.size() < 200;
+      allow read, update, delete: if isSuper();
+    }
+
     // ---- CRM / network (dispatcher's brokers + carrier leads) ----
     match /crm_contacts/{id} {
       allow read:           if ownDoc(resource);

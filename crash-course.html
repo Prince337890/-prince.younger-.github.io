@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free 2-Week Dispatcher Crash Course | Forward Motion Freight</title>
+    <meta name="description" content="A free 2-week crash course that takes you from zero to booking your first load — the fundamentals every new truck dispatcher needs, from Forward Motion Freight.">
+    <meta name="theme-color" content="#0a0f1a">
+    <meta name="color-scheme" content="dark">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
+    </script>
+    <style>body{background:#070b14}</style>
+</head>
+<body class="font-sans text-slate-200">
+
+    <!-- Top bar -->
+    <header class="border-b border-white/10 bg-[#0a0f1a]/80 backdrop-blur sticky top-0 z-20">
+        <div class="mx-auto max-w-5xl flex items-center justify-between px-5 py-4">
+            <a href="index.html" class="font-display font-extrabold tracking-tight text-white">FORWARD<span class="text-[#7FB6DA]">MOTION</span></a>
+            <a href="index.html" class="text-sm text-slate-400 hover:text-white">← Back to site</a>
+        </div>
+    </header>
+
+    <!-- HERO + email capture -->
+    <section class="px-5 py-16 sm:py-24">
+        <div class="mx-auto max-w-3xl text-center">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Free · No experience required</p>
+            <h1 class="mt-4 font-display text-3xl font-extrabold tracking-tight text-white sm:text-5xl">The 2-Week Dispatcher Crash Course</h1>
+            <p class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
+                From zero to booking your first load. Two weeks, fourteen short lessons — the exact fundamentals every new truck dispatcher needs, taught by an outfit that does it every day.
+            </p>
+
+            <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row">
+                <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
+                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                <input id="cc-email" type="email" required placeholder="you@email.com" autocomplete="email"
+                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                <button id="cc-submit" type="submit"
+                    class="shrink-0 rounded-xl bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Start free</button>
+            </form>
+            <p id="cc-msg" class="mt-3 text-sm text-[#7FB6DA] min-h-[1.25rem]"></p>
+            <p class="mt-2 text-xs text-slate-600">No spam. One short lesson at a time. Unsubscribe anytime.</p>
+        </div>
+    </section>
+
+    <!-- CURRICULUM -->
+    <section class="px-5 pb-20">
+        <div class="mx-auto max-w-4xl">
+            <div class="text-center mb-10">
+                <h2 class="font-display text-2xl font-extrabold text-white sm:text-3xl">What you'll learn</h2>
+                <p class="mt-3 text-slate-400">Week 1 builds the foundation. Week 2 puts you to work.</p>
+            </div>
+
+            <!-- Week 1 -->
+            <div class="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#7FB6DA]">Week 1 — Foundations</div>
+            <div class="grid gap-3 sm:grid-cols-2" id="week1"></div>
+
+            <!-- Week 2 -->
+            <div class="mt-10 mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#7FB6DA]">Week 2 — Running Loads</div>
+            <div class="grid gap-3 sm:grid-cols-2" id="week2"></div>
+        </div>
+    </section>
+
+    <!-- CTA to the platform -->
+    <section class="border-t border-white/10 bg-[#0a0f1a] px-5 py-16">
+        <div class="mx-auto max-w-3xl text-center">
+            <h2 class="font-display text-2xl font-extrabold text-white sm:text-3xl">Learn the job. Then get the tools to do it.</h2>
+            <p class="mx-auto mt-4 max-w-xl text-slate-400">The course teaches you to dispatch. Forward OS is the platform you run it on — rate calculator, broker checks, routing, and a driver portal, all in one place.</p>
+            <a href="index.html#faq" class="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#7FB6DA] px-7 py-4 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">See the platform →</a>
+        </div>
+    </section>
+
+    <footer class="px-5 py-10 text-center text-xs text-slate-600">
+        © Forward Motion Freight · <a href="index.html" class="hover:text-slate-400">Home</a>
+    </footer>
+
+    <!-- Curriculum data + Firestore email capture -->
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+      import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+      // Course outline — EDIT THESE titles/blurbs as you finalize the lessons.
+      const DAYS = [
+        ['Day 1', 'What a Dispatcher Actually Does', 'The business model, where you fit, and exactly how you get paid.'],
+        ['Day 2', 'Authority, MC/DOT & the Carrier Packet', 'Setting up a carrier: operating authority, W-9, COI, and the NOA.'],
+        ['Day 3', 'Reading the Freight Market', 'Load boards, lanes, supply vs. demand, and what a "good" rate even is.'],
+        ['Day 4', 'Know Your Floor — Rate & RPM', 'Cost per mile, break-even, and the rate you must never book under.'],
+        ['Day 5', 'Negotiating With Brokers', 'Scripts, leverage, and how to push a rate without losing the load.'],
+        ['Day 6', 'Vetting Brokers & Avoiding Fraud', 'Surety bonds, double-brokering red flags, and protecting your carrier.'],
+        ['Day 7', 'Week 1 Review + Practice', 'Tie it together and test yourself before the real work begins.'],
+        ['Day 8', 'Booking a Load & the RateCon', 'Locking the deal and reading a Rate Confirmation line by line.'],
+        ['Day 9', 'The Paperwork Flow', 'BOL, POD, lumpers, and detention — collect, confirm, get paid.'],
+        ['Day 10', 'Hours of Service & Trip Planning', 'Keeping loads legal and on time without burning the clock.'],
+        ['Day 11', 'Killing Deadhead', 'Backhauls and the triangle route that lifts your rate per mile.'],
+        ['Day 12', 'Managing Carriers', 'Communication, availability, and keeping good drivers happy.'],
+        ['Day 13', 'Getting Paid', 'Invoicing, factoring, and collecting your dispatch fee.'],
+        ['Day 14', 'Building Your Book & Going Live', 'Finding carriers and brokers, and landing your first client.'],
+      ];
+      const card = ([d, t, b]) => `
+        <div class="rounded-xl border border-white/10 bg-[#0a0f1a] p-5">
+          <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d}</div>
+          <div class="mt-1 font-display font-bold text-white">${t}</div>
+          <p class="mt-1.5 text-sm text-slate-400">${b}</p>
+        </div>`;
+      document.getElementById('week1').innerHTML = DAYS.slice(0, 7).map(card).join('');
+      document.getElementById('week2').innerHTML = DAYS.slice(7).map(card).join('');
+
+      // Lead capture -> Firestore (course_leads). You own the list.
+      const cfg = {
+        apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
+        authDomain: "forward-motion-freight.firebaseapp.com",
+        projectId: "forward-motion-freight",
+        storageBucket: "forward-motion-freight.firebasestorage.app",
+        messagingSenderId: "131232028664",
+        appId: "1:131232028664:web:18131f2ebf4359ecafe80d"
+      };
+      const db = getFirestore(initializeApp(cfg));
+      const form = document.getElementById('signup');
+      const msg = document.getElementById('cc-msg');
+      const btn = document.getElementById('cc-submit');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('cc-email').value.trim();
+        const name = document.getElementById('cc-name').value.trim();
+        if (!email) return;
+        btn.disabled = true; btn.textContent = 'Signing up…'; msg.textContent = '';
+        try {
+          await addDoc(collection(db, 'course_leads'), { email, name, source: 'crash-course', createdAt: serverTimestamp() });
+          form.style.display = 'none';
+          msg.textContent = `You're in${name ? ', ' + name : ''}! Day 1 is on its way — check your inbox.`;
+        } catch (err) {
+          console.error(err);
+          msg.textContent = 'Something went wrong — please try again in a moment.';
+          btn.disabled = false; btn.textContent = 'Start free';
+        }
+      });
+    </script>
+</body>
+</html>

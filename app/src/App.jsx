@@ -5808,10 +5808,34 @@ function DispatchQuiz() {
   );
 }
 
+// 2-week dispatcher crash course. EDIT the `body` text as the lessons are
+// finalized — this mirrors the public crash-course.html outline.
+const CRASH_COURSE = [
+  ['Week 1 — Foundations', [
+    ['Day 1', 'What a Dispatcher Actually Does', 'The business model, where you fit, and exactly how you get paid.'],
+    ['Day 2', 'Authority, MC/DOT & the Carrier Packet', 'Setting up a carrier: operating authority, W-9, COI, and the NOA.'],
+    ['Day 3', 'Reading the Freight Market', 'Load boards, lanes, supply vs. demand, and what a “good” rate even is.'],
+    ['Day 4', 'Know Your Floor — Rate & RPM', 'Cost per mile, break-even, and the rate you must never book under.'],
+    ['Day 5', 'Negotiating With Brokers', 'Scripts, leverage, and how to push a rate without losing the load.'],
+    ['Day 6', 'Vetting Brokers & Avoiding Fraud', 'Surety bonds, double-brokering red flags, and protecting your carrier.'],
+    ['Day 7', 'Week 1 Review + Practice', 'Tie it together and test yourself before the real work begins.'],
+  ]],
+  ['Week 2 — Running Loads', [
+    ['Day 8', 'Booking a Load & the RateCon', 'Locking the deal and reading a Rate Confirmation line by line.'],
+    ['Day 9', 'The Paperwork Flow', 'BOL, POD, lumpers, and detention — collect, confirm, get paid.'],
+    ['Day 10', 'Hours of Service & Trip Planning', 'Keeping loads legal and on time without burning the clock.'],
+    ['Day 11', 'Killing Deadhead', 'Backhauls and the triangle route that lifts your rate per mile.'],
+    ['Day 12', 'Managing Carriers', 'Communication, availability, and keeping good drivers happy.'],
+    ['Day 13', 'Getting Paid', 'Invoicing, factoring, and collecting your dispatch fee.'],
+    ['Day 14', 'Building Your Book & Going Live', 'Finding carriers and brokers, and landing your first client.'],
+  ]],
+];
+
 function TrainingView() {
   const [tab, setTab] = useState('practice');
   const TABS = [
     ['practice', 'Practice & Quiz'],
+    ['course', '2-Week Crash Course'],
     ['guided', 'Guided Mode'],
     ['glossary', 'Freight Glossary'],
     ['sops', 'SOPs'],
@@ -5861,6 +5885,33 @@ function TrainingView() {
           </Card>
 
           <DispatchQuiz />
+        </div>
+      )}
+
+      {tab === 'course' && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="text-lg font-bold mb-1">The 2-Week Crash Course</h3>
+            <p className="text-sm text-slate-400">Fourteen short lessons from zero to booking your first load. Work one a day, or binge it — each ties straight into a tab in this platform.</p>
+          </Card>
+          {CRASH_COURSE.map(([week, days]) => (
+            <div key={week} className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-400">{week}</div>
+              {days.map(([d, title, body]) => (
+                <details key={d} className="group rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                  <summary className="flex cursor-pointer items-center justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-400">{d}</span>
+                      <span className="block font-bold text-white">{title}</span>
+                    </span>
+                    <span className="text-amber-400 transition-transform group-open:rotate-45 shrink-0">+</span>
+                  </summary>
+                  <p className="mt-3 text-sm text-slate-400">{body}</p>
+                  <p className="mt-2 text-xs text-slate-600">Full lesson coming soon.</p>
+                </details>
+              ))}
+            </div>
+          ))}
         </div>
       )}
 
