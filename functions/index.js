@@ -1,10 +1,16 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
 admin.initializeApp();
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
+const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
+const TWILIO_FROM_NUMBER = defineSecret('TWILIO_FROM_NUMBER');
+
+const PORTAL_URL = 'https://portal.forwardmotionfreight.com';
 
 const BROKER_PERSONAS = {
   easy: 'You are a friendly, flexible freight broker who wants to move this load quickly and is willing to negotiate up close to your budget.',
@@ -64,3 +70,66 @@ Stay in character as the broker only. Never break character, never mention you a
     throw new HttpsError('internal', 'The broker simulator is unavailable right now.');
   }
 });
+
+// Normalize a free-text US phone into E.164 (+1XXXXXXXXXX) for Twilio. Best
+// effort only — assumes domestic numbers unless already given a country code.
+function toE164(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return `+${digits}`;
+}
+
+// Fires whenever a new load is created with status 'Offered' (the "Send as
+// Offer" button in the Rate Calculator). Texts the carrier directly, since
+// this is a website today, not a native app with push notifications — a
+// dispatcher can't assume the carrier has the tab open. Works identically
+// for every workspace: the message names the sending dispatcher's own
+// company (orgs/{orgId}.name), so one shared Twilio number serves everyone.
+exports.notifyCarrierOnOffer = onDocumentCreated(
+  { document: 'loads/{loadId}', secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER] },
+  async (event) => {
+    const load = event.data && event.data.data();
+    if (!load || load.status !== 'Offered' || !load.uid || !load.orgId) return;
+
+    const db = admin.firestore();
+    try {
+      const [orgSnap, carrierSnap] = await Promise.all([
+        db.collection('orgs').doc(load.orgId).get(),
+        db.collection('carriers').where('linkedDriverUid', '==', load.uid).where('orgId', '==', load.orgId).limit(1).get(),
+      ]);
+
+      const carrierPhone = toE164(carrierSnap.empty ? null : carrierSnap.docs[0].data().phone);
+      if (!carrierPhone) {
+        console.log('notifyCarrierOnOffer: no usable phone on file, skipping', event.params.loadId);
+        return;
+      }
+
+      const companyName = (orgSnap.exists && orgSnap.data().name) || 'Forward Motion Freight';
+      const dispatchPhone = (orgSnap.exists && orgSnap.data().dispatchPhone) || '';
+      const lane = [load.origin, load.destination].filter(Boolean).join(' → ');
+
+      const body = `${companyName}: New load offer${lane ? ` (${lane})` : ''} — open it: ${PORTAL_URL}`
+        + (dispatchPhone ? ` · Questions? Call ${dispatchPhone}` : '');
+
+      const sid = TWILIO_ACCOUNT_SID.value();
+      const authHeader = Buffer.from(`${sid}:${TWILIO_AUTH_TOKEN.value()}`).toString('base64');
+      const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${authHeader}`,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ To: carrierPhone, From: TWILIO_FROM_NUMBER.value(), Body: body }),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error('Twilio send failed', resp.status, text);
+      }
+    } catch (e) {
+      console.error('notifyCarrierOnOffer failed', e);
+    }
+  }
+);
