@@ -5904,13 +5904,32 @@ const CRASH_COURSE = [
 ];
 
 // ---------- Practice Broker Call (AI negotiation simulator) ----------
+// Flip to true once the practiceBrokerCall Cloud Function is deployed and
+// the ANTHROPIC_API_KEY secret is funded — until then this stays a "coming
+// soon" card so nobody hits a broken chat / undeployed-function error.
+const PRACTICE_CALL_ENABLED = false;
+
 const BROKER_CALL_DIFFICULTIES = [
   ['easy', 'Easy — flexible broker'],
   ['normal', 'Normal — firm but fair'],
   ['hard', 'Hard — tough, has other options'],
 ];
 
+function PracticeCallComingSoon() {
+  return (
+    <Card className="p-8 text-center">
+      <div className="text-3xl mb-2">🚧</div>
+      <h3 className="text-xl font-bold mb-1">Practice Broker Call — Coming Soon</h3>
+      <p className="text-slate-400 text-sm max-w-md mx-auto">
+        An AI-powered negotiation simulator is on the way — practice working a rate against a
+        simulated broker before you do it for real. We'll turn this on soon.
+      </p>
+    </Card>
+  );
+}
+
 function PracticeCallView() {
+  if (!PRACTICE_CALL_ENABLED) return <PracticeCallComingSoon />;
   const [phase, setPhase] = useState('setup'); // setup | call | scored
   const [scenario, setScenario] = useState({
     origin: '', destination: '', miles: '', brokerRate: '', floorRate: '', equipment: 'Dry Van', difficulty: 'normal',
