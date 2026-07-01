@@ -182,10 +182,11 @@ function emailShell(bodyHtml) {
   </div>`;
 }
 
-function welcomeCarrierEmail({ name, email, tempPw }) {
+function welcomeCarrierEmail({ name, email, tempPw, company, phone }) {
+  const co = company || 'Forward Motion Freight';
   return emailShell(`
     <h2 style="margin:0 0 12px;font-size:20px">Welcome aboard, ${name || 'driver'}!</h2>
-    <p>Your Forward Motion Freight driver portal is set up and ready. Here's how to get rolling:</p>
+    <p>Your ${co} driver portal is set up and ready. Here's how to get rolling:</p>
     <ol style="padding-left:18px">
       <li><strong>Sign in:</strong> <a href="${PORTAL_URL}" style="color:#2563eb">${PORTAL_URL}</a><br>
         Email: <strong>${email}</strong><br>
@@ -195,8 +196,15 @@ function welcomeCarrierEmail({ name, email, tempPw }) {
       <li>Take the optional dashboard tour — then you're ready to roll.</li>
     </ol>
     <p>Inside you'll find your assigned loads, pay, compliance dates, document vault, and your own cost-per-mile calculator — all in one place.</p>
+    ${phone ? `<p>Questions about a load? Call your dispatcher: <strong>${phone}</strong>.</p>` : ''}
     <p style="color:#6b7280;font-size:13px">Questions? Just reply to this email and we'll get you sorted.</p>
-    <p style="margin-top:18px">Keep moving forward,<br><strong>Forward Motion Freight — Dispatch</strong></p>`);
+    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`);
+}
+
+function welcomeCarrierText({ email, tempPw, company, phone }) {
+  const co = company || 'Forward Motion Freight';
+  const phoneLine = phone ? `\nDispatch phone: ${phone}` : '';
+  return `Welcome to ${co}!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: ${PORTAL_URL}\n     Email: ${email}\n     Temporary password: ${tempPw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.${phoneLine}\n\nQuestions? Just reply to this email.\n\nKeep moving forward,\n— ${co} Dispatch`;
 }
 
 function welcomeDispatcherEmail({ name, email, tempPw }) {
@@ -3333,6 +3341,11 @@ function ManageDriversView() {
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(null);
   const [error, setError] = useState('');
+  const [orgInfo, setOrgInfo] = useState({ name: '', dispatchPhone: '' });
+  useEffect(() => { (async () => {
+    if (!ACTIVE_ORG) return;
+    try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setOrgInfo({ name: o.data().name || '', dispatchPhone: o.data().dispatchPhone || '' }); } catch (_) {}
+  })(); }, []);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -3371,8 +3384,8 @@ function ManageDriversView() {
         createdAt: serverTimestamp(),
       }), { merge: true });
       setCreated({ email: email.trim(), pw });
-      queueEmail(email.trim(), 'Welcome to Forward Motion Freight — your portal is ready',
-        welcomeCarrierEmail({ name: '', email: email.trim(), tempPw: pw }));
+      queueEmail(email.trim(), `Welcome to ${orgInfo.name || 'Forward Motion Freight'} — your portal is ready`,
+        welcomeCarrierEmail({ name: '', email: email.trim(), tempPw: pw, company: orgInfo.name, phone: orgInfo.dispatchPhone }));
       setEmail(''); setPw('');
       fetchUsers();
     } catch (err) {
@@ -3432,7 +3445,7 @@ function ManageDriversView() {
             <div className="text-xs text-slate-400 mt-2">They'll be asked to set their own password on first login.</div>
             <button type="button"
               onClick={() => {
-                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${created.email}\n     Temporary password: ${created.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nFrom there you'll see your assigned loads, pay, compliance, and more — all in one place.\n\nQuestions? Just reply to this email.\n\nKeep moving forward,\n— Forward Motion Freight Dispatch`;
+                const txt = welcomeCarrierText({ email: created.email, tempPw: created.pw, company: orgInfo.name, phone: orgInfo.dispatchPhone });
                 if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
@@ -4441,6 +4454,11 @@ function CarriersView() {
   const toggleField = (k) => () => setForm((f) => ({ ...f, [k]: !f[k] }));
   const [createdLogin, setCreatedLogin] = useState(null);
   const [carrierSearch, setCarrierSearch] = useState('');
+  const [orgInfo, setOrgInfo] = useState({ name: '', dispatchPhone: '' });
+  useEffect(() => { (async () => {
+    if (!ACTIVE_ORG) return;
+    try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setOrgInfo({ name: o.data().name || '', dispatchPhone: o.data().dispatchPhone || '' }); } catch (_) {}
+  })(); }, []);
   const genPw = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let p = '';
@@ -4558,8 +4576,8 @@ function CarriersView() {
           }), { merge: true });
           linkedUid = uid;
           setCreatedLogin({ email: form.newLoginEmail.trim(), pw: form.newLoginPw });
-          queueEmail(form.newLoginEmail.trim(), 'Welcome to Forward Motion Freight — your portal is ready',
-            welcomeCarrierEmail({ name: form.driverName.trim() || form.name.trim(), email: form.newLoginEmail.trim(), tempPw: form.newLoginPw }));
+          queueEmail(form.newLoginEmail.trim(), `Welcome to ${orgInfo.name || 'Forward Motion Freight'} — your portal is ready`,
+            welcomeCarrierEmail({ name: form.driverName.trim() || form.name.trim(), email: form.newLoginEmail.trim(), tempPw: form.newLoginPw, company: orgInfo.name, phone: orgInfo.dispatchPhone }));
         } catch (err) {
           console.error('inline login creation failed', err);
           const inUse = err.code === 'auth/email-already-in-use';
@@ -4806,7 +4824,7 @@ function CarriersView() {
             <div className="text-xs text-slate-400 mt-2">They'll set their own password on first login.</div>
             <button type="button"
               onClick={() => {
-                const txt = `Welcome to Forward Motion Freight!\n\nYour driver portal is ready. Here's how to get started:\n\n1) Sign in: https://portal.forwardmotionfreight.com\n     Email: ${createdLogin.email}\n     Temporary password: ${createdLogin.pw}\n\n2) You'll be prompted to set your own password.\n3) A quick 2-minute setup confirms your carrier profile.\n4) Take the optional dashboard tour, and you're ready to roll.\n\nQuestions? Just reply to this email.\n\nKeep moving forward,\n— Forward Motion Freight Dispatch`;
+                const txt = welcomeCarrierText({ email: createdLogin.email, tempPw: createdLogin.pw, company: orgInfo.name, phone: orgInfo.dispatchPhone });
                 if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
@@ -7065,13 +7083,20 @@ function WorkspacesView() {
   };
 
   const [ownerStatus, setOwnerStatus] = useState({}); // uid -> active(bool)
+  const [ownerActivity, setOwnerActivity] = useState({}); // uid -> { lastLogin, mustChangePassword }
   const fetchOrgs = async () => {
     setLoading(true);
     try {
       const [oSnap, uSnap] = await Promise.all([getDocs(collection(db, 'orgs')), getDocs(collection(db, 'users'))]);
       setOrgs(oSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      const st = {}; uSnap.docs.forEach((d) => { st[d.id] = d.data().approved !== false; });
+      const st = {}, act = {};
+      uSnap.docs.forEach((d) => {
+        const u = d.data();
+        st[d.id] = u.approved !== false;
+        act[d.id] = { lastLogin: u.lastLogin || null, mustChangePassword: u.mustChangePassword === true };
+      });
       setOwnerStatus(st);
+      setOwnerActivity(act);
     } catch (e) { console.error('orgs load failed', e); }
     finally { setLoading(false); }
   };
@@ -7202,11 +7227,24 @@ function WorkspacesView() {
               {orgs.map((o) => {
                 const isMe = o.ownerUid && o.ownerUid === auth.currentUser?.uid;
                 const active = !o.ownerUid || ownerStatus[o.ownerUid] !== false;
+                const activity = (o.ownerUid && ownerActivity[o.ownerUid]) || {};
+                const loginMs = activity.lastLogin && activity.lastLogin.toDate ? activity.lastLogin.toDate().getTime() : null;
                 return (
                   <div key={o.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-white truncate">{o.name}</div>
                       <div className="text-xs text-slate-500">{o.ownerEmail} · {o.id.slice(0, 8)}…</div>
+                      {!isMe && (
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {loginMs
+                            ? <span>Last login: {new Date(loginMs).toLocaleString()}</span>
+                            : <span className="text-amber-400">Never logged in yet</span>}
+                          {' · '}
+                          {activity.mustChangePassword
+                            ? <span className="text-amber-400">Profile setup pending</span>
+                            : loginMs ? <span className="text-emerald-400">Profile set up ✓</span> : null}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {isMe ? <span className="text-[11px] text-slate-400">You</span>
