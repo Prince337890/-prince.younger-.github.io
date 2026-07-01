@@ -15,6 +15,7 @@ import {
   sendPasswordResetEmail, updateProfile
 } from 'firebase/auth';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
@@ -30,6 +31,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
+const functionsClient = getFunctions(app);
 const googleProvider = new GoogleAuthProvider();
 
 // --- Google Maps (client-side distance lookup) ---
@@ -5901,10 +5903,164 @@ const CRASH_COURSE = [
   ]],
 ];
 
+// ---------- Practice Broker Call (AI negotiation simulator) ----------
+const BROKER_CALL_DIFFICULTIES = [
+  ['easy', 'Easy — flexible broker'],
+  ['normal', 'Normal — firm but fair'],
+  ['hard', 'Hard — tough, has other options'],
+];
+
+function PracticeCallView() {
+  const [phase, setPhase] = useState('setup'); // setup | call | scored
+  const [scenario, setScenario] = useState({
+    origin: '', destination: '', miles: '', brokerRate: '', floorRate: '', equipment: 'Dry Van', difficulty: 'normal',
+  });
+  const set = (k) => (e) => setScenario((s) => ({ ...s, [k]: e.target.value }));
+  const [messages, setMessages] = useState([]); // [{role:'user'|'assistant', content}]
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState('');
+  const [finalRate, setFinalRate] = useState('');
+  const scrollRef = useRef(null);
+
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
+
+  const canStart = scenario.origin.trim() && scenario.destination.trim() && Number(scenario.miles) > 0
+    && Number(scenario.brokerRate) > 0 && Number(scenario.floorRate) > 0;
+
+  const startCall = () => {
+    if (!canStart) return;
+    const brokerName = ['Mike', 'Dana', 'Curtis', 'Renee', 'Sam'][Math.floor(Math.random() * 5)];
+    const opener = `Hey, this is ${brokerName} — I've got a ${scenario.equipment} load from ${scenario.origin} to ${scenario.destination}, about ${scenario.miles} miles. Looking to move it for $${Number(scenario.brokerRate).toLocaleString()}. Can you run it?`;
+    setMessages([{ role: 'assistant', content: opener }]);
+    setPhase('call');
+    setErr('');
+  };
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    const next = [...messages, { role: 'user', content: text }];
+    setMessages(next);
+    setDraft('');
+    setSending(true);
+    setErr('');
+    try {
+      const call = httpsCallable(functionsClient, 'practiceBrokerCall');
+      const res = await call({ scenario, messages: next });
+      const reply = (res.data && res.data.reply) || "Sorry, can you say that again?";
+      setMessages((m) => [...m, { role: 'assistant', content: reply }]);
+    } catch (e) {
+      console.error('practiceBrokerCall failed', e);
+      setErr('The broker simulator is unavailable right now — make sure the practiceBrokerCall function is deployed.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const score = () => {
+    const rate = Number(finalRate);
+    if (!rate) return;
+    setPhase('scored');
+  };
+
+  const resetAll = () => {
+    setPhase('setup'); setMessages([]); setFinalRate(''); setErr('');
+  };
+
+  const field = INPUT_CLS;
+  const rate = Number(finalRate);
+  const floor = Number(scenario.floorRate);
+  const miles = Number(scenario.miles);
+  const beatFloor = rate >= floor;
+  const rpm = miles > 0 ? (rate / miles) : 0;
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <PanelHeader icon={<GraduationCap size={18} />} title="Practice Broker Call" badge={<Badge tone="indigo" className="text-[10px]">AI</Badge>} />
+        <p className="text-sm text-slate-400 mt-2">Negotiate a made-up load against an AI broker before you do it for real. No live data touched — nothing here books a load or contacts anyone.</p>
+      </Card>
+
+      {phase === 'setup' && (
+        <Card className="p-6">
+          <h3 className="font-bold mb-4">Set up the scenario</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Origin"><input className={field} value={scenario.origin} onChange={set('origin')} placeholder="Atlanta, GA" /></Field>
+            <Field label="Destination"><input className={field} value={scenario.destination} onChange={set('destination')} placeholder="Charlotte, NC" /></Field>
+            <Field label="Miles"><input className={field} type="number" value={scenario.miles} onChange={set('miles')} placeholder="245" /></Field>
+            <Field label="Equipment">
+              <select className={SELECT_CLS} value={scenario.equipment} onChange={set('equipment')}>
+                {['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Power Only'].map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </Field>
+            <Field label="Broker's opening offer ($)"><input className={field} type="number" value={scenario.brokerRate} onChange={set('brokerRate')} placeholder="450" /></Field>
+            <Field label="Your floor / break-even ($)"><input className={field} type="number" value={scenario.floorRate} onChange={set('floorRate')} placeholder="600" /></Field>
+            <Field label="Difficulty" className="sm:col-span-2">
+              <select className={SELECT_CLS} value={scenario.difficulty} onChange={set('difficulty')}>
+                {BROKER_CALL_DIFFICULTIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </Field>
+          </div>
+          <PrimaryButton onClick={startCall} disabled={!canStart} className="mt-5 px-5">Start the call</PrimaryButton>
+        </Card>
+      )}
+
+      {phase === 'call' && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold">{scenario.origin} → {scenario.destination} <span className="text-slate-500 font-normal text-sm">({scenario.miles} mi, {scenario.equipment})</span></h3>
+            <button onClick={resetAll} className="text-xs text-slate-500 hover:text-slate-300">Cancel</button>
+          </div>
+          <div ref={scrollRef} className="h-80 overflow-y-auto space-y-3 bg-slate-950/50 border border-slate-800 rounded-lg p-4">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${m.role === 'user' ? 'bg-amber-500 text-slate-950 font-medium' : 'bg-slate-800 text-slate-200'}`}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {sending && <div className="text-xs text-slate-500">Broker is typing…</div>}
+          </div>
+          {err && <p className="text-red-400 text-sm mt-2">{err}</p>}
+          <div className="flex gap-2 mt-3">
+            <input className={field} value={draft} onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+              placeholder="Type your counter-offer or question…" disabled={sending} />
+            <PrimaryButton onClick={send} disabled={sending || !draft.trim()} className="px-5 shrink-0">Send</PrimaryButton>
+          </div>
+          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-800">
+            <input className={field + ' max-w-[160px]'} type="number" value={finalRate} onChange={(e) => setFinalRate(e.target.value)} placeholder="Agreed rate ($)" />
+            <button onClick={score} disabled={!finalRate} className="text-sm bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-4 py-2 rounded-lg disabled:opacity-50">End call — score it</button>
+          </div>
+        </Card>
+      )}
+
+      {phase === 'scored' && (
+        <Card className="p-6 text-center">
+          <div className={`text-3xl mb-2`}>{beatFloor ? '🎉' : '⚠️'}</div>
+          <h3 className="text-xl font-bold mb-1">{beatFloor ? 'You beat your floor' : 'You went below your floor'}</h3>
+          <p className="text-slate-400 text-sm mb-4">
+            Agreed rate: <strong className="text-white">${rate.toLocaleString()}</strong> ({rpm.toFixed(2)}/mi)
+            {' — '}your floor was <strong className="text-white">${floor.toLocaleString()}</strong>.
+          </p>
+          <p className="text-sm text-slate-400 mb-6">
+            {beatFloor
+              ? `You cleared your floor by $${(rate - floor).toLocaleString()}. Nice work holding your ground.`
+              : `You came in $${(floor - rate).toLocaleString()} under your floor — review the transcript above and see where you could've held firmer.`}
+          </p>
+          <PrimaryButton onClick={resetAll} className="px-5">Try another scenario</PrimaryButton>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function TrainingView() {
   const [tab, setTab] = useState('practice');
   const TABS = [
     ['practice', 'Practice & Quiz'],
+    ['practice-call', 'Practice Broker Call'],
     ['course', '2-Week Crash Course'],
     ['guided', 'Guided Mode'],
     ['glossary', 'Freight Glossary'],
@@ -5957,6 +6113,8 @@ function TrainingView() {
           <DispatchQuiz />
         </div>
       )}
+
+      {tab === 'practice-call' && <PracticeCallView />}
 
       {tab === 'course' && (
         <div className="space-y-6">
