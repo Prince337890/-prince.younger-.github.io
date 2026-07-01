@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>From Zero to Your First Load, In 14 Days | Forward Motion Freight</title>
+    <meta name="description" content="Fourteen guided lessons take you from total beginner to booking a real load — free, at your own pace, no experience required.">
+    <meta name="theme-color" content="#0a0f1a">
+    <meta name="color-scheme" content="dark">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
+    </script>
+    <style>body{background:#070b14}</style>
+</head>
+<body class="font-sans text-slate-200">
+
+    <header class="border-b border-white/10 bg-[#0a0f1a]/80 backdrop-blur sticky top-0 z-20">
+        <div class="mx-auto max-w-5xl flex items-center justify-between px-5 py-4">
+            <a href="index.html" class="font-display font-extrabold tracking-tight text-white">FORWARD<span class="text-[#7FB6DA]">MOTION</span></a>
+            <a href="index.html" class="text-sm text-slate-400 hover:text-white">← Back to site</a>
+        </div>
+    </header>
+
+    <section class="px-5 py-16 sm:py-24">
+        <div class="mx-auto max-w-2xl text-center">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Free · No experience required</p>
+            <h1 class="mt-4 font-display text-4xl font-extrabold tracking-tight text-white sm:text-6xl">
+                From Zero To Your <span class="text-[#7FB6DA]">First Load</span>, In 14 Days.
+            </h1>
+            <p class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
+                Fourteen guided lessons take you from total beginner to booking a real load — free, at your own pace, no experience required.
+            </p>
+
+            <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row">
+                <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
+                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                <input id="cc-email" type="email" required placeholder="you@email.com" autocomplete="email"
+                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                <button id="cc-submit" type="submit"
+                    class="shrink-0 rounded-xl bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Get Instant Access</button>
+            </form>
+            <p id="cc-msg" class="mt-3 text-sm text-[#7FB6DA] min-h-[1.25rem]"></p>
+
+            <ul class="mx-auto mt-10 max-w-md space-y-3 text-left">
+                <li class="flex items-start gap-3 text-sm text-slate-300">
+                    <span class="mt-0.5 text-[#7FB6DA]">✓</span>
+                    <span>How dispatcher pay &amp; rate math actually work</span>
+                </li>
+                <li class="flex items-start gap-3 text-sm text-slate-300">
+                    <span class="mt-0.5 text-[#7FB6DA]">✓</span>
+                    <span>The paperwork that legally locks in a carrier</span>
+                </li>
+                <li class="flex items-start gap-3 text-sm text-slate-300">
+                    <span class="mt-0.5 text-[#7FB6DA]">✓</span>
+                    <span>Where to find carriers and land your first client</span>
+                </li>
+            </ul>
+
+            <p class="mt-8 text-xs text-slate-600">No spam. Instant access.</p>
+        </div>
+    </section>
+
+    <footer class="px-5 py-10 text-center">
+        <p class="font-display text-lg font-bold tracking-wide text-[#7FB6DA]">Keep Moving Forward.</p>
+        <p class="mt-2 text-xs text-slate-600">© Forward Motion Freight · <a href="index.html" class="hover:text-slate-400">Home</a></p>
+    </footer>
+
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+      import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+      const cfg = {
+        apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
+        authDomain: "forward-motion-freight.firebaseapp.com",
+        projectId: "forward-motion-freight",
+        storageBucket: "forward-motion-freight.firebasestorage.app",
+        messagingSenderId: "131232028664",
+        appId: "1:131232028664:web:18131f2ebf4359ecafe80d"
+      };
+      const db = getFirestore(initializeApp(cfg));
+
+      const el = (id) => document.getElementById(id);
+      const form = el('signup'), msg = el('cc-msg'), btn = el('cc-submit');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = el('cc-email').value.trim(), name = el('cc-name').value.trim();
+        if (!email) return;
+        btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
+        try {
+          await addDoc(collection(db, 'course_leads'), { email, name, source: 'crash-course-landing', createdAt: serverTimestamp() });
+          try { localStorage.setItem('fm_course_unlocked', '1'); localStorage.setItem('fm_course_name', name); } catch (_) {}
+          window.location.href = 'crash-course.html';
+        } catch (err) {
+          console.error(err);
+          msg.textContent = 'Something went wrong — please try again in a moment.';
+          btn.disabled = false; btn.textContent = 'Get Instant Access';
+        }
+      });
+    </script>
+
+</body>
+</html>
