@@ -6894,14 +6894,23 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
   // Per-workspace dispatch phone — what carriers dial on "Call Dispatcher".
   const [phone, setPhone] = useState('');
   const [phoneMsg, setPhoneMsg] = useState('');
+  // Per-workspace legal/business name — the "Dispatcher" party on every carrier agreement & LPOA.
+  const [companyName, setCompanyName] = useState('');
+  const [companyMsg, setCompanyMsg] = useState('');
   useEffect(() => {
     if (!isAdmin || !ACTIVE_ORG) return;
-    (async () => { try { const s = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (s.exists()) setPhone(s.data().dispatchPhone || ''); } catch (_) {} })();
+    (async () => { try { const s = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (s.exists()) { setPhone(s.data().dispatchPhone || ''); setCompanyName(s.data().name || ''); } } catch (_) {} })();
   }, [isAdmin]);
   const savePhone = async () => {
     if (!ACTIVE_ORG) { setPhoneMsg('Create your workspace first (Workspaces tab).'); return; }
     try { await setDoc(doc(db, 'orgs', ACTIVE_ORG), { dispatchPhone: phone.trim() }, { merge: true }); setPhoneMsg('Saved ✓'); setTimeout(() => setPhoneMsg(''), 2000); }
     catch (e) { console.error('phone save failed', e); setPhoneMsg('Could not save — make sure the updated org rules are published.'); }
+  };
+  const saveCompanyName = async () => {
+    if (!ACTIVE_ORG) { setCompanyMsg('Create your workspace first (Workspaces tab).'); return; }
+    if (!companyName.trim()) { setCompanyMsg('Enter a company name.'); return; }
+    try { await setDoc(doc(db, 'orgs', ACTIVE_ORG), { name: companyName.trim() }, { merge: true }); setCompanyMsg('Saved ✓'); setTimeout(() => setCompanyMsg(''), 2000); }
+    catch (e) { console.error('company name save failed', e); setCompanyMsg('Could not save — make sure the updated org rules are published.'); }
   };
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -6949,6 +6958,15 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
               <input className={INPUT_CLS + ' max-w-xs'} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
               <PrimaryButton onClick={savePhone} className="px-4">Save</PrimaryButton>
               {phoneMsg && <span className="text-xs text-emerald-400">{phoneMsg}</span>}
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-800">
+            <div className="text-sm font-semibold text-white mb-1">Company / legal business name</div>
+            <div className="text-xs text-slate-400 mb-2">This is the “Dispatcher” party your carriers see on their Dispatch Service Agreement and Power of Attorney — set it to your own business name if you're running independently rather than under Forward Motion Freight.</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input className={INPUT_CLS + ' max-w-xs'} value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Your Dispatch Co., LLC" />
+              <PrimaryButton onClick={saveCompanyName} className="px-4">Save</PrimaryButton>
+              {companyMsg && <span className="text-xs text-emerald-400">{companyMsg}</span>}
             </div>
           </div>
         </Card>

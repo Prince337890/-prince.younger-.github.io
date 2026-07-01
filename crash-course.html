@@ -279,8 +279,23 @@
       const btnNext = el('btn-next'), btnBack = el('btn-back'), btnSkip = el('btn-skip');
       const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
+      function shuffleQuestion(item) {
+        if (item._shuffled) return item;
+        const oldA = item.a;
+        const order = item.o.map((_, i) => i);
+        for (let i = order.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [order[i], order[j]] = [order[j], order[i]];
+        }
+        item.o = order.map((oi) => item.o[oi]);
+        item.a = order.indexOf(oldA);
+        item._shuffled = true;
+        return item;
+      }
+
       function quizHtml(sc, heading) {
         const q = sc.data.quiz;
+        q.forEach(shuffleQuestion);
         return `<div class="mt-6 rounded-2xl border border-[#7FB6DA]/20 bg-[#0a0f1a] p-6">
           <div class="font-display font-bold text-white">${esc(heading)}</div>
           <p class="text-xs text-slate-500 mt-1">${q.length} questions · ${Math.round(threshold(sc) * 100)}% to pass.</p>

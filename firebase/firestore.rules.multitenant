@@ -145,6 +145,16 @@ service cloud.firestore {
       allow read, update, delete: if isSuper();
     }
 
+    match /dispatcher_leads/{id} {
+      allow create: if request.resource.data.email is string
+                    && request.resource.data.email.size() > 3
+                    && request.resource.data.email.size() < 200
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() < 200;
+      allow read, update, delete: if isSuper();
+    }
+
     // ---- CRM / network (dispatcher's brokers + carrier leads) ----
     match /crm_contacts/{id} {
       allow read:           if ownDoc(resource);

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Dispatcher Access | Forward Motion Freight</title>
+    <meta name="description" content="Forward OS is invite-only. Request dispatcher access and we'll follow up to get your workspace set up.">
+    <meta name="theme-color" content="#0a0f1a">
+    <meta name="color-scheme" content="dark">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
+    </script>
+    <style>body{background:#070b14}</style>
+</head>
+<body class="font-sans text-slate-200">
+
+    <header class="border-b border-white/10 bg-[#0a0f1a]/80 backdrop-blur sticky top-0 z-20">
+        <div class="mx-auto max-w-5xl flex items-center justify-between px-5 py-4">
+            <a href="index.html" class="font-display font-extrabold tracking-tight text-white">FORWARD<span class="text-[#7FB6DA]">MOTION</span></a>
+            <a href="index.html" class="text-sm text-slate-400 hover:text-white">← Back to site</a>
+        </div>
+    </header>
+
+    <section class="px-5 py-16 sm:py-24">
+        <div class="mx-auto max-w-xl text-center">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Invite-only · Beta</p>
+            <h1 class="mt-4 font-display text-3xl font-extrabold tracking-tight text-white sm:text-5xl">Request Dispatcher Access</h1>
+            <p class="mx-auto mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
+                Forward OS dispatcher workspaces are provisioned by hand while we're in beta — no self-serve signup yet.
+                Tell us a bit about you and we'll follow up to get you set up.
+            </p>
+
+            <form id="req" class="mx-auto mt-9 flex max-w-md flex-col gap-3 text-left">
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">Name</label>
+                    <input id="r-name" type="text" required autocomplete="name"
+                        class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">Email</label>
+                    <input id="r-email" type="email" required autocomplete="email"
+                        class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">Phone (optional)</label>
+                    <input id="r-phone" type="tel" autocomplete="tel"
+                        class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">Your situation</label>
+                    <select id="r-situation"
+                        class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3 text-white outline-none focus:border-[#7FB6DA]">
+                        <option value="independent">I run my own dispatching business / have my own carriers</option>
+                        <option value="fmf">I want to dispatch for Forward Motion Freight directly</option>
+                        <option value="new">I'm new to dispatching and still deciding</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-slate-500">Anything else? (optional)</label>
+                    <textarea id="r-message" rows="3"
+                        class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]"></textarea>
+                </div>
+                <button id="r-submit" type="submit"
+                    class="mt-2 rounded-xl bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Request Access</button>
+            </form>
+            <p id="r-msg" class="mt-3 text-sm text-[#7FB6DA] min-h-[1.25rem]"></p>
+            <p class="mt-2 text-xs text-slate-600">No spam. We'll reach out at the email or phone you provide.</p>
+        </div>
+    </section>
+
+    <footer class="px-5 py-10 text-center">
+        <p class="font-display text-lg font-bold tracking-wide text-[#7FB6DA]">Keep Moving Forward.</p>
+        <p class="mt-2 text-xs text-slate-600">© Forward Motion Freight · <a href="index.html" class="hover:text-slate-400">Home</a></p>
+    </footer>
+
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+      import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+      const cfg = {
+        apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
+        authDomain: "forward-motion-freight.firebaseapp.com",
+        projectId: "forward-motion-freight",
+        storageBucket: "forward-motion-freight.firebasestorage.app",
+        messagingSenderId: "131232028664",
+        appId: "1:131232028664:web:18131f2ebf4359ecafe80d"
+      };
+      const db = getFirestore(initializeApp(cfg));
+
+      const el = (id) => document.getElementById(id);
+      const form = el('req'), msg = el('r-msg'), btn = el('r-submit');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = el('r-name').value.trim(), email = el('r-email').value.trim();
+        const phone = el('r-phone').value.trim(), situation = el('r-situation').value, message = el('r-message').value.trim();
+        if (!name || !email) return;
+        btn.disabled = true; btn.textContent = 'Sending…'; msg.textContent = '';
+        try {
+          await addDoc(collection(db, 'dispatcher_leads'), { name, email, phone, situation, message, source: 'request-dispatcher-access', createdAt: serverTimestamp() });
+          form.style.display = 'none';
+          msg.textContent = "Request received — we'll be in touch soon.";
+        } catch (err) {
+          console.error(err);
+          msg.textContent = 'Something went wrong — please try again in a moment.';
+          btn.disabled = false; btn.textContent = 'Request Access';
+        }
+      });
+    </script>
+
+</body>
+</html>
