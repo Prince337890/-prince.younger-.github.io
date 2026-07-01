@@ -188,7 +188,12 @@ service cloud.firestore {
     match /orgs/{id} {
       allow read:          if isSuper() || (signedIn() && id == myOrg());
       allow create, delete: if isSuper();
-      allow update:        if isSuper() || (isDispatcher() && id == myOrg());
+      // A dispatcher may only touch their own operational settings (dispatch
+      // phone, company display name) — not orgType, ownerUid/ownerEmail, or
+      // config, which are business-relationship fields the super-admin sets.
+      allow update:        if isSuper() || (isDispatcher() && id == myOrg()
+                              && request.resource.data.diff(resource.data).affectedKeys()
+                                 .hasOnly(['dispatchPhone', 'name']));
     }
   }
 }

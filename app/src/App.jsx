@@ -7072,7 +7072,7 @@ function WorkspacesView() {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ workspaceName: '', email: '', pw: '' });
+  const [form, setForm] = useState({ workspaceName: '', email: '', pw: '', orgType: 'independent' });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [created, setCreated] = useState(null);
   const [err, setErr] = useState('');
@@ -7101,6 +7101,11 @@ function WorkspacesView() {
     finally { setLoading(false); }
   };
   useEffect(() => { fetchOrgs(); }, []);
+
+  const setOrgType = async (o, value) => {
+    try { await updateDoc(doc(db, 'orgs', o.id), { orgType: value }); setOrgs((prev) => prev.map((x) => (x.id === o.id ? { ...x, orgType: value } : x))); }
+    catch (e) { console.error('orgType update failed', e); alert('Could not update — check the console.'); }
+  };
 
   // Deactivate / reactivate a dispatcher's access (login can't be hard-deleted
   // from the browser, so we revoke approval — their workspace data is kept).
@@ -7165,12 +7170,12 @@ function WorkspacesView() {
     setSaving(true);
     try {
       const uid = await createDriverAccount(form.email.trim(), form.pw);
-      const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), createdAt: serverTimestamp(), config: {} });
+      const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), orgType: form.orgType, createdAt: serverTimestamp(), config: {} });
       await setDoc(doc(db, 'users', uid), { email: form.email.trim(), approved: true, mustChangePassword: true, orgId: orgRef.id, role: 'admin', createdAt: serverTimestamp() }, { merge: true });
       setCreated({ email: form.email.trim(), pw: form.pw, workspace: form.workspaceName.trim() });
       queueEmail(form.email.trim(), 'Your Forward OS dispatcher access is ready',
         welcomeDispatcherEmail({ name: '', email: form.email.trim(), tempPw: form.pw }));
-      setForm({ workspaceName: '', email: '', pw: '' });
+      setForm({ workspaceName: '', email: '', pw: '', orgType: 'independent' });
       fetchOrgs();
     } catch (e2) {
       console.error('provision failed', e2);
@@ -7197,6 +7202,12 @@ function WorkspacesView() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Workspace name"><input className={INPUT_CLS} value={form.workspaceName} onChange={set('workspaceName')} placeholder="Cole Dispatch Co." /></Field>
             <Field label="Dispatcher email"><input className={INPUT_CLS} type="email" value={form.email} onChange={set('email')} placeholder="dispatcher@example.com" /></Field>
+            <Field label="Relationship" className="sm:col-span-2">
+              <select className={SELECT_CLS} value={form.orgType} onChange={set('orgType')}>
+                <option value="independent">Independent — runs their own dispatch business</option>
+                <option value="fmf">Working for Forward Motion Freight</option>
+              </select>
+            </Field>
             <Field label="Temporary password" className="sm:col-span-2">
               <div className="flex gap-2">
                 <input className={INPUT_CLS} value={form.pw} onChange={set('pw')} placeholder="6+ characters" />
@@ -7232,7 +7243,16 @@ function WorkspacesView() {
                 return (
                   <div key={o.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-white truncate">{o.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-semibold text-white truncate">{o.name}</div>
+                        {!isMe && (
+                          o.orgType === 'fmf'
+                            ? <Badge tone="amber" className="text-[10px] shrink-0">Forward Motion Freight</Badge>
+                            : o.orgType === 'independent'
+                              ? <Badge tone="slate" className="text-[10px] shrink-0">Independent</Badge>
+                              : <Badge tone="slate" className="text-[10px] shrink-0 text-amber-300">Unclassified</Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-500">{o.ownerEmail} · {o.id.slice(0, 8)}…</div>
                       {!isMe && (
                         <div className="text-[11px] text-slate-500 mt-0.5">
@@ -7250,6 +7270,14 @@ function WorkspacesView() {
                       {isMe ? <span className="text-[11px] text-slate-400">You</span>
                         : active ? <span className="text-[11px] text-emerald-400">● Active</span>
                         : <span className="text-[11px] text-red-400">● Deactivated</span>}
+                      {!isMe && (
+                        <select value={o.orgType || ''} onChange={(e) => setOrgType(o, e.target.value)}
+                          className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-slate-300">
+                          <option value="" disabled>Classify…</option>
+                          <option value="independent">Independent</option>
+                          <option value="fmf">Forward Motion Freight</option>
+                        </select>
+                      )}
                       {!isMe && (
                         <button onClick={() => toggleDispatcher(o)}
                           className={`text-xs border px-2.5 py-1 rounded-lg ${active ? 'text-red-400 border-red-500/30 hover:bg-red-500/10' : 'text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10'}`}>
