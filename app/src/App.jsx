@@ -4806,7 +4806,13 @@ function CarriersView() {
                   <input type="checkbox" checked={verify[k]} onChange={(e) => setVerify((v) => ({ ...v, [k]: e.target.checked }))}
                     className="w-4 h-4 rounded accent-amber-500" />
                   {label}
-                  {k === 'authority' && <a href="https://safer.fmcsa.dot.gov/CompanySnapshot.aspx" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[11px] text-amber-400 hover:underline">open SAFER ↗</a>}
+                  {k === 'authority' && (
+                    <span className="flex items-center gap-2 shrink-0">
+                      <a href="https://safer.fmcsa.dot.gov/CompanySnapshot.aspx" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[11px] text-amber-400 hover:underline">open SAFER ↗</a>
+                      <span className="text-slate-600 text-[11px]">·</span>
+                      <a href="https://www.fmcsa.dot.gov/registration" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[11px] text-amber-400 hover:underline">FMCSA Register ↗</a>
+                    </span>
+                  )}
                 </label>
               ))}
             </div>
@@ -6819,6 +6825,7 @@ function BrokerCheckView() {
         <div className="flex flex-wrap gap-2">
           <a href={saferUrl} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">Open FMCSA SAFER ↗</a>
           <a href={liUrl} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">Open FMCSA L&amp;I (bond/authority) ↗</a>
+          <a href="https://www.fmcsa.dot.gov/registration" target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">FMCSA Register ↗</a>
         </div>
       </Card>
 
