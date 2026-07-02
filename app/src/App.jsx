@@ -1060,9 +1060,34 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 }
 
 // ---------- VIP: shared request button + questionnaire ----------
-const VIP_SERVICES = ['Safe parking scouting', 'Healthy Hub (gyms, grocers, dining)', 'Shower queue at stops', 'Pet logistics', 'Priority concierge line'];
+// The VIP menu is per-workspace: each dispatcher offers the services THEY
+// actually deliver (Settings → VIP Services Menu). These are the defaults a
+// workspace starts with; an empty/missing override means "use these".
+const DEFAULT_VIP_MENU = [
+  { icon: '🛡', name: 'Safe parking scouting', desc: 'Trusted safe-parking scouting on every route' },
+  { icon: '🏋️', name: 'Healthy Hub (gyms, grocers, dining)', desc: 'Gyms, grocers & clean dining near your delivery' },
+  { icon: '🚿', name: 'Shower queue at stops', desc: 'Shower requests queued at your next stop' },
+  { icon: '🐾', name: 'Pet logistics', desc: 'Food intercepts & pet-friendly waypoints' },
+  { icon: '📞', name: 'Priority concierge line', desc: 'A direct line for layovers & last-minute needs' },
+];
+
+// Read this workspace's VIP menu (defaults until the org doc loads/overrides).
+function useVipMenu() {
+  const [menu, setMenu] = useState(DEFAULT_VIP_MENU);
+  useEffect(() => {
+    if (!ACTIVE_ORG) return;
+    let alive = true;
+    getDoc(doc(db, 'orgs', ACTIVE_ORG)).then((s) => {
+      const m = s.exists() && s.data().vipMenu;
+      if (alive && Array.isArray(m) && m.length) setMenu(m);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  return menu;
+}
 
 function VipRequestButton({ requested, onRequest, onCancel, className = '' }) {
+  const vipMenu = useVipMenu();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [svc, setSvc] = useState({});
@@ -1073,7 +1098,7 @@ function VipRequestButton({ requested, onRequest, onCancel, className = '' }) {
   const submit = async () => {
     setBusy(true);
     const answers = {
-      services: VIP_SERVICES.filter((s) => svc[s]),
+      services: vipMenu.map((m) => m.name).filter((s) => svc[s]),
       diet: form.diet.trim(), pet: form.pet.trim(), fitness: form.fitness.trim(), notes: form.notes.trim(),
     };
     try { await onRequest(answers); } finally { setBusy(false); setOpen(false); }
@@ -1102,8 +1127,8 @@ function VipRequestButton({ requested, onRequest, onCancel, className = '' }) {
               <div>
                 <label className={LABEL_CLS}>Which services interest you?</label>
                 <div className="flex flex-wrap gap-2">
-                  {VIP_SERVICES.map((s) => (
-                    <button key={s} type="button" onClick={() => toggle(s)} className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${svc[s] ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>{svc[s] ? '✓ ' : ''}{s}</button>
+                  {vipMenu.map((m) => (
+                    <button key={m.name} type="button" onClick={() => toggle(m.name)} className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${svc[m.name] ? 'bg-amber-500 text-slate-950 border-amber-500 font-semibold' : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'}`}>{svc[m.name] ? '✓ ' : ''}{m.icon ? m.icon + ' ' : ''}{m.name}</button>
                   ))}
                 </div>
               </div>
@@ -1125,22 +1150,16 @@ function VipRequestButton({ requested, onRequest, onCancel, className = '' }) {
 
 // ---------- VIP UPSELL (carrier requests concierge from dispatch) ----------
 function VipUpsellCard({ requested, onRequest, onCancel }) {
-  const BENEFITS = [
-    ['🛡', 'Trusted safe-parking scouting on every route'],
-    ['🏋️', 'Healthy Hub — gyms, grocers & clean dining near your delivery'],
-    ['🚿', 'Shower requests queued at your next stop'],
-    ['🐾', 'Pet logistics — food intercepts & pet-friendly waypoints'],
-    ['📞', 'Priority concierge line for layovers & last-minute needs'],
-  ];
+  const vipMenu = useVipMenu();
   return (
     <Card className="p-6 border-amber-500/30">
       <PanelHeader icon={<HeartPulse size={20} />} title="VIP Concierge" badge={<Badge tone="amber">Premium</Badge>} />
       <p className="text-sm text-slate-400 mt-2">White-glove support so you can focus on driving. Available as a premium add-on.</p>
       <div className="space-y-2.5 mt-4">
-        {BENEFITS.map(([icon, text]) => (
-          <div key={text} className="flex items-start gap-3 text-sm text-slate-200">
-            <span className="text-base leading-none shrink-0">{icon}</span>
-            <span>{text}</span>
+        {vipMenu.map((m) => (
+          <div key={m.name} className="flex items-start gap-3 text-sm text-slate-200">
+            <span className="text-base leading-none shrink-0">{m.icon || '★'}</span>
+            <span><span className="font-semibold text-white">{m.name}</span>{m.desc ? <span className="text-slate-400"> — {m.desc}</span> : null}</span>
           </div>
         ))}
       </div>
@@ -7341,6 +7360,9 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
   const [agrTxt, setAgrTxt] = useState('');
   const [lpoaTxt, setLpoaTxt] = useState('');
   const [agrMsg, setAgrMsg] = useState('');
+  // Per-workspace VIP services menu (empty = platform defaults).
+  const [vipRows, setVipRows] = useState(DEFAULT_VIP_MENU);
+  const [vipMsg, setVipMsg] = useState('');
   useEffect(() => {
     if (!isAdmin || !ACTIVE_ORG) return;
     (async () => { try {
@@ -7350,9 +7372,22 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
         setCompanyName(s.data().name || '');
         setAgrTxt(s.data().agreementText || '');
         setLpoaTxt(s.data().lpoaText || '');
+        if (Array.isArray(s.data().vipMenu) && s.data().vipMenu.length) setVipRows(s.data().vipMenu);
       }
     } catch (_) {} })();
   }, [isAdmin]);
+  const setVipRow = (i, k, v) => setVipRows((rows) => rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const saveVipMenu = async () => {
+    if (!ACTIVE_ORG) { setVipMsg('Create your workspace first (Workspaces tab).'); return; }
+    const clean = vipRows.map((r) => ({ icon: (r.icon || '').trim(), name: (r.name || '').trim(), desc: (r.desc || '').trim() })).filter((r) => r.name);
+    if (!clean.length) { setVipMsg('Add at least one service (or reset to defaults).'); return; }
+    try {
+      await setDoc(doc(db, 'orgs', ACTIVE_ORG), { vipMenu: clean }, { merge: true });
+      setVipRows(clean);
+      setVipMsg('Saved ✓ — carriers now see this menu');
+      setTimeout(() => setVipMsg(''), 3000);
+    } catch (e) { console.error('vip menu save failed', e); setVipMsg('Could not save — make sure the updated org rules are published.'); }
+  };
   const saveAgreements = async () => {
     if (!ACTIVE_ORG) { setAgrMsg('Create your workspace first (Workspaces tab).'); return; }
     try {
@@ -7481,6 +7516,38 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
           <div className="flex items-center gap-3 mt-5">
             <PrimaryButton onClick={saveAgreements} className="px-5">Save agreements</PrimaryButton>
             {agrMsg && <span className="text-xs text-emerald-400">{agrMsg}</span>}
+          </div>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="p-6">
+          <h3 className="font-bold mb-1">VIP Services Menu</h3>
+          <p className="text-xs text-slate-400 mb-4">
+            The concierge services <strong className="text-slate-300">you</strong> offer your carriers — shown on their VIP card and request form.
+            You deliver these personally, so only list what you'll actually do. VIP still works the same way: enabling it bumps that carrier's dispatch fee a point or two.
+          </p>
+
+          <div className="space-y-3">
+            {vipRows.map((r, i) => (
+              <div key={i} className="flex flex-wrap items-start gap-2">
+                <input className={INPUT_CLS + ' w-14 text-center shrink-0'} value={r.icon || ''} onChange={(e) => setVipRow(i, 'icon', e.target.value)} placeholder="🛡" title="Emoji icon" />
+                <input className={INPUT_CLS + ' flex-1 min-w-[160px]'} value={r.name || ''} onChange={(e) => setVipRow(i, 'name', e.target.value)} placeholder="Service name" />
+                <input className={INPUT_CLS + ' flex-[2] min-w-[200px]'} value={r.desc || ''} onChange={(e) => setVipRow(i, 'desc', e.target.value)} placeholder="One-line description your carrier sees" />
+                <button type="button" onClick={() => setVipRows((rows) => rows.filter((_, j) => j !== i))}
+                  className="text-red-400/80 hover:text-red-400 px-2 py-2 shrink-0" title="Remove service">✕</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mt-4">
+            <GhostButton type="button" onClick={() => setVipRows((rows) => [...rows, { icon: '', name: '', desc: '' }])} className="text-sm">+ Add a service</GhostButton>
+            <button type="button" onClick={() => setVipRows(DEFAULT_VIP_MENU)} className="text-[11px] text-slate-400 hover:text-slate-200 underline">Reset to defaults</button>
+          </div>
+
+          <div className="flex items-center gap-3 mt-5">
+            <PrimaryButton onClick={saveVipMenu} className="px-5">Save VIP menu</PrimaryButton>
+            {vipMsg && <span className="text-xs text-emerald-400">{vipMsg}</span>}
           </div>
         </Card>
       )}

@@ -207,12 +207,12 @@ service cloud.firestore {
       allow read:          if isSuper() || (signedIn() && id == myOrg());
       allow create, delete: if isSuper();
       // A dispatcher may only touch their own operational settings (dispatch
-      // phone, company display name, carrier-agreement text) — not orgType,
-      // ownerUid/ownerEmail, or config, which are business-relationship
-      // fields the super-admin sets.
+      // phone, company display name, carrier-agreement text, VIP services
+      // menu) — not orgType, ownerUid/ownerEmail, or config, which are
+      // business-relationship fields the super-admin sets.
       allow update:        if isSuper() || (isDispatcher() && id == myOrg()
                               && request.resource.data.diff(resource.data).affectedKeys()
-                                 .hasOnly(['dispatchPhone', 'name', 'agreementText', 'lpoaText']));
+                                 .hasOnly(['dispatchPhone', 'name', 'agreementText', 'lpoaText', 'vipMenu']));
     }
   }
 }
