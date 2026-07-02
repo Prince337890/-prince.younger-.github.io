@@ -1091,8 +1091,8 @@ function VipRequestButton({ requested, onRequest, onCancel, className = '' }) {
     <>
       <PrimaryButton onClick={() => setOpen(true)} className={className}>Request VIP Concierge</PrimaryButton>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={() => !busy && setOpen(false)}>
-          <Card className="w-full max-w-lg p-6 my-8" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 overflow-y-auto" onClick={() => !busy && setOpen(false)}>
+          <Card className="w-full max-w-lg p-6 my-auto h-fit" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-lg font-bold text-white flex items-center gap-2"><HeartPulse size={18} className="text-amber-500" /> VIP Concierge Request</h3>
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
@@ -3207,10 +3207,10 @@ function AllLoadsView() {
       )}
 
       {editing && form && (
-        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={closeEdit}>
+        <div className="fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 overflow-y-auto" onClick={closeEdit}>
           <Card
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl p-6 my-8"
+            className="w-full max-w-2xl p-6 my-auto h-fit"
           >
             <form onSubmit={saveEdit} className="space-y-5">
             <div className="flex items-center justify-between">
