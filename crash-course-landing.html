@@ -7,11 +7,8 @@
     <meta name="description" content="Fourteen guided lessons take you from total beginner to booking a real load — free, at your own pace, no experience required.">
     <meta name="theme-color" content="#0a0f1a">
     <meta name="color-scheme" content="dark">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="site.css?v=1">
     <style>body{background:#070b14}</style>
 </head>
 <body class="font-sans text-slate-200">
@@ -25,7 +22,7 @@
 
     <section class="px-5 py-16 sm:py-24">
         <div class="mx-auto max-w-2xl text-center">
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Free · No experience required</p>
+            <p class="font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-[#7FB6DA]">Free · No experience required</p>
             <h1 class="mt-4 font-display text-4xl font-extrabold tracking-tight text-white sm:text-6xl">
                 From Zero To Your <span class="text-[#7FB6DA]">First Load</span>, In 14 Days.
             </h1>
@@ -35,11 +32,11 @@
 
             <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row">
                 <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
-                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                    class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
                 <input id="cc-email" type="email" required placeholder="you@email.com" autocomplete="email"
-                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                    class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
                 <button id="cc-submit" type="submit"
-                    class="shrink-0 rounded-xl bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Get Instant Access</button>
+                    class="shrink-0 bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Get Instant Access</button>
             </form>
             <p id="cc-msg" class="mt-3 text-sm text-[#7FB6DA] min-h-[1.25rem]"></p>
 

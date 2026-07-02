@@ -8,11 +8,8 @@
     <meta name="theme-color" content="#0a0f1a">
     <meta name="color-scheme" content="dark">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="site.css?v=1">
     <style>
         body { background:#0a0f1a; }
         .logo-mark { overflow: visible; }
@@ -68,34 +65,33 @@
         </a>
         <!-- desktop nav -->
         <nav class="hidden items-center gap-7 md:flex">
-            <a href="dispatcher-portal.html" class="text-sm font-medium text-slate-300 transition hover:text-white">Dispatcher</a>
-            <a href="driver-portal.html" aria-current="page" class="text-sm font-semibold text-white">Driver</a>
-            <a href="partnership.html" class="text-sm font-medium text-slate-300 transition hover:text-white">Partnership</a>
+            <a href="dispatcher-portal.html" class="text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-400 transition hover:text-white">Dispatcher</a>
+            <a href="driver-portal.html" aria-current="page" class="text-[13px] font-semibold uppercase tracking-[0.08em] text-white">Driver</a>
+            <a href="partnership.html" class="text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-400 transition hover:text-white">Partnership</a>
             <a href="https://portal.forwardmotionfreight.com"
-               class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold tracking-wide text-slate-200 backdrop-blur-sm transition hover:border-white/30 hover:bg-white/10">
+               class="inline-flex items-center gap-2 border border-white/25 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.08em] text-white transition hover:border-[#7FB6DA] hover:text-[#7FB6DA]">
                 Driver Login
             </a>
         </nav>
         <!-- mobile menu -->
         <details class="group relative md:hidden">
-            <summary class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-white/15 bg-white/5 [&::-webkit-details-marker]:hidden">
+            <summary class="flex h-10 w-10 cursor-pointer list-none items-center justify-center border border-white/15 bg-white/5 [&::-webkit-details-marker]:hidden">
                 <svg class="h-5 w-5 text-white group-open:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 <svg class="hidden h-5 w-5 text-white group-open:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
             </summary>
-            <div class="absolute right-0 top-12 z-50 w-60 rounded-xl border border-white/10 bg-[#0e1626] p-2 shadow-2xl shadow-black/50">
-                <a href="dispatcher-portal.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Dispatcher Portal</a>
-                <a href="driver-portal.html" class="block rounded-lg bg-white/5 px-4 py-2.5 text-sm font-semibold text-white">Driver Portal</a>
-                <a href="partnership.html" class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/5">Partnership</a>
-                <a href="https://portal.forwardmotionfreight.com" class="mt-1 block rounded-lg bg-[#7FB6DA] px-4 py-2.5 text-center text-sm font-bold text-[#06141f] hover:bg-[#A6D2EC]">Driver Login</a>
+            <div class="absolute right-0 top-12 z-50 w-60 border border-white/10 bg-[#0e1626] p-2 shadow-2xl shadow-black/50">
+                <a href="dispatcher-portal.html" class="block px-4 py-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-200 hover:bg-white/5">Dispatcher Portal</a>
+                <a href="driver-portal.html" class="block bg-white/5 px-4 py-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-white">Driver Portal</a>
+                <a href="partnership.html" class="block px-4 py-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-slate-200 hover:bg-white/5">Partnership</a>
+                <a href="https://portal.forwardmotionfreight.com" class="mt-1 block bg-[#7FB6DA] px-4 py-3 text-center text-[13px] font-bold uppercase tracking-[0.08em] text-[#06141f] hover:bg-[#A6D2EC]">Driver Login</a>
             </div>
         </details>
     </header>
 
     <!-- ===================== HERO ===================== -->
     <section class="relative overflow-hidden px-5 pb-16 pt-10 sm:px-8 sm:pb-24 sm:pt-16">
-        <div class="pointer-events-none absolute -top-24 right-0 h-96 w-96 rounded-full bg-[#7FB6DA]/15 blur-[130px]"></div>
         <div class="relative mx-auto max-w-3xl text-center">
-            <span class="inline-flex items-center gap-2 rounded-full border border-[#7FB6DA]/40 bg-[#7FB6DA]/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-200">
+            <span class="inline-flex items-center gap-2 border border-[#7FB6DA]/40 bg-[#7FB6DA]/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-200">
                 For Carriers &amp; Drivers
             </span>
             <h1 class="mt-6 font-display text-[2.1rem] font-extrabold leading-[1.08] tracking-tight text-white sm:text-6xl">
@@ -107,11 +103,11 @@
             </p>
             <div class="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <a href="https://portal.forwardmotionfreight.com"
-                   class="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] shadow-[0_14px_30px_-8px_rgba(127,182,218,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#A6D2EC]">
+                   class="group inline-flex items-center justify-center gap-2 bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] transition-colors hover:bg-[#A6D2EC]">
                     Driver Login
-                    <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                 </a>
-                <a href="https://portal.forwardmotionfreight.com/?intake=0vj86fpdGpW6e5WYk0m8" class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-7 py-4 text-base font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5">
+                <a href="https://portal.forwardmotionfreight.com/?intake=0vj86fpdGpW6e5WYk0m8" class="inline-flex items-center justify-center gap-2 border border-white/15 px-7 py-4 text-base font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/5">
                     Become a Carrier
                 </a>
             </div>
@@ -121,16 +117,16 @@
     <!-- ===================== EARNINGS SNAPSHOT ===================== -->
     <section class="px-5 py-12 sm:px-8 sm:py-16">
         <div class="mx-auto max-w-5xl">
-            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">See Your Money, Not Just Your Miles</p>
+            <p class="text-center font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-[#7FB6DA]">See Your Money, Not Just Your Miles</p>
             <h2 class="mx-auto mt-3 max-w-2xl text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Your Week at a Glance</h2>
 
             <!-- Dashboard card -->
-            <div class="mt-12 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0e1626] to-[#070b14] shadow-2xl shadow-black/40">
+            <div class="mt-12 overflow-hidden border border-white/10 bg-gradient-to-br from-[#0e1626] to-[#070b14] shadow-2xl shadow-black/40">
                 <!-- window chrome -->
                 <div class="flex items-center gap-2 border-b border-white/10 px-5 py-3.5">
-                    <span class="h-3 w-3 rounded-full bg-[#7FB6DA]/70"></span>
-                    <span class="h-3 w-3 rounded-full bg-white/20"></span>
-                    <span class="h-3 w-3 rounded-full bg-white/20"></span>
+                    <span class="h-3 w-3 bg-[#7FB6DA]/70"></span>
+                    <span class="h-3 w-3 bg-white/20"></span>
+                    <span class="h-3 w-3 bg-white/20"></span>
                     <span class="ml-3 text-xs font-medium text-slate-400">Driver Portal — Earnings</span>
                 </div>
 
@@ -138,10 +134,10 @@
                     <!-- top summary -->
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Net Pay · This Week</p>
+                            <p class="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">Net Pay · This Week</p>
                             <p class="mt-1 font-display text-4xl font-extrabold tracking-tight text-white sm:text-5xl">$4,820</p>
                         </div>
-                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-400">
+                        <span class="inline-flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-400">
                             <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
                             +12% vs last week
                         </span>
@@ -153,58 +149,58 @@
                             <!-- each bar: label $ on top, bar, day under -->
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$760</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:64%"></div>
+                                <div class="bar w-full bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:64%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Mon</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$890</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:75%"></div>
+                                <div class="bar w-full bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:75%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Tue</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$705</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:60%"></div>
+                                <div class="bar w-full bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:60%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Wed</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-white">$1,180</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA] ring-2 ring-[#7FB6DA]/40" style="height:100%"></div>
+                                <div class="bar w-full bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA] ring-2 ring-[#7FB6DA]/40" style="height:100%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Thu</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$980</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:83%"></div>
+                                <div class="bar w-full bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:83%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Fri</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-300">$840</span>
-                                <div class="bar w-full rounded-t-md bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:71%"></div>
+                                <div class="bar w-full bg-gradient-to-t from-[#7FB6DA]/40 to-[#7FB6DA]" style="height:71%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Sat</span>
                             </div>
                             <div class="flex h-full w-full flex-col items-center justify-end gap-2">
                                 <span class="text-[11px] font-semibold text-slate-500">Reset</span>
-                                <div class="bar w-full rounded-t-md bg-white/10" style="height:5%"></div>
+                                <div class="bar w-full bg-white/10" style="height:5%"></div>
                                 <span class="text-[11px] font-medium text-slate-500">Sun</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- stat row -->
-                    <div class="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-4">
+                    <div class="mt-8 grid grid-cols-2 gap-px overflow-hidden border border-white/10 bg-white/10 sm:grid-cols-4">
                         <div class="bg-[#0b1220] p-5 text-center">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Gross</p>
+                            <p class="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">Gross</p>
                             <p class="mt-1 font-display text-xl font-bold text-white">$5,355</p>
                         </div>
                         <div class="bg-[#0b1220] p-5 text-center">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Dispatch Fee</p>
+                            <p class="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">Dispatch Fee</p>
                             <p class="mt-1 font-display text-xl font-bold text-white">$535</p>
                         </div>
                         <div class="bg-[#0b1220] p-5 text-center">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Miles</p>
+                            <p class="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">Miles</p>
                             <p class="mt-1 font-display text-xl font-bold text-white">2,940</p>
                         </div>
                         <div class="bg-[#0b1220] p-5 text-center">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Avg RPM</p>
+                            <p class="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-slate-500">Avg RPM</p>
                             <p class="mt-1 font-display text-xl font-bold text-[#7FB6DA]">$1.82</p>
                         </div>
                     </div>
@@ -217,43 +213,43 @@
     <!-- ===================== BENEFITS GRID ===================== -->
     <section class="px-5 py-16 sm:px-8 sm:py-20">
         <div class="mx-auto max-w-6xl">
-            <p class="text-center text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Built for the Road</p>
+            <p class="text-center font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-[#7FB6DA]">Built for the Road</p>
             <h2 class="mt-3 text-center font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Your Whole Operation, One Login</h2>
 
             <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <!-- 1 -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                <div class="group border border-white/10 bg-white/[0.03] p-8 transition-colors hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Secure, Invite-Only Login</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">Your loads and your numbers — no one else's. Access is granted by your dispatcher, so your business stays private.</p>
                 </div>
                 <!-- 2 -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+                <div class="group border border-white/10 bg-white/[0.03] p-8 transition-colors hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Loads &amp; Live Status</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">Pickup, delivery, and current status for every load on one dashboard. Always know what's next without a phone call.</p>
                 </div>
                 <!-- 3 -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+                <div class="group border border-white/10 bg-white/[0.03] p-8 transition-colors hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Earnings at a Glance</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">What you grossed, the dispatch fee, and your net — per load and overall. No guessing what landed in your pocket.</p>
                 </div>
                 <!-- 4 -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
+                <div class="group border border-white/10 bg-white/[0.03] p-8 transition-colors hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Compliance Vault</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">CDL, medical card, and insurance dates tracked in one place, so nothing lapses and a renewal never catches you off guard.</p>
                 </div>
                 <!-- 5 -->
-                <div class="group rounded-2xl border border-white/10 bg-white/[0.03] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg></div>
+                <div class="group border border-white/10 bg-white/[0.03] p-8 transition-colors hover:border-[#7FB6DA]/40 hover:bg-white/[0.05]">
+                    <div class="flex h-12 w-12 items-center justify-center bg-[#7FB6DA]/12 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg></div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">Mobile-First</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-400">Designed for a phone in the cab — big tap targets, fast loading, and everything reachable with one thumb.</p>
                 </div>
                 <!-- 6 -->
-                <div class="group rounded-2xl border border-[#7FB6DA]/30 bg-[#7FB6DA]/[0.06] p-8 transition-all duration-200 hover:-translate-y-1 hover:border-[#7FB6DA]/50">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#7FB6DA]/15 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/></svg></div>
+                <div class="group border border-[#7FB6DA]/30 bg-[#7FB6DA]/[0.06] p-8 transition-colors hover:border-[#7FB6DA]/50">
+                    <div class="flex h-12 w-12 items-center justify-center bg-[#7FB6DA]/15 text-[#7FB6DA]"><svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/></svg></div>
                     <h3 class="mt-6 font-display text-xl font-bold text-white">VIP Driver Concierge</h3>
                     <p class="mt-3 text-[15px] leading-relaxed text-slate-300">Provisions &amp; wellness stops, safe-parking scouting before your clock runs out, and layover guides on every run. We watch out for the driver, free.</p>
                 </div>
@@ -263,16 +259,16 @@
 
     <!-- ===================== VALUE BAND ===================== -->
     <section class="px-5 py-16 sm:px-8 sm:py-20">
-        <div class="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-gradient-to-br from-[#0e1626] to-[#070b14] p-8 text-center sm:p-14">
+        <div class="mx-auto max-w-5xl border border-white/[0.08] border-l-2 border-l-[#7FB6DA] bg-[#0a0f1a] p-8 text-center sm:p-14">
             <h2 class="font-display text-2xl font-extrabold tracking-tight text-white sm:text-3xl">You Drive. We Handle the Rest.</h2>
             <p class="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
                 The portal keeps your paperwork, pay, and compliance straight — and our team negotiates the
                 loads behind it. Hauling with Forward Motion means a real back office in your corner.
             </p>
             <a href="https://portal.forwardmotionfreight.com/?intake=0vj86fpdGpW6e5WYk0m8"
-               class="group mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] shadow-[0_14px_30px_-8px_rgba(127,182,218,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#A6D2EC]">
+               class="group mt-8 inline-flex items-center justify-center gap-2 bg-[#7FB6DA] px-7 py-4 text-base font-bold text-[#06141f] transition-colors hover:bg-[#A6D2EC]">
                 Become a Carrier
-                <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <svg viewBox="0 0 24 24" class="h-5 w-5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
         </div>
     </section>
@@ -287,7 +283,7 @@
             <a href="partnership.html" class="hover:text-white">Partnership</a>
             <a href="carrier-packet.html" class="hover:text-white">Carrier Packet</a>
         </nav>
-        <p class="mt-6 text-lg font-bold tracking-wide text-[#7FB6DA]" style="font-family:'Montserrat',sans-serif">Keep Moving Forward.</p>
+        <p class="mt-6 text-lg font-bold tracking-wide text-[#7FB6DA]">Keep Moving Forward.</p>
         <p class="mt-3 text-xs text-slate-600">&copy; 2026 Forward Motion Freight LLC. All rights reserved.</p>
     </footer>
 

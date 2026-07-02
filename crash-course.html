@@ -7,11 +7,8 @@
     <meta name="description" content="A free, interactive 2-week crash course that takes you from zero to booking your first load — lessons, daily quizzes, a final exam, and a shareable certificate, from Forward Motion Freight.">
     <meta name="theme-color" content="#0a0f1a">
     <meta name="color-scheme" content="dark">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], display: ['Montserrat','sans-serif'] } } } };
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="site.css?v=1">
     <style>body{background:#070b14}</style>
 </head>
 <body class="font-sans text-slate-200">
@@ -25,18 +22,18 @@
 
     <section id="intro" class="px-5 py-16 sm:py-24">
         <div class="mx-auto max-w-3xl text-center">
-            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-[#7FB6DA]">Free · No experience required</p>
+            <p class="font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-[#7FB6DA]">Free · No experience required</p>
             <h1 class="mt-4 font-display text-3xl font-extrabold tracking-tight text-white sm:text-5xl">The 2-Week Dispatcher Crash Course</h1>
             <p class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
                 Fourteen lessons, a quiz after every day, a review at the end of each week, and a final exam. Pass it and earn a shareable Certificate of Completion — plus a clear next step.
             </p>
             <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row">
                 <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
-                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                    class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
                 <input id="cc-email" type="email" required placeholder="you@email.com" autocomplete="email"
-                    class="w-full rounded-xl border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                    class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
                 <button id="cc-submit" type="submit"
-                    class="shrink-0 rounded-xl bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Start free</button>
+                    class="shrink-0 bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Start free</button>
             </form>
             <p id="cc-msg" class="mt-3 text-sm text-[#7FB6DA] min-h-[1.25rem]"></p>
             <p class="mt-2 text-xs text-slate-600">No spam. Free, instant access. Your progress saves automatically on this device.</p>
@@ -50,15 +47,15 @@
                     <span id="prog-label">Day 1 of 14</span>
                     <span id="prog-pct">0%</span>
                 </div>
-                <div class="mt-2 h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                    <div id="prog-bar" class="h-full rounded-full bg-[#7FB6DA] transition-all" style="width:0%"></div>
+                <div class="mt-2 h-2 w-full bg-white/10 overflow-hidden">
+                    <div id="prog-bar" class="h-full bg-[#7FB6DA] transition-all" style="width:0%"></div>
                 </div>
             </div>
             <div id="screen"></div>
             <div class="mt-8 flex items-center justify-between gap-3">
-                <button id="btn-back" class="rounded-xl border border-white/15 px-5 py-3 text-sm text-slate-300 hover:bg-white/5" style="visibility:hidden">← Back</button>
+                <button id="btn-back" class=" border border-white/15 px-5 py-3 text-sm text-slate-300 hover:bg-white/5" style="visibility:hidden">← Back</button>
                 <a id="btn-skip" href="#" class="text-xs text-slate-500 hover:text-slate-300">Skip ahead →</a>
-                <button id="btn-next" class="rounded-xl bg-[#7FB6DA] px-6 py-3 text-sm font-bold text-[#06141f] transition hover:bg-[#A6D2EC] disabled:opacity-40 disabled:cursor-not-allowed">Continue</button>
+                <button id="btn-next" class=" bg-[#7FB6DA] px-6 py-3 text-sm font-bold text-[#06141f] transition hover:bg-[#A6D2EC] disabled:opacity-40 disabled:cursor-not-allowed">Continue</button>
             </div>
         </div>
     </section>
@@ -296,7 +293,7 @@
       function quizHtml(sc, heading) {
         const q = sc.data.quiz;
         q.forEach(shuffleQuestion);
-        return `<div class="mt-6 rounded-2xl border border-[#7FB6DA]/20 bg-[#0a0f1a] p-6">
+        return `<div class="mt-6 border border-[#7FB6DA]/20 bg-[#0a0f1a] p-6">
           <div class="font-display font-bold text-white">${esc(heading)}</div>
           <p class="text-xs text-slate-500 mt-1">${q.length} questions · ${Math.round(threshold(sc) * 100)}% to pass.</p>
           <div class="mt-4 space-y-5">
@@ -305,13 +302,13 @@
                 <p class="text-sm font-semibold text-white">${qi + 1}. ${esc(item.q)}</p>
                 <div class="mt-2 space-y-1.5">
                   ${item.o.map((opt, oi) => `
-                    <label class="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 cursor-pointer hover:border-white/25 opt" data-oi="${oi}">
+                    <label class="flex items-center gap-2 border border-white/10 px-3 py-2 text-sm text-slate-300 cursor-pointer hover:border-white/25 opt" data-oi="${oi}">
                       <input type="radio" name="q${qi}" value="${oi}" class="accent-[#7FB6DA]"><span>${esc(opt)}</span>
                     </label>`).join('')}
                 </div>
               </div>`).join('')}
           </div>
-          <button id="check" class="mt-5 rounded-xl bg-[#7FB6DA] px-5 py-2.5 text-sm font-bold text-[#06141f] hover:bg-[#A6D2EC]">Check answers</button>
+          <button id="check" class="mt-5 bg-[#7FB6DA] px-5 py-2.5 text-sm font-bold text-[#06141f] hover:bg-[#A6D2EC]">Check answers</button>
           <p id="quiz-result" class="mt-3 text-sm min-h-[1.25rem]"></p>
         </div>`;
       }
@@ -335,11 +332,11 @@
         if (sc.type === 'day' || sc.type === 'review') {
           const d = sc.data;
           screenEl.innerHTML = `
-            <div class="rounded-2xl border border-white/10 bg-[#0a0f1a] p-7">
+            <div class=" border border-white/10 bg-[#0a0f1a] p-7">
               <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d.review ? 'Week 1 Review' : 'Day ' + d.d}</div>
               <h2 class="mt-1 font-display text-2xl font-extrabold text-white">${esc(d.t)}</h2>
               <p class="mt-1 text-sm text-slate-400">${esc(d.s)}</p>
-              ${!d.review ? '<p class="mt-4 rounded-lg bg-white/5 px-3 py-2 text-xs text-slate-400">Take your time — read it through before you test out. You can Skip ahead, but the final exam covers all of it.</p>' : ''}
+              ${!d.review ? '<p class="mt-4 bg-white/5 px-3 py-2 text-xs text-slate-400">Take your time — read it through before you test out. You can Skip ahead, but the final exam covers all of it.</p>' : ''}
               <p class="mt-4 text-[15px] leading-relaxed text-slate-200">${esc(d.p)}</p>
               <ul class="mt-4 space-y-1.5">${d.b.map((x) => `<li class="flex gap-2 text-sm text-slate-400"><span class="text-[#7FB6DA]">•</span><span>${esc(x)}</span></li>`).join('')}</ul>
             </div>
@@ -347,7 +344,7 @@
         } else if (sc.type === 'review2' || sc.type === 'final') {
           const icon = sc.type === 'final' ? '🎓' : '📋';
           screenEl.innerHTML = `
-            <div class="rounded-2xl border border-[#7FB6DA]/30 bg-[#0a0f1a] p-7 text-center">
+            <div class=" border border-[#7FB6DA]/30 bg-[#0a0f1a] p-7 text-center">
               <div class="text-3xl">${icon}</div>
               <h2 class="mt-2 font-display text-2xl font-extrabold text-white">${esc(sc.data.title)}</h2>
               <p class="mt-1 text-sm text-slate-400">${esc(sc.data.sub)}</p>
@@ -397,40 +394,40 @@
         x.strokeStyle = '#7FB6DA'; x.lineWidth = 6; x.strokeRect(34, 34, 1132, 782);
         x.strokeStyle = 'rgba(127,182,218,.35)'; x.lineWidth = 2; x.strokeRect(52, 52, 1096, 746);
         x.textAlign = 'center';
-        x.fillStyle = '#7FB6DA'; x.font = 'bold 26px Montserrat, Arial'; x.fillText('FORWARD MOTION FREIGHT', 600, 150);
-        x.fillStyle = '#94a3b8'; x.font = '20px Inter, Arial'; x.fillText('CERTIFICATE OF COMPLETION', 600, 200);
-        x.fillStyle = '#ffffff'; x.font = '300 30px Inter, Arial'; x.fillText('This certifies that', 600, 320);
-        x.fillStyle = '#ffffff'; x.font = 'bold 64px Montserrat, Arial'; x.fillText(name || 'Graduate', 600, 410);
+        x.fillStyle = '#7FB6DA'; x.font = 'bold 26px Archivo, Arial'; x.fillText('FORWARD MOTION FREIGHT', 600, 150);
+        x.fillStyle = '#94a3b8'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('CERTIFICATE OF COMPLETION', 600, 200);
+        x.fillStyle = '#ffffff'; x.font = '300 30px Archivo, Arial'; x.fillText('This certifies that', 600, 320);
+        x.fillStyle = '#ffffff'; x.font = 'bold 64px Archivo, Arial'; x.fillText(name || 'Graduate', 600, 410);
         x.strokeStyle = '#7FB6DA'; x.lineWidth = 2; x.beginPath(); x.moveTo(350, 440); x.lineTo(850, 440); x.stroke();
-        x.fillStyle = '#cbd5e1'; x.font = '24px Inter, Arial';
+        x.fillStyle = '#cbd5e1'; x.font = '24px Archivo, Arial';
         x.fillText('has successfully completed the', 600, 500);
-        x.fillStyle = '#ffffff'; x.font = 'bold 34px Montserrat, Arial'; x.fillText('2-Week Dispatcher Crash Course', 600, 550);
+        x.fillStyle = '#ffffff'; x.font = 'bold 34px Archivo, Arial'; x.fillText('2-Week Dispatcher Crash Course', 600, 550);
         const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-        x.fillStyle = '#64748b'; x.font = '20px Inter, Arial'; x.fillText('Completed ' + date, 600, 620);
-        x.fillStyle = '#7FB6DA'; x.font = 'bold 30px Montserrat, Arial'; x.fillText('Keep Moving Forward.', 600, 720);
-        x.fillStyle = '#475569'; x.font = '16px Inter, Arial'; x.fillText('forwardmotionfreight.com', 600, 770);
+        x.fillStyle = '#64748b'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('Completed ' + date, 600, 620);
+        x.fillStyle = '#7FB6DA'; x.font = 'bold 30px Archivo, Arial'; x.fillText('Keep Moving Forward.', 600, 720);
+        x.fillStyle = '#475569'; x.font = '16px "IBM Plex Mono", monospace'; x.fillText('forwardmotionfreight.com', 600, 770);
         return c.toDataURL('image/png');
       }
 
       function renderCongrats() {
         const name = learnerName();
         screenEl.innerHTML = `
-          <div class="rounded-2xl border border-[#7FB6DA]/30 bg-gradient-to-br from-[#07101c] to-[#0a0f1a] p-8 sm:p-10 text-center">
+          <div class=" border border-[#7FB6DA]/30 bg-gradient-to-br from-[#07101c] to-[#0a0f1a] p-8 sm:p-10 text-center">
             <div class="text-5xl">🎉</div>
             <h2 class="mt-4 font-display text-3xl font-extrabold text-white">Congratulations${name ? ', ' + esc(name) : ''} — you passed!</h2>
             <p class="mx-auto mt-3 max-w-lg text-slate-400">You’ve completed the Forward Motion Dispatcher Crash Course and the final exam. Download your certificate, share it, and take your next step.</p>
-            <img id="cert-img" alt="Certificate of Completion" class="mx-auto mt-6 w-full max-w-xl rounded-xl border border-white/10" />
+            <img id="cert-img" alt="Certificate of Completion" class="mx-auto mt-6 w-full max-w-xl border border-white/10" />
             <div class="mt-5 flex flex-wrap justify-center gap-3">
-              <a id="cert-dl" download="Forward-Motion-Dispatcher-Certificate.png" class="rounded-xl bg-[#7FB6DA] px-6 py-3 font-bold text-[#06141f] hover:bg-[#A6D2EC] cursor-pointer">⬇ Download certificate</a>
-              <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fforwardmotionfreight.com%2Fcrash-course.html" target="_blank" rel="noopener" class="rounded-xl border border-white/15 px-6 py-3 font-semibold text-slate-200 hover:bg-white/5">Share on LinkedIn</a>
+              <a id="cert-dl" download="Forward-Motion-Dispatcher-Certificate.png" class=" bg-[#7FB6DA] px-6 py-3 font-bold text-[#06141f] hover:bg-[#A6D2EC] cursor-pointer">⬇ Download certificate</a>
+              <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fforwardmotionfreight.com%2Fcrash-course.html" target="_blank" rel="noopener" class=" border border-white/15 px-6 py-3 font-semibold text-slate-200 hover:bg-white/5">Share on LinkedIn</a>
             </div>
-            <div class="mt-8 rounded-xl border border-white/10 bg-[#0a0f1a] p-5 text-left">
+            <div class="mt-8 border border-white/10 bg-[#0a0f1a] p-5 text-left">
               <div class="text-xs font-semibold uppercase tracking-wide text-[#7FB6DA]">Your next step</div>
               <p class="mt-2 text-sm text-slate-300">Forward OS is invite-only right now. Reply to your welcome email or reach out and we’ll set up your own dispatcher workspace — rate calculator, broker checks, TriHaul routing, CRM, and a driver portal, ready to go.</p>
             </div>
             <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <a href="mailto:prince@forwardmotionfreight.com?subject=Forward%20OS%20access%20(course%20graduate)" class="rounded-xl bg-[#7FB6DA] px-7 py-4 font-bold text-[#06141f] hover:bg-[#A6D2EC]">Request my Forward OS workspace</a>
-              <a href="index.html#faq" class="rounded-xl border border-white/15 px-7 py-4 font-semibold text-slate-200 hover:bg-white/5">Explore the platform</a>
+              <a href="mailto:prince@forwardmotionfreight.com?subject=Forward%20OS%20access%20(course%20graduate)" class=" bg-[#7FB6DA] px-7 py-4 font-bold text-[#06141f] hover:bg-[#A6D2EC]">Request my Forward OS workspace</a>
+              <a href="index.html#faq" class=" border border-white/15 px-7 py-4 font-semibold text-slate-200 hover:bg-white/5">Explore the platform</a>
             </div>
             <p class="mt-6 font-display font-bold tracking-wide text-[#7FB6DA]">Keep Moving Forward.</p>
           </div>`;
