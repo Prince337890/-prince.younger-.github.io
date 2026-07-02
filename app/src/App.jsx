@@ -5913,7 +5913,7 @@ const CRASH_COURSE = [
 // Flip to true once the practiceBrokerCall Cloud Function is deployed and
 // the ANTHROPIC_API_KEY secret is funded — until then this stays a "coming
 // soon" card so nobody hits a broken chat / undeployed-function error.
-const PRACTICE_CALL_ENABLED = false;
+const PRACTICE_CALL_ENABLED = true;
 
 const BROKER_CALL_DIFFICULTIES = [
   ['easy', 'Easy — flexible broker'],
