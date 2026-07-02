@@ -155,6 +155,24 @@ service cloud.firestore {
       allow read, update, delete: if isSuper();
     }
 
+    // ---- signed agreements (APPEND-ONLY legal record) ----
+    // Every e-signature writes a record here that NOBODY can edit or delete
+    // from the client (not the carrier, not the dispatcher). Amended terms
+    // mean a NEW signature — the old record stays. Super-admin retains
+    // console-level control for legal/GDPR requests.
+    match /signed_agreements/{id} {
+      allow create: if signedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && memberNew(request)
+                    && request.resource.data.signedName is string
+                    && request.resource.data.signedName.size() > 0
+                    && request.resource.data.textSnapshot is string;
+      allow read:   if isSuper()
+                    || (signedIn() && resource.data.uid == request.auth.uid)
+                    || ownDoc(resource);
+      allow update, delete: if isSuper();
+    }
+
     // ---- CRM / network (dispatcher's brokers + carrier leads) ----
     match /crm_contacts/{id} {
       allow read:           if ownDoc(resource);

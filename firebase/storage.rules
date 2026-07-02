@@ -3,43 +3,62 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     function signedIn() { return request.auth != null; }
-    function isAdmin()  { return signedIn() && request.auth.token.email == 'prince.younger3@gmail.com'; }
+    function isSuper()  { return signedIn() && request.auth.token.email == 'prince.younger3@gmail.com'; }
     function okFile() {
       return request.resource.size < 15 * 1024 * 1024
         && (request.resource.contentType.matches('image/.*')
             || request.resource.contentType == 'application/pdf');
     }
 
-    // Carrier onboarding documents (W-9, COI, NOA) — owner or admin write, owner+admin read
+    // Cross-service lookup: is the caller a dispatcher (role 'admin') in the
+    // SAME workspace as the user whose folder this is? This is what lets an
+    // independent dispatcher upload RateCons into their own carriers' folders
+    // and view their carriers' documents — and nobody else's.
+    function callerDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function ownerDoc(uid) {
+      return firestore.get(/databases/(default)/documents/users/$(uid)).data;
+    }
+    function sameOrgDispatcher(uid) {
+      return signedIn()
+        && callerDoc().role == 'admin'
+        && callerDoc().orgId == ownerDoc(uid).orgId;
+    }
+    function canTouch(uid) {
+      return isSuper() || request.auth.uid == uid || sameOrgDispatcher(uid);
+    }
+
+    // Carrier onboarding documents (W-9, COI, NOA)
     match /carrier_docs/{uid}/{allPaths=**} {
-      allow read:  if isAdmin() || request.auth.uid == uid;
-      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+      allow read:  if canTouch(uid);
+      allow write: if canTouch(uid) && okFile();
     }
 
-    // Credential uploads (TWIC/Hazmat/Tanker cards) — owner or admin write, owner+admin read
+    // Credential uploads (TWIC/Hazmat/Tanker cards)
     match /credentials/{uid}/{allPaths=**} {
-      allow read:  if isAdmin() || request.auth.uid == uid;
-      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+      allow read:  if canTouch(uid);
+      allow write: if canTouch(uid) && okFile();
     }
 
-    // Load documents (RateCon e-sign, BOL/POD photos) — owner or admin write, owner+admin read
-    // The dispatcher (admin) uploads the broker RateCon into the driver's folder;
-    // the driver uploads BOL/POD/detention photos to their own folder.
+    // Load documents (RateCon, BOL/POD, lumper receipts, detention/accessorial)
+    // The dispatcher uploads paperwork into the carrier's folder; the carrier
+    // uploads their own from the road. Both sides of the same workspace see it.
     match /load_docs/{uid}/{allPaths=**} {
-      allow read:  if isAdmin() || request.auth.uid == uid;
-      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+      allow read:  if canTouch(uid);
+      allow write: if canTouch(uid) && okFile();
     }
 
-    // Digital Vault documents — owner or admin write, owner+admin read
+    // Digital Vault documents
     match /vault/{uid}/{allPaths=**} {
-      allow read:  if isAdmin() || request.auth.uid == uid;
-      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+      allow read:  if canTouch(uid);
+      allow write: if canTouch(uid) && okFile();
     }
 
-    // Profile photos — owner or admin write, owner+admin read
+    // Profile photos
     match /avatars/{uid}/{allPaths=**} {
-      allow read:  if isAdmin() || request.auth.uid == uid;
-      allow write: if (request.auth.uid == uid || isAdmin()) && okFile();
+      allow read:  if canTouch(uid);
+      allow write: if canTouch(uid) && okFile();
     }
 
     // Deny everything else

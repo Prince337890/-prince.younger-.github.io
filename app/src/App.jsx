@@ -1881,6 +1881,102 @@ function DetentionCard({ load, onSaved }) {
 }
 
 // ---------- LANE MANAGEMENT ----------
+// ---------- LOAD PROOF PACKAGE (BOL / POD / lumper / accessorial docs) ----------
+// One panel per load, shared by BOTH sides: the carrier attaches paperwork from
+// their phone as the load runs; the dispatcher sees the same package on the
+// load (All Loads → edit) and can upload anything that arrives by email/fax.
+// Docs live in an array on the load doc itself, files in load_docs/{carrierUid}.
+const LOAD_DOC_TYPES = ['BOL (pickup)', 'POD (delivered)', 'Lumper receipt', 'Detention / accessorial', 'Other'];
+
+function LoadDocsPanel({ load, uploadedBy, onChanged }) {
+  const [docType, setDocType] = useState(LOAD_DOC_TYPES[0]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const docs = Array.isArray(load.docs) ? load.docs : [];
+
+  const upload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setErr(''); setBusy(true);
+    try {
+      const url = await uploadToStorage(`load_docs/${load.uid}/${docType.replace(/[^a-z0-9]/gi, '_')}_${load.id}_${Date.now()}_${file.name}`, file);
+      const rec = { type: docType, name: file.name, url, by: uploadedBy, atMs: Date.now() };
+      await updateDoc(doc(db, 'loads', load.id), { docs: [...docs, rec] });
+      if (onChanged) onChanged([...docs, rec]);
+    } catch (e2) {
+      console.error('load doc upload failed', e2);
+      setErr(e2.code === 'storage/unauthorized' ? 'Storage rules not published for this path yet.' : (e2.message || 'Upload failed'));
+    } finally { setBusy(false); e.target.value = ''; }
+  };
+
+  const removeDoc = async (i) => {
+    if (!window.confirm('Remove this document from the load?')) return;
+    const next = docs.filter((_, j) => j !== i);
+    try { await updateDoc(doc(db, 'loads', load.id), { docs: next }); if (onChanged) onChanged(next); }
+    catch (e2) { console.error('doc remove failed', e2); }
+  };
+
+  // Completeness chips: pull in docs that already live elsewhere on the load.
+  const has = (t) => docs.some((d) => d.type === t);
+  const hasBol = has('BOL (pickup)') || !!(load.detention && load.detention.bolUrl);
+  const hasPod = has('POD (delivered)') || !!(load.deliveryReport && load.deliveryReport.podUrl);
+  const hasRateCon = !!load.rateConUrl;
+  const chip = (ok, label) => (
+    <span className={`text-[11px] px-2 py-0.5 rounded-sm border ${ok ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>{ok ? '✓ ' : ''}{label}</span>
+  );
+
+  const isDispatcher = uploadedBy === 'dispatcher';
+
+  return (
+    <div className="rounded-md border border-slate-700 bg-slate-800/40 p-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-sm font-semibold text-white">🗂 Proof Package</div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {chip(hasRateCon, 'RateCon')}{chip(hasBol, 'BOL')}{chip(hasPod, 'POD')}
+        </div>
+      </div>
+      <p className="text-[11px] text-slate-500 mt-1.5">Signed BOL at pickup, signed POD at delivery, lumper receipts, and any detention/accessorial paperwork — the package that gets this load paid and wins a dispute.</p>
+
+      {(docs.length > 0 || (load.deliveryReport && load.deliveryReport.podUrl) || (load.detention && load.detention.bolUrl)) && (
+        <div className="mt-3 space-y-1.5">
+          {load.detention && load.detention.bolUrl && (
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-slate-300 truncate">⏱ Detention BOL photo <span className="text-slate-500">· from detention claim</span></span>
+              <a href={load.detention.bolUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline shrink-0">View</a>
+            </div>
+          )}
+          {load.deliveryReport && load.deliveryReport.podUrl && (
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-slate-300 truncate">📦 POD photo <span className="text-slate-500">· from delivery debrief</span></span>
+              <a href={load.deliveryReport.podUrl} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline shrink-0">View</a>
+            </div>
+          )}
+          {docs.map((d, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-slate-300 truncate">📎 {d.type} — {d.name} <span className="text-slate-500">· {d.by === 'dispatcher' ? 'dispatcher' : 'carrier'}, {d.atMs ? new Date(d.atMs).toLocaleDateString() : ''}</span></span>
+              <span className="flex items-center gap-2 shrink-0">
+                <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline">View</a>
+                {isDispatcher && <button type="button" onClick={() => removeDoc(i)} className="text-red-400/80 hover:text-red-400">✕</button>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 mt-3">
+        <select className="text-xs bg-slate-800 border border-slate-700 rounded px-2 py-2 text-slate-200" value={docType} onChange={(e) => setDocType(e.target.value)}>
+          {LOAD_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <label className={`text-xs px-3 py-2 rounded cursor-pointer shrink-0 ${busy ? 'bg-slate-700 text-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700'}`}>
+          {busy ? 'Uploading…' : '📎 Attach photo / PDF'}
+          <input type="file" accept="image/*,application/pdf" className="hidden" onChange={upload} disabled={busy} />
+        </label>
+        {err && <span className="text-xs text-red-400">{err}</span>}
+      </div>
+    </div>
+  );
+}
+
 function LaneManagementView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
   const [loads, setLoads] = useState([]);
@@ -2016,6 +2112,8 @@ function LaneManagementView({ uid }) {
       </Card>
 
       <RateConCard load={active} onSigned={fetchLoads} />
+
+      <LoadDocsPanel load={active} uploadedBy="carrier" onChanged={() => fetchLoads()} />
 
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
@@ -3197,6 +3295,15 @@ function AllLoadsView() {
               {editing.rateConUrl && <a href={editing.rateConUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline mt-2 inline-block">View attached document</a>}
               <p className="text-[11px] text-slate-500 mt-2">Attach the broker's RateCon — the carrier reviews and e-signs it from their Lane Management screen.</p>
             </div>
+
+            <LoadDocsPanel
+              load={editing}
+              uploadedBy="dispatcher"
+              onChanged={(docs) => {
+                setEditing((prev) => ({ ...prev, docs }));
+                setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, docs } : l)));
+              }}
+            />
 
             <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
@@ -4698,7 +4805,8 @@ function CarriersView() {
     if (!c.linkedDriverUid) return null;
     const d = drivers.find((x) => x.uid === c.linkedDriverUid);
     if (!d) return null;
-    const a = !!d.dispatchAgreement, p = !!d.lpoa;
+    const rr = d.resignRequest || {};
+    const a = !!d.dispatchAgreement && !rr.dispatchAgreement, p = !!d.lpoa && !rr.lpoa;
     if (a && p) return 'signed';
     if (a || p) return 'partial';
     return 'none';
@@ -6362,6 +6470,8 @@ function CarrierAgreementsView({ uid, isAdmin }) {
   const [carrier, setCarrier] = useState(null);
   const [company, setCompany] = useState('your dispatcher');
   const [orgTpl, setOrgTpl] = useState({ agreementText: '', lpoaText: '' });
+  const [resign, setResign] = useState({});       // { dispatchAgreement?: true, lpoa?: true }
+  const [history, setHistory] = useState([]);     // immutable signed_agreements records
   const [w9, setW9] = useState({ legalName: '', businessName: '', ein: '', address: '', city: '', state: '', zip: '', classification: 'Single-Member LLC' });
   const [agreement, setAgreement] = useState(null);
   const [lpoa, setLpoa] = useState(null);
@@ -6382,6 +6492,11 @@ function CarrierAgreementsView({ uid, isAdmin }) {
       setCarrier(c);
       setAgreement(ud.dispatchAgreement || null);
       setLpoa(ud.lpoa || null);
+      setResign(ud.resignRequest || {});
+      try {
+        const hs = await getDocs(query(collection(db, 'signed_agreements'), where('uid', '==', targetUid)));
+        setHistory(hs.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.signedAtMs || 0) - (a.signedAtMs || 0)));
+      } catch (_) { /* history is best-effort */ }
       const name = (ud.w9 && ud.w9.legalName) || (c && c.driverName) || ud.displayName || '';
       setW9({
         legalName: name, businessName: (ud.w9 && ud.w9.businessName) || (c && c.name) || '',
@@ -6421,14 +6536,52 @@ function CarrierAgreementsView({ uid, isAdmin }) {
     // textSnapshot preserves the exact wording signed — the template is
     // per-workspace editable, so the record must not depend on it.
     const rec = { signedName: sigA.trim(), feePct, company, signedAtMs: Date.now(), signedAt: serverTimestamp(), textSnapshot: agreementBody };
-    try { await setDoc(doc(db, 'users', targetUid), { dispatchAgreement: rec }, { merge: true }); setAgreement(rec); }
+    try {
+      // Append-only legal record first (rules forbid editing/deleting it),
+      // then the mutable pointer used for badges + display.
+      await addDoc(collection(db, 'signed_agreements'), stampOrg({ ...rec, uid: targetUid, type: 'dispatchAgreement' }));
+      await setDoc(doc(db, 'users', targetUid), { dispatchAgreement: rec, resignRequest: { dispatchAgreement: false } }, { merge: true });
+      setAgreement(rec); setResign((r) => ({ ...r, dispatchAgreement: false }));
+      setHistory((h) => [{ ...rec, uid: targetUid, type: 'dispatchAgreement' }, ...h]);
+    }
     catch (e) { console.error('agreement sign failed', e); alert('Could not record signature.'); }
   };
   const signLpoa = async () => {
     if (!sigP.trim() || !agreeP) return;
     const rec = { signedName: sigP.trim(), company, signedAtMs: Date.now(), signedAt: serverTimestamp(), textSnapshot: lpoaBody };
-    try { await setDoc(doc(db, 'users', targetUid), { lpoa: rec }, { merge: true }); setLpoa(rec); }
+    try {
+      await addDoc(collection(db, 'signed_agreements'), stampOrg({ ...rec, uid: targetUid, type: 'lpoa' }));
+      await setDoc(doc(db, 'users', targetUid), { lpoa: rec, resignRequest: { lpoa: false } }, { merge: true });
+      setLpoa(rec); setResign((r) => ({ ...r, lpoa: false }));
+      setHistory((h) => [{ ...rec, uid: targetUid, type: 'lpoa' }, ...h]);
+    }
     catch (e) { console.error('lpoa sign failed', e); alert('Could not record signature.'); }
+  };
+
+  // Dispatcher (view-as): terms changed after this carrier signed — ask them
+  // to re-sign the CURRENT template. The old signed record stays in history.
+  const requestResign = async (key) => {
+    try {
+      await setDoc(doc(db, 'users', targetUid), { resignRequest: { [key]: true } }, { merge: true });
+      setResign((r) => ({ ...r, [key]: true }));
+    } catch (e) { console.error('resign request failed', e); alert('Could not request re-signature.'); }
+  };
+
+  const SignHistory = ({ type }) => {
+    const rows = history.filter((h) => h.type === type);
+    if (rows.length < 2) return null;
+    return (
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300">Signature history ({rows.length})</summary>
+        <div className="mt-2 space-y-1">
+          {rows.map((h, i) => (
+            <div key={h.id || i} className="text-xs text-slate-400">
+              ✍️ {h.signedName} — {h.signedAtMs ? new Date(h.signedAtMs).toLocaleString() : ''}{h.feePct ? ` · ${h.feePct}%` : ''}{i === 0 ? ' (current)' : ''}
+            </div>
+          ))}
+        </div>
+      </details>
+    );
   };
 
   const field = INPUT_CLS;
@@ -6475,20 +6628,47 @@ function CarrierAgreementsView({ uid, isAdmin }) {
       <Card className="p-6">
         <PanelHeader icon={<FileText size={18} />} title="Dispatch Service Agreement"
           badge={(orgTpl.agreementText || '').trim() ? <Badge tone="blue" className="text-[10px]">Custom terms</Badge> : null} />
-        <AgreementText text={agreement && agreement.textSnapshot ? agreement.textSnapshot : agreementBody} />
-        {agreement ? <ESigned rec={agreement} />
+        {/* re-sign pending → show the NEW terms to sign; otherwise a signed doc shows its immutable snapshot */}
+        <AgreementText text={agreement && agreement.textSnapshot && !resign.dispatchAgreement ? agreement.textSnapshot : agreementBody} />
+        {agreement && resign.dispatchAgreement && (
+          <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-300">
+            📝 Your dispatcher updated the terms — review the agreement above and sign again. Your previous signature ({agreement.signedName}, {fmt(agreement.signedAtMs)}) stays on record.
+          </div>
+        )}
+        {agreement && !resign.dispatchAgreement ? <ESigned rec={agreement} />
           : canSign ? <ESignBox value={sigA} onChange={setSigA} agree={agreeA} onAgree={setAgreeA} onSign={signAgreement} label="I have read and agree to this Dispatch Service Agreement, and I’m signing it electronically." />
-          : <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>}
+          : !agreement ? <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>
+          : <p className="mt-4 text-sm text-amber-400">Awaiting re-signature.</p>}
+        {isAdmin && agreement && !resign.dispatchAgreement && (
+          <button type="button" onClick={() => requestResign('dispatchAgreement')}
+            className="mt-3 text-xs text-amber-400 hover:text-amber-300 underline">
+            Terms changed? Request re-signature (keeps the old record)
+          </button>
+        )}
+        <SignHistory type="dispatchAgreement" />
       </Card>
 
       {/* LPOA */}
       <Card className="p-6">
         <PanelHeader icon={<FileText size={18} />} title="Limited Power of Attorney"
           badge={(orgTpl.lpoaText || '').trim() ? <Badge tone="blue" className="text-[10px]">Custom terms</Badge> : null} />
-        <AgreementText text={lpoa && lpoa.textSnapshot ? lpoa.textSnapshot : lpoaBody} />
-        {lpoa ? <ESigned rec={lpoa} />
+        <AgreementText text={lpoa && lpoa.textSnapshot && !resign.lpoa ? lpoa.textSnapshot : lpoaBody} />
+        {lpoa && resign.lpoa && (
+          <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-300">
+            📝 Your dispatcher updated the terms — review the document above and sign again. Your previous signature ({lpoa.signedName}, {fmt(lpoa.signedAtMs)}) stays on record.
+          </div>
+        )}
+        {lpoa && !resign.lpoa ? <ESigned rec={lpoa} />
           : canSign ? <ESignBox value={sigP} onChange={setSigP} agree={agreeP} onAgree={setAgreeP} onSign={signLpoa} label="I grant this Limited Power of Attorney and I’m signing it electronically." />
-          : <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>}
+          : !lpoa ? <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>
+          : <p className="mt-4 text-sm text-amber-400">Awaiting re-signature.</p>}
+        {isAdmin && lpoa && !resign.lpoa && (
+          <button type="button" onClick={() => requestResign('lpoa')}
+            className="mt-3 text-xs text-amber-400 hover:text-amber-300 underline">
+            Terms changed? Request re-signature (keeps the old record)
+          </button>
+        )}
+        <SignHistory type="lpoa" />
       </Card>
     </div>
   );
@@ -7260,7 +7440,9 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
             This is the exact text your carriers e-sign on their <strong className="text-slate-300">Agreements &amp; W-9</strong> tab. Amend it to fit your business, or paste in your own
             agreement — leave a box empty to use the built-in default. Placeholders fill in automatically per carrier:
             <code className="text-amber-300"> {'{{company}}'}</code> (you), <code className="text-amber-300">{'{{carrier}}'}</code>, <code className="text-amber-300">{'{{mc}}'}</code>, <code className="text-amber-300">{'{{fee}}'}</code>.
-            Use <code className="text-amber-300">**bold**</code> for headings. Carriers who already signed keep the text they signed.
+            Use <code className="text-amber-300">**bold**</code> for headings. Carriers who already signed keep the text they signed —
+            to put new terms into effect for an existing carrier, open <strong className="text-slate-300">Carriers → View as → Agreements &amp; W-9</strong> and
+            use “Request re-signature.” Every signature is stored as a permanent, uneditable record.
           </p>
           <p className="text-[11px] text-amber-400/80 mb-4">Have an attorney review any custom agreement before you use it.</p>
 
