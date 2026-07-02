@@ -6303,12 +6303,65 @@ function ESigned({ rec }) {
   );
 }
 
+// ---- Agreement templates ----
+// The built-in defaults below are what carriers sign unless the workspace's
+// dispatcher saves their own text (Settings → Carrier agreements). Tokens
+// {{company}} {{carrier}} {{mc}} {{fee}} are filled in per carrier at render
+// AND at signing time — the signature record stores a snapshot of the exact
+// text that was signed.
+const DEFAULT_AGREEMENT_TEXT = `**DISPATCH SERVICE AGREEMENT**
+
+This Agreement is between **{{company}}** ("Dispatcher") and **{{carrier}}**, MC# {{mc}} ("Carrier").
+
+**1. Services.** Dispatcher will locate and book freight, negotiate rates, and provide administrative support on Carrier's behalf.
+
+**2. Fee.** Carrier agrees to pay Dispatcher a dispatch fee of **{{fee}}%** of the gross linehaul revenue of each load booked by Dispatcher, due within 24 hours of Carrier's receipt of payment (including factoring advances).
+
+**3. No Forced Dispatch.** Carrier is never obligated to accept any load and may decline any load for any reason.
+
+**4. Independent Contractors.** The parties are independent contractors; nothing here creates employment, partnership, or joint venture (other than the limited authority granted in the Power of Attorney).
+
+**5. Authority & Insurance.** Carrier represents it holds active operating authority and required insurance and will keep them current.
+
+**6. Term.** Either party may terminate with written notice; fees earned before termination remain due.
+
+**7. Liability.** Dispatcher is not a motor carrier or broker and assumes no liability for cargo, freight charges, or Carrier's operations.`;
+
+const DEFAULT_LPOA_TEXT = `**LIMITED POWER OF ATTORNEY**
+
+**{{carrier}}**, MC# {{mc}} ("Carrier"), appoints **{{company}}** as its limited attorney-in-fact for the sole and limited purpose of:
+
+• signing rate confirmations and broker-carrier load agreements on Carrier's behalf, and
+
+• completing broker setup packets using Carrier's documents already on file.
+
+This authority does **not** extend to banking, to any contract unrelated to load booking, or to any obligation beyond load tender. Carrier may revoke this authority at any time in writing.`;
+
+function fillAgreementTokens(text, vals) {
+  return String(text || '').replace(/\{\{(company|carrier|mc|fee)\}\}/g, (_, k) => String(vals[k] ?? ''));
+}
+
+// Renders agreement text: paragraphs split on blank lines, **bold** spans.
+function AgreementText({ text }) {
+  const paras = String(text || '').trim().split(/\n\s*\n/);
+  return (
+    <div className="mt-3 rounded-sm bg-slate-950/50 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed space-y-2 max-h-72 overflow-y-auto">
+      {paras.map((p, i) => (
+        <p key={i}>
+          {p.split(/\*\*(.+?)\*\*/g).map((seg, j) => (j % 2 ? <strong key={j} className={i === 0 ? 'text-white' : ''}>{seg}</strong> : seg))}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function CarrierAgreementsView({ uid, isAdmin }) {
   const targetUid = uid || auth.currentUser?.uid;
   const canSign = !isAdmin; // a dispatcher viewing-as sees it read-only
   const [loading, setLoading] = useState(true);
   const [carrier, setCarrier] = useState(null);
   const [company, setCompany] = useState('your dispatcher');
+  const [orgTpl, setOrgTpl] = useState({ agreementText: '', lpoaText: '' });
   const [w9, setW9] = useState({ legalName: '', businessName: '', ein: '', address: '', city: '', state: '', zip: '', classification: 'Single-Member LLC' });
   const [agreement, setAgreement] = useState(null);
   const [lpoa, setLpoa] = useState(null);
@@ -6337,7 +6390,13 @@ function CarrierAgreementsView({ uid, isAdmin }) {
         classification: (ud.w9 && ud.w9.classification) || 'Single-Member LLC',
       });
       setSigA(name); setSigP(name);
-      if (ACTIVE_ORG) { try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists() && o.data().name) setCompany(o.data().name); } catch (_) {} }
+      if (ACTIVE_ORG) { try {
+        const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG));
+        if (o.exists()) {
+          if (o.data().name) setCompany(o.data().name);
+          setOrgTpl({ agreementText: o.data().agreementText || '', lpoaText: o.data().lpoaText || '' });
+        }
+      } catch (_) {} }
     } catch (e) { console.error('agreements load failed', e); } finally { setLoading(false); }
   })(); }, [targetUid]);
 
@@ -6347,19 +6406,27 @@ function CarrierAgreementsView({ uid, isAdmin }) {
   const biz = w9.businessName || (carrier && carrier.name) || legal;
   const fmt = (ms) => ms ? new Date(ms).toLocaleString() : '';
 
+  // Workspace override (Settings → Carrier agreements) or built-in default,
+  // with this carrier's details filled in.
+  const tokenVals = { company, carrier: biz, mc, fee: feePct };
+  const agreementBody = fillAgreementTokens((orgTpl.agreementText || '').trim() || DEFAULT_AGREEMENT_TEXT, tokenVals);
+  const lpoaBody = fillAgreementTokens((orgTpl.lpoaText || '').trim() || DEFAULT_LPOA_TEXT, tokenVals);
+
   const saveW9 = async () => {
     try { await setDoc(doc(db, 'users', targetUid), { w9: { ...w9, updatedAt: serverTimestamp() } }, { merge: true }); setW9Msg('Saved ✓'); setTimeout(() => setW9Msg(''), 2000); }
     catch (e) { console.error('w9 save failed', e); setW9Msg('Could not save'); }
   };
   const signAgreement = async () => {
     if (!sigA.trim() || !agreeA) return;
-    const rec = { signedName: sigA.trim(), feePct, company, signedAtMs: Date.now(), signedAt: serverTimestamp() };
+    // textSnapshot preserves the exact wording signed — the template is
+    // per-workspace editable, so the record must not depend on it.
+    const rec = { signedName: sigA.trim(), feePct, company, signedAtMs: Date.now(), signedAt: serverTimestamp(), textSnapshot: agreementBody };
     try { await setDoc(doc(db, 'users', targetUid), { dispatchAgreement: rec }, { merge: true }); setAgreement(rec); }
     catch (e) { console.error('agreement sign failed', e); alert('Could not record signature.'); }
   };
   const signLpoa = async () => {
     if (!sigP.trim() || !agreeP) return;
-    const rec = { signedName: sigP.trim(), company, signedAtMs: Date.now(), signedAt: serverTimestamp() };
+    const rec = { signedName: sigP.trim(), company, signedAtMs: Date.now(), signedAt: serverTimestamp(), textSnapshot: lpoaBody };
     try { await setDoc(doc(db, 'users', targetUid), { lpoa: rec }, { merge: true }); setLpoa(rec); }
     catch (e) { console.error('lpoa sign failed', e); alert('Could not record signature.'); }
   };
@@ -6406,18 +6473,9 @@ function CarrierAgreementsView({ uid, isAdmin }) {
 
       {/* Dispatch Agreement */}
       <Card className="p-6">
-        <PanelHeader icon={<FileText size={18} />} title="Dispatch Service Agreement" />
-        <div className="mt-3 rounded-lg bg-slate-950/50 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed space-y-2 max-h-72 overflow-y-auto">
-          <p className="font-semibold text-white">DISPATCH SERVICE AGREEMENT</p>
-          <p>This Agreement is between <strong>{company}</strong> (“Dispatcher”) and <strong>{biz}</strong>, MC# {mc} (“Carrier”).</p>
-          <p><strong>1. Services.</strong> Dispatcher will locate and book freight, negotiate rates, and provide administrative support on Carrier’s behalf.</p>
-          <p><strong>2. Fee.</strong> Carrier agrees to pay Dispatcher a dispatch fee of <strong>{feePct}%</strong> of the gross linehaul revenue of each load booked by Dispatcher, due within 24 hours of Carrier’s receipt of payment (including factoring advances).</p>
-          <p><strong>3. No Forced Dispatch.</strong> Carrier is never obligated to accept any load and may decline any load for any reason.</p>
-          <p><strong>4. Independent Contractors.</strong> The parties are independent contractors; nothing here creates employment, partnership, or joint venture (other than the limited authority granted in the Power of Attorney).</p>
-          <p><strong>5. Authority &amp; Insurance.</strong> Carrier represents it holds active operating authority and required insurance and will keep them current.</p>
-          <p><strong>6. Term.</strong> Either party may terminate with written notice; fees earned before termination remain due.</p>
-          <p><strong>7. Liability.</strong> Dispatcher is not a motor carrier or broker and assumes no liability for cargo, freight charges, or Carrier’s operations.</p>
-        </div>
+        <PanelHeader icon={<FileText size={18} />} title="Dispatch Service Agreement"
+          badge={(orgTpl.agreementText || '').trim() ? <Badge tone="blue" className="text-[10px]">Custom terms</Badge> : null} />
+        <AgreementText text={agreement && agreement.textSnapshot ? agreement.textSnapshot : agreementBody} />
         {agreement ? <ESigned rec={agreement} />
           : canSign ? <ESignBox value={sigA} onChange={setSigA} agree={agreeA} onAgree={setAgreeA} onSign={signAgreement} label="I have read and agree to this Dispatch Service Agreement, and I’m signing it electronically." />
           : <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>}
@@ -6425,14 +6483,9 @@ function CarrierAgreementsView({ uid, isAdmin }) {
 
       {/* LPOA */}
       <Card className="p-6">
-        <PanelHeader icon={<FileText size={18} />} title="Limited Power of Attorney" />
-        <div className="mt-3 rounded-lg bg-slate-950/50 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed space-y-2 max-h-72 overflow-y-auto">
-          <p className="font-semibold text-white">LIMITED POWER OF ATTORNEY</p>
-          <p><strong>{biz}</strong>, MC# {mc} (“Carrier”), appoints <strong>{company}</strong> as its limited attorney-in-fact for the sole and limited purpose of:</p>
-          <p>• signing rate confirmations and broker-carrier load agreements on Carrier’s behalf, and</p>
-          <p>• completing broker setup packets using Carrier’s documents already on file.</p>
-          <p>This authority does <strong>not</strong> extend to banking, to any contract unrelated to load booking, or to any obligation beyond load tender. Carrier may revoke this authority at any time in writing.</p>
-        </div>
+        <PanelHeader icon={<FileText size={18} />} title="Limited Power of Attorney"
+          badge={(orgTpl.lpoaText || '').trim() ? <Badge tone="blue" className="text-[10px]">Custom terms</Badge> : null} />
+        <AgreementText text={lpoa && lpoa.textSnapshot ? lpoa.textSnapshot : lpoaBody} />
         {lpoa ? <ESigned rec={lpoa} />
           : canSign ? <ESignBox value={sigP} onChange={setSigP} agree={agreeP} onAgree={setAgreeP} onSign={signLpoa} label="I grant this Limited Power of Attorney and I’m signing it electronically." />
           : <p className="mt-4 text-sm text-amber-400">Not signed yet.</p>}
@@ -7104,10 +7157,31 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
   // Per-workspace legal/business name — the "Dispatcher" party on every carrier agreement & LPOA.
   const [companyName, setCompanyName] = useState('');
   const [companyMsg, setCompanyMsg] = useState('');
+  // Per-workspace agreement text overrides (empty = built-in defaults).
+  const [agrTxt, setAgrTxt] = useState('');
+  const [lpoaTxt, setLpoaTxt] = useState('');
+  const [agrMsg, setAgrMsg] = useState('');
   useEffect(() => {
     if (!isAdmin || !ACTIVE_ORG) return;
-    (async () => { try { const s = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (s.exists()) { setPhone(s.data().dispatchPhone || ''); setCompanyName(s.data().name || ''); } } catch (_) {} })();
+    (async () => { try {
+      const s = await getDoc(doc(db, 'orgs', ACTIVE_ORG));
+      if (s.exists()) {
+        setPhone(s.data().dispatchPhone || '');
+        setCompanyName(s.data().name || '');
+        setAgrTxt(s.data().agreementText || '');
+        setLpoaTxt(s.data().lpoaText || '');
+      }
+    } catch (_) {} })();
   }, [isAdmin]);
+  const saveAgreements = async () => {
+    if (!ACTIVE_ORG) { setAgrMsg('Create your workspace first (Workspaces tab).'); return; }
+    try {
+      await setDoc(doc(db, 'orgs', ACTIVE_ORG), { agreementText: agrTxt.trim(), lpoaText: lpoaTxt.trim() }, { merge: true });
+      setAgrMsg('Saved ✓ — new carriers now sign this text');
+      setTimeout(() => setAgrMsg(''), 3000);
+    } catch (e) { console.error('agreement text save failed', e); setAgrMsg('Could not save — make sure the updated org rules are published.'); }
+  };
+  const previewVals = { company: companyName || 'Your Company, LLC', carrier: 'Sample Carrier LLC', mc: 'MC-123456', fee: '10' };
   const savePhone = async () => {
     if (!ACTIVE_ORG) { setPhoneMsg('Create your workspace first (Workspaces tab).'); return; }
     try { await setDoc(doc(db, 'orgs', ACTIVE_ORG), { dispatchPhone: phone.trim() }, { merge: true }); setPhoneMsg('Saved ✓'); setTimeout(() => setPhoneMsg(''), 2000); }
@@ -7175,6 +7249,56 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
               <PrimaryButton onClick={saveCompanyName} className="px-4">Save</PrimaryButton>
               {companyMsg && <span className="text-xs text-emerald-400">{companyMsg}</span>}
             </div>
+          </div>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card className="p-6">
+          <h3 className="font-bold mb-1">Carrier Agreements</h3>
+          <p className="text-xs text-slate-400 mb-1">
+            This is the exact text your carriers e-sign on their <strong className="text-slate-300">Agreements &amp; W-9</strong> tab. Amend it to fit your business, or paste in your own
+            agreement — leave a box empty to use the built-in default. Placeholders fill in automatically per carrier:
+            <code className="text-amber-300"> {'{{company}}'}</code> (you), <code className="text-amber-300">{'{{carrier}}'}</code>, <code className="text-amber-300">{'{{mc}}'}</code>, <code className="text-amber-300">{'{{fee}}'}</code>.
+            Use <code className="text-amber-300">**bold**</code> for headings. Carriers who already signed keep the text they signed.
+          </p>
+          <p className="text-[11px] text-amber-400/80 mb-4">Have an attorney review any custom agreement before you use it.</p>
+
+          <Field label="Dispatch Service Agreement">
+            <textarea rows={9} className={INPUT_CLS + ' font-data text-xs leading-relaxed'} value={agrTxt}
+              onChange={(e) => setAgrTxt(e.target.value)} placeholder="Empty = built-in default agreement" />
+          </Field>
+          <div className="flex flex-wrap items-center gap-2 mt-1 mb-4">
+            <button type="button" onClick={() => setAgrTxt(DEFAULT_AGREEMENT_TEXT)} className="text-[11px] text-slate-400 hover:text-slate-200 underline">Load default into editor</button>
+            <button type="button" onClick={() => setAgrTxt('')} className="text-[11px] text-slate-400 hover:text-slate-200 underline">Clear (use default)</button>
+          </div>
+
+          <Field label="Limited Power of Attorney">
+            <textarea rows={7} className={INPUT_CLS + ' font-data text-xs leading-relaxed'} value={lpoaTxt}
+              onChange={(e) => setLpoaTxt(e.target.value)} placeholder="Empty = built-in default LPOA" />
+          </Field>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <button type="button" onClick={() => setLpoaTxt(DEFAULT_LPOA_TEXT)} className="text-[11px] text-slate-400 hover:text-slate-200 underline">Load default into editor</button>
+            <button type="button" onClick={() => setLpoaTxt('')} className="text-[11px] text-slate-400 hover:text-slate-200 underline">Clear (use default)</button>
+          </div>
+
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-semibold text-amber-400 hover:text-amber-300">👁 Preview as your carrier will see it</summary>
+            <div className="mt-2 space-y-4">
+              <div>
+                <div className="text-xs font-semibold text-slate-400">Dispatch Service Agreement</div>
+                <AgreementText text={fillAgreementTokens(agrTxt.trim() || DEFAULT_AGREEMENT_TEXT, previewVals)} />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-400">Limited Power of Attorney</div>
+                <AgreementText text={fillAgreementTokens(lpoaTxt.trim() || DEFAULT_LPOA_TEXT, previewVals)} />
+              </div>
+            </div>
+          </details>
+
+          <div className="flex items-center gap-3 mt-5">
+            <PrimaryButton onClick={saveAgreements} className="px-5">Save agreements</PrimaryButton>
+            {agrMsg && <span className="text-xs text-emerald-400">{agrMsg}</span>}
           </div>
         </Card>
       )}
@@ -7581,13 +7705,11 @@ function StatTile({ label, value, accent = 'white', className = '', glow = false
   );
 }
 
-// Injected once at the app root: the console's data typeface (IBM Plex Mono,
-// matching the marketing site's data styling) plus the micro-interaction
-// keyframes. Lives here — not in index.html/tailwind config — so the whole
-// skin still deploys by pasting this one file.
+// Injected once at the app root: tabular numerals for data figures plus the
+// micro-interaction keyframes. Lives here — not in index.html/tailwind
+// config — so the whole skin still deploys by pasting this one file.
 const PROFIT_GLOW_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-.font-data{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.font-data{font-variant-numeric:tabular-nums}
 @keyframes fmProfitGlow{0%,100%{text-shadow:0 0 0 rgba(16,185,129,0)}50%{text-shadow:0 0 16px rgba(16,185,129,.6)}}
 .fm-profit{animation:fmProfitGlow 2.6s ease-in-out infinite}
 @keyframes fmViewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
