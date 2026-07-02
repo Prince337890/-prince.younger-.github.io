@@ -2476,6 +2476,9 @@ function SafeParkingView() {
 function ComplianceView({ uid, isAdmin }) {
   const targetUid = uid || auth.currentUser?.uid;
   const admin = !!isAdmin;
+  // The carrier who owns this record can edit it too (their own license /
+  // medical / insurance dates), not just a dispatcher viewing-as.
+  const canEdit = admin || (auth.currentUser && auth.currentUser.uid === targetUid);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -2531,9 +2534,10 @@ function ComplianceView({ uid, isAdmin }) {
         <div>
           <h2 className="text-2xl font-bold mb-2">Compliance Dashboard</h2>
           <p className="text-slate-400">Stay ahead of expiration dates and keep your status green.</p>
+          <p className="text-xs text-slate-500 mt-2">{admin ? 'You can enter or update these dates for the carrier here.' : 'Keep your CDL, medical card, and insurance dates current — your dispatcher sees them and the portal warns you before anything lapses.'}</p>
           <div className="mt-3"><GuidedHint>Keep CDL, medical card, and insurance dates current. The portal warns 30 days out, the bell flags anything expired, and the dispatch guard stops you sending a load to a carrier with expired docs.</GuidedHint></div>
         </div>
-        {admin && !editing && (
+        {canEdit && !editing && (
           <PrimaryButton onClick={openEdit} className="text-sm shrink-0">{data ? 'Edit Dates' : 'Add Record'}</PrimaryButton>
         )}
       </div>
@@ -4926,12 +4930,24 @@ function CarriersView({ onNavigate }) {
   // Toggle VIP for a carrier AND mirror it onto their linked driver login.
   const toggleVip = async (c) => {
     const next = !c.vipConcierge;
+    // Enabling VIP raises the dispatch fee — ask for the new % right here so it
+    // never gets forgotten. Suggest current + 2 points.
+    let feePatch = {};
+    if (next) {
+      const cur = Number(c.feePct) || DEFAULT_FEE_PCT;
+      const suggested = cur + 2;
+      const input = window.prompt(`Enabling VIP for ${c.name}.\n\nVIP is a premium tier — set this carrier's new dispatch fee % (currently ${cur}%):`, String(suggested));
+      if (input === null) return; // cancelled
+      const v = Number(input);
+      if (!isNaN(v) && v > 0 && v <= 100) feePatch = { feePct: v };
+    }
     try {
-      await updateDoc(doc(db, 'carriers', c.id), { vipConcierge: next });
+      await updateDoc(doc(db, 'carriers', c.id), { vipConcierge: next, ...feePatch });
       if (c.linkedDriverUid) {
         try { await setDoc(doc(db, 'users', c.linkedDriverUid), { vipConcierge: next }, { merge: true }); } catch (_) {}
       }
-      setList((p) => p.map((x) => (x.id === c.id ? { ...x, vipConcierge: next } : x)));
+      setList((p) => p.map((x) => (x.id === c.id ? { ...x, vipConcierge: next, ...feePatch } : x)));
+      if (feePatch.feePct) flash(`VIP on · fee set to ${feePatch.feePct}% ✓`);
     } catch (e) { console.error('Error toggling VIP:', e); }
   };
 
@@ -7390,10 +7406,19 @@ function VipServicesView() {
   useEffect(() => { fetchAll(); }, []);
 
   const enableVip = async (r) => {
+    // Set the new (higher) dispatch fee at the moment VIP turns on.
+    let feePatch = {};
+    if (r.carrier) {
+      const cur = Number(r.carrier.feePct) || DEFAULT_FEE_PCT;
+      const input = window.prompt(`Enabling VIP for ${nameOf(r)}.\n\nVIP is a premium tier — set their new dispatch fee % (currently ${cur}%):`, String(cur + 2));
+      if (input === null) return;
+      const v = Number(input);
+      if (!isNaN(v) && v > 0 && v <= 100) feePatch = { feePct: v };
+    }
     setBusyId(r.uid);
     try {
       await setDoc(doc(db, 'users', r.uid), { vipConcierge: true, vipRequested: false }, { merge: true });
-      if (r.carrier) await updateDoc(doc(db, 'carriers', r.carrier.id), { vipConcierge: true });
+      if (r.carrier) await updateDoc(doc(db, 'carriers', r.carrier.id), { vipConcierge: true, ...feePatch });
       await fetchAll();
     } catch (e) { console.error('enable VIP failed', e); alert('Could not enable — check the console.'); }
     finally { setBusyId(null); }
@@ -8662,6 +8687,13 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const wrapRef = useRef(null);
+  // Dismissed notification ids persist per-user so "cleared" alerts stay gone
+  // (a genuinely new event has a new id and still shows).
+  const dismissKey = 'fm_notif_dismissed_' + (uid || 'me');
+  const [dismissed, setDismissed] = useState(() => { try { return JSON.parse(localStorage.getItem(dismissKey) || '[]'); } catch (_) { return []; } });
+  const persistDismissed = (arr) => { setDismissed(arr); try { localStorage.setItem(dismissKey, JSON.stringify(arr)); } catch (_) {} };
+  const dismissOne = (id) => persistDismissed([...new Set([...dismissed, id])]);
+  const clearAll = () => persistDismissed([...new Set([...dismissed, ...items.map((i) => i.id)])]);
 
   const daysUntil = (str) => str ? Math.ceil((new Date(str + 'T00:00:00') - new Date()) / 86400000) : null;
   const complianceItems = (c, who, idPrefix) => {
@@ -8735,21 +8767,21 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
 
   useEffect(() => { build(); }, [build]);
 
-  // LIVE: rebuild the bell whenever loads change (a carrier accepts/declines,
-  // signs a RateCon, files detention) so the badge updates without a refresh.
-  // Loads carry the most time-sensitive alerts; compliance/VIP still refresh
-  // on open. Debounced so a burst of writes triggers a single rebuild.
+  // LIVE: rebuild the bell whenever loads OR user docs change — so a carrier
+  // accepting/declining, signing a RateCon, filing detention, requesting VIP,
+  // or sharing a CPM all update the badge without a refresh. Debounced so a
+  // burst of writes triggers a single rebuild.
   useEffect(() => {
-    const q = isAdmin ? orgScoped('loads')
-      : uid ? query(collection(db, 'loads'), where('uid', '==', uid))
-      : null;
-    if (!q) return;
-    let t = null, first = true;
-    const unsub = onSnapshot(q, () => {
-      if (first) { first = false; return; } // build() already ran on mount
+    const queries = [];
+    if (isAdmin) { queries.push(orgScoped('loads')); queries.push(orgScoped('users')); queries.push(orgScoped('carriers')); }
+    else if (uid) { queries.push(query(collection(db, 'loads'), where('uid', '==', uid))); }
+    if (!queries.length) return;
+    let t = null; const firsts = queries.map(() => true);
+    const unsubs = queries.map((q, i) => onSnapshot(q, () => {
+      if (firsts[i]) { firsts[i] = false; return; } // build() already ran on mount
       clearTimeout(t); t = setTimeout(() => build(), 400);
-    }, (e) => console.error('bell live listener failed', e));
-    return () => { clearTimeout(t); unsub(); };
+    }, (e) => console.error('bell live listener failed', e)));
+    return () => { clearTimeout(t); unsubs.forEach((u) => u()); };
   }, [isAdmin, uid, build]);
 
   useEffect(() => {
@@ -8760,7 +8792,8 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
   }, [open]);
 
   const toneDot = { amber: 'bg-amber-400', red: 'bg-red-400', blue: 'bg-blue-400', emerald: 'bg-emerald-400', slate: 'bg-slate-500' };
-  const count = items.length;
+  const visible = items.filter((it) => !dismissed.includes(it.id));
+  const count = visible.length;
 
   return (
     <div className="relative" ref={wrapRef}>
@@ -8772,23 +8805,30 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl shadow-black/40 z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-800">
             <span className="text-sm font-semibold text-white">Notifications{count > 0 ? ` (${count})` : ''}</span>
-            <button onClick={() => build()} className="text-xs text-slate-400 hover:text-amber-400 transition-colors">Refresh</button>
+            <div className="flex items-center gap-3">
+              {count > 0 && <button onClick={clearAll} className="text-xs text-slate-400 hover:text-amber-400 transition-colors">Clear all</button>}
+              <button onClick={() => build()} className="text-xs text-slate-400 hover:text-amber-400 transition-colors">Refresh</button>
+            </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {!loaded ? (
               <div className="px-4 py-4"><SkelRows rows={2} /></div>
-            ) : items.length === 0 ? (
+            ) : count === 0 ? (
               <div className="px-4 py-8 text-sm text-slate-500 text-center">You're all caught up. 🎉</div>
             ) : (
-              items.map((it) => (
-                <button key={it.id} onClick={() => { setOpen(false); onNavigate && onNavigate(it.tab); }}
-                  className="w-full text-left flex items-start gap-3 px-4 py-3 border-b border-slate-800/60 last:border-0 hover:bg-slate-800/50 transition-colors">
-                  <span className="text-base leading-none shrink-0">{it.icon}</span>
-                  <span className="text-sm text-slate-200 leading-snug flex-1">{it.text}</span>
-                  <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${toneDot[it.tone] || toneDot.slate}`} />
-                </button>
+              visible.map((it) => (
+                <div key={it.id} className="group w-full flex items-start gap-3 px-4 py-3 border-b border-slate-800/60 last:border-0 hover:bg-slate-800/50 transition-colors">
+                  <button onClick={() => { setOpen(false); onNavigate && onNavigate(it.tab); }} className="flex items-start gap-3 text-left flex-1 min-w-0">
+                    <span className="text-base leading-none shrink-0">{it.icon}</span>
+                    <span className="text-sm text-slate-200 leading-snug">{it.text}</span>
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`mt-1.5 w-2 h-2 rounded-full ${toneDot[it.tone] || toneDot.slate}`} />
+                    <button onClick={() => dismissOne(it.id)} title="Dismiss" className="text-slate-600 hover:text-slate-300 text-sm leading-none">✕</button>
+                  </div>
+                </div>
               ))
             )}
           </div>

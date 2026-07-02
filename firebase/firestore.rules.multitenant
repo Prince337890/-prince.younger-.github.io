@@ -104,9 +104,12 @@ service cloud.firestore {
     }
 
     // ---- compliance (one doc per driver uid) ----
+    // The carrier owns their CDL/medical/insurance dates and can maintain them
+    // themselves; their dispatcher can also edit (via "view as"). The doc must
+    // carry the caller's own orgId on create.
     match /compliance/{uid} {
       allow read:  if request.auth.uid == uid || ownDoc(resource);
-      allow write: if ownNew(request) || ownDoc(resource);
+      allow write: if request.auth.uid == uid || ownNew(request) || ownDoc(resource);
     }
 
     // ---- expenses (dispatcher dispatch-fee / expense tracker) ----

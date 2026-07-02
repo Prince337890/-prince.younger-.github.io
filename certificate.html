@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate of Completion — Preview & Editor | Forward Motion Freight</title>
+    <meta name="description" content="Preview and update the 2-Week Dispatcher Crash Course Certificate of Completion.">
+    <meta name="theme-color" content="#0a0f1a">
+    <meta name="color-scheme" content="dark">
+    <meta name="robots" content="noindex">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="site.css?v=1">
+    <style>body{background:#070b14}</style>
+</head>
+<body class="font-sans text-slate-200">
+
+    <header class="border-b border-white/10 bg-[#0a0f1a]/80 backdrop-blur">
+        <div class="mx-auto max-w-5xl flex items-center justify-between px-5 py-4">
+            <a href="index.html" class="font-display font-extrabold tracking-tight text-white">FORWARD<span class="text-[#7FB6DA]">MOTION</span></a>
+            <a href="crash-course.html" class="text-sm text-slate-400 hover:text-white">← Crash course</a>
+        </div>
+    </header>
+
+    <section class="px-5 py-10 sm:py-14">
+        <div class="mx-auto max-w-4xl">
+            <p class="font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-[#7FB6DA]">Internal · Certificate</p>
+            <h1 class="mt-3 font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Certificate of Completion — Preview &amp; Editor</h1>
+            <p class="mt-3 text-sm text-slate-400 max-w-2xl">This is exactly what a student downloads when they finish the 2-Week Dispatcher Crash Course. Type a name to preview it, and download a PNG. To change the design (wording, colors, layout), edit the <code class="text-amber-300">drawCertificate()</code> function in this file — then mirror the same change into <code class="text-amber-300">makeCertificate()</code> in <code class="text-amber-300">crash-course.html</code> so the live course matches.</p>
+
+            <div class="mt-6 flex flex-wrap items-center gap-3">
+                <input id="name" value="Jordan Fleet" placeholder="Student name"
+                    class="border border-white/15 bg-[#0a0f1a] px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                <button id="dl" class="bg-[#7FB6DA] px-5 py-2.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Download PNG</button>
+            </div>
+
+            <div class="mt-6 border border-white/10 overflow-hidden">
+                <canvas id="cert" width="1200" height="850" class="w-full h-auto block"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <footer class="px-5 py-10 text-center">
+        <p class="font-display text-lg font-bold tracking-wide text-[#7FB6DA]">Keep Moving Forward.</p>
+        <p class="mt-2 text-xs text-slate-600">© Forward Motion Freight</p>
+    </footer>
+
+    <script>
+      // SINGLE SOURCE for the certificate design. Keep in sync with
+      // makeCertificate() in crash-course.html.
+      function drawCertificate(ctx, name) {
+        const x = ctx;
+        x.fillStyle = '#0a0f1a'; x.fillRect(0, 0, 1200, 850);
+        x.strokeStyle = '#7FB6DA'; x.lineWidth = 6; x.strokeRect(34, 34, 1132, 782);
+        x.strokeStyle = 'rgba(127,182,218,.35)'; x.lineWidth = 2; x.strokeRect(52, 52, 1096, 746);
+        x.textAlign = 'center';
+        x.fillStyle = '#7FB6DA'; x.font = 'bold 26px Archivo, Arial'; x.fillText('FORWARD MOTION FREIGHT', 600, 150);
+        x.fillStyle = '#94a3b8'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('CERTIFICATE OF COMPLETION', 600, 200);
+        x.fillStyle = '#ffffff'; x.font = '300 30px Archivo, Arial'; x.fillText('This certifies that', 600, 320);
+        x.fillStyle = '#ffffff'; x.font = 'bold 64px Archivo, Arial'; x.fillText(name || 'Graduate', 600, 410);
+        x.strokeStyle = '#7FB6DA'; x.lineWidth = 2; x.beginPath(); x.moveTo(350, 440); x.lineTo(850, 440); x.stroke();
+        x.fillStyle = '#cbd5e1'; x.font = '24px Archivo, Arial'; x.fillText('has successfully completed the', 600, 500);
+        x.fillStyle = '#ffffff'; x.font = 'bold 34px Archivo, Arial'; x.fillText('2-Week Dispatcher Crash Course', 600, 550);
+        const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        x.fillStyle = '#64748b'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('Completed ' + date, 600, 620);
+        x.fillStyle = '#7FB6DA'; x.font = 'bold 30px Archivo, Arial'; x.fillText('Keep Moving Forward.', 600, 720);
+        x.fillStyle = '#475569'; x.font = '16px "IBM Plex Mono", monospace'; x.fillText('forwardmotionfreight.com', 600, 770);
+      }
+
+      const canvas = document.getElementById('cert');
+      const ctx = canvas.getContext('2d');
+      const nameEl = document.getElementById('name');
+      const render = () => drawCertificate(ctx, nameEl.value.trim());
+      nameEl.addEventListener('input', render);
+      document.getElementById('dl').addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = 'certificate_' + (nameEl.value.trim().replace(/\s+/g, '_') || 'preview') + '.png';
+        a.click();
+      });
+      // Wait for the webfonts so the canvas text isn't drawn in a fallback.
+      if (document.fonts && document.fonts.ready) { document.fonts.ready.then(render); }
+      render();
+    </script>
+
+</body>
+</html>
