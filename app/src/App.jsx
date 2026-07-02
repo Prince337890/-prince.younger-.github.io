@@ -741,7 +741,10 @@ export default function App() {
         )}
 
         <div className={`flex-1 overflow-y-auto p-4 md:p-8 ${viewAs ? 'ring-2 ring-inset ring-indigo-600/50' : ''}`}>
-          {renderContent()}
+          {/* keyed by tab so each view slides in fresh */}
+          <div key={activeTab + '|' + (viewAs ? viewAs.id : '')} className="fm-view">
+            {renderContent()}
+          </div>
         </div>
       </main>
 
@@ -791,6 +794,7 @@ function AdminWeeklyGross() {
   }, []);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const feeUp = useCountUp(stats.fee);
 
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6">
@@ -805,8 +809,8 @@ function AdminWeeklyGross() {
           </p>
         </div>
         <div className="md:text-right">
-          <div className="text-sm text-slate-400 mb-1">Your Dispatch Total (This Week)</div>
-          <div className="text-3xl font-bold text-amber-400">{money(stats.fee)}</div>
+          <div className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-400 mb-1">Your Dispatch Total (This Week)</div>
+          <div className="font-data text-3xl font-semibold text-amber-400">{money(feeUp)}</div>
         </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5">
@@ -921,6 +925,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const earnUp = useCountUp(earnings);
 
   // Greeting subline driven by availability (and the active load). When real
   // ELD/HOS data is connected, swap in the live "drive hours remaining" here.
@@ -955,8 +960,8 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
             <div className="mt-3"><GuidedHint>This is the carrier’s home screen — active load, weekly earnings, and VIP updates. A pending offer takes over this screen until they accept or decline.</GuidedHint></div>
           </div>
           <div className="md:text-right">
-            <div className="text-sm text-slate-400 mb-1">Gross Earnings (This Week)</div>
-            <div className="text-3xl font-bold text-emerald-400">{money(earnings)}</div>
+            <div className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-400 mb-1">Gross Earnings (This Week)</div>
+            <div className="font-data text-3xl font-semibold text-emerald-400">{money(earnUp)}</div>
           </div>
         </Card>
       )}
@@ -991,7 +996,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
             />
 
             {!loaded ? (
-              <div className="text-slate-500 text-sm">Loading…</div>
+              <SkelRows rows={2} />
             ) : !active ? (
               <div className="text-slate-500 text-sm py-4">No active load right now. Your dispatcher will assign one shortly.</div>
             ) : (
@@ -2605,7 +2610,7 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
       <Card className="p-6 overflow-x-auto">
         <h3 className="text-lg font-bold mb-4">Settlements Ledger</h3>
         {loading ? (
-          <div className="text-slate-400 text-sm">Loading…</div>
+          <SkelRows rows={3} />
         ) : loads.length === 0 ? (
           <div className="text-slate-500 text-sm py-6 text-center">No loads yet. Settlements appear here once your dispatcher assigns and delivers loads.</div>
         ) : (
@@ -3461,7 +3466,7 @@ function ManageDriversView() {
       <Card className="p-6">
         <h3 className="font-bold mb-4">Current Accounts</h3>
         {loading ? (
-          <div className="text-slate-400 text-sm">Loading…</div>
+          <SkelRows rows={3} />
         ) : list.length === 0 ? (
           <div className="text-slate-500 text-sm">No accounts yet.</div>
         ) : (
@@ -3925,10 +3930,10 @@ function NegotiationCalcView() {
   const field = INPUT_CLS;
 
   const Metric = ({ label, value, guide, accent, highlight }) => (
-    <div className={`border rounded-xl p-4 ${highlight ? 'bg-amber-500/10 border-amber-500/40' : 'bg-slate-800/50 border-slate-700'}`}>
+    <div className={`border rounded-sm p-4 transition-colors ${highlight ? 'bg-amber-500/10 border-amber-500/40 border-l-2 border-l-amber-500' : 'bg-slate-800/50 border-slate-700'}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className={`text-xs ${highlight ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>{label}</span>
-        <span className={`font-bold ${highlight ? 'text-2xl' : 'text-lg'} ${accent || 'text-white'}`}>{value}</span>
+        <span className={`font-data font-semibold ${highlight ? 'text-2xl' : 'text-lg'} ${accent || 'text-white'}`}>{value}</span>
       </div>
       <p className="text-[11px] text-slate-500 mt-2 leading-snug">{guide}</p>
     </div>
@@ -4852,7 +4857,7 @@ function CarriersView() {
           )}
         </div>
         {loading ? (
-          <div className="text-slate-400 text-sm">Loading…</div>
+          <SkelRows rows={3} />
         ) : list.length === 0 ? (
           <div className="text-slate-500 text-sm">No carriers saved yet.</div>
         ) : (() => {
@@ -5314,7 +5319,7 @@ function LaneIntelView() {
         <input className={field} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search intel…" />
 
         {loading ? (
-          <div className="text-slate-400 text-sm">Loading…</div>
+          <SkelRows rows={3} />
         ) : filtered.length === 0 ? (
           <div className="text-slate-500 text-sm py-4 text-center">{notes.length === 0 ? 'No intel logged yet. Add your first note above.' : 'No notes match that search.'}</div>
         ) : (
@@ -6751,7 +6756,7 @@ function ExpensesView() {
 
       <Card className="p-6">
         <h3 className="font-bold mb-4">All Expenses</h3>
-        {loading ? <div className="text-slate-400 text-sm">Loading…</div>
+        {loading ? <SkelRows rows={3} />
           : expenses.length === 0 ? <div className="text-slate-500 text-sm">No expenses logged yet.</div>
           : (
             <div className="space-y-2">
@@ -7028,7 +7033,7 @@ function VipServicesView() {
       <p className="text-slate-400">Carriers who asked for the VIP concierge upsell, and exactly what they want. Enable VIP to turn on their concierge experience.</p>
       <GuidedHint>VIP is your highest-margin upsell. When you enable it, bump that carrier's <strong>dispatch fee</strong> a point or two in the Carriers tab to cover the concierge work — the fee bump usually pays for the whole platform.</GuidedHint>
 
-      {loading ? <div className="text-slate-400">Loading…</div> : (
+      {loading ? <SkelRows rows={3} /> : (
         <>
           <Card className="p-6">
             <PanelHeader icon={<HeartPulse size={20} />} title="Pending Requests" badge={reqs.length > 0 ? <Badge tone="amber">{reqs.length}</Badge> : null} />
@@ -7415,7 +7420,7 @@ function WorkspacesView() {
 
       <Card className="p-6">
         <h3 className="font-bold mb-4">Workspaces ({orgs.length})</h3>
-        {loading ? <div className="text-slate-400 text-sm">Loading…</div>
+        {loading ? <SkelRows rows={3} />
           : orgs.length === 0 ? <div className="text-slate-500 text-sm">No workspaces yet. (Or the orgs rule isn't published.)</div>
           : (
             <div className="space-y-2">
@@ -7510,7 +7515,7 @@ function NavItem({ icon, label, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`group w-full flex items-center gap-3 mx-3 my-0.5 px-3 py-2.5 rounded-xl transition-all duration-150 ${
+      className={`group w-full flex items-center gap-3 mx-3 my-0.5 px-3 py-2.5 rounded-md transition-all duration-150 ${
         isActive
           ? 'bg-amber-500/10 text-white ring-1 ring-amber-500/30'
           : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
@@ -7519,7 +7524,7 @@ function NavItem({ icon, label, isActive, onClick }) {
     >
       <span className={isActive ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-300'}>{icon}</span>
       <span className="font-medium text-sm">{label}</span>
-      {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400" />}
+      {isActive && <span className="ml-auto w-1.5 h-1.5 bg-amber-400" />}
     </button>
   );
 }
@@ -7530,7 +7535,7 @@ function NavItem({ icon, label, isActive, onClick }) {
 // ============================================================================
 
 // Standardized control styling, reused by every form in the app.
-const INPUT_CLS = 'w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-colors';
+const INPUT_CLS = 'w-full bg-slate-800/80 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-colors';
 const SELECT_CLS = INPUT_CLS;
 const LABEL_CLS = 'block text-xs font-medium text-slate-400 mb-1.5';
 
@@ -7539,7 +7544,7 @@ const LABEL_CLS = 'block text-xs font-medium text-slate-400 mb-1.5';
 // brochure — deliberately distinct from the rounded marketing-site cards.
 function Card({ children, className = '', ...rest }) {
   return (
-    <div className={`bg-slate-900/60 border border-slate-800/80 rounded-xl ${className}`} {...rest}>
+    <div className={`bg-slate-900/60 border border-slate-800/80 rounded-md transition-colors ${className}`} {...rest}>
       {children}
     </div>
   );
@@ -7553,7 +7558,7 @@ function PanelHeader({ icon, title, accent = 'amber', badge, action, className =
   return (
     <div className={`flex items-center justify-between gap-3 ${className}`}>
       <h3 className="text-base font-semibold text-white flex items-center gap-2.5 min-w-0">
-        <span className={`w-1 h-4 rounded-full shrink-0 ${railCls}`} />
+        <span className={`w-1 h-4 shrink-0 ${railCls}`} />
         {icon && <span className={`${accentCls} shrink-0`}>{icon}</span>}
         <span className="truncate">{title}</span>
         {badge}
@@ -7569,15 +7574,55 @@ function StatTile({ label, value, accent = 'white', className = '', glow = false
   const v = { white: 'text-white', emerald: 'text-emerald-400', amber: 'text-amber-400', blue: 'text-blue-400', red: 'text-red-400', slate: 'text-slate-300' }[accent] || 'text-white';
   const rail = { white: 'border-l-slate-600', emerald: 'border-l-emerald-500', amber: 'border-l-amber-500', blue: 'border-l-blue-400', red: 'border-l-red-500', slate: 'border-l-slate-600' }[accent] || 'border-l-slate-600';
   return (
-    <div className={`bg-slate-800/40 border border-slate-700/60 border-l-2 ${rail} rounded-lg p-4 ${className}`}>
-      <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">{label}</div>
-      <div className={`text-xl font-bold ${v} ${glow ? 'fm-profit' : ''}`}>{value}</div>
+    <div className={`bg-slate-800/40 border border-slate-700/60 border-l-2 ${rail} rounded-sm p-4 ${className}`}>
+      <div className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">{label}</div>
+      <div className={`font-data text-xl font-semibold ${v} ${glow ? 'fm-profit' : ''}`}>{value}</div>
     </div>
   );
 }
 
-// Subtle pulse on profit / "money in your pocket" figures. Injected once.
-const PROFIT_GLOW_CSS = `@keyframes fmProfitGlow{0%,100%{text-shadow:0 0 0 rgba(16,185,129,0)}50%{text-shadow:0 0 16px rgba(16,185,129,.6)}}.fm-profit{animation:fmProfitGlow 2.6s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.fm-profit{animation:none}}`;
+// Injected once at the app root: the console's data typeface (IBM Plex Mono,
+// matching the marketing site's data styling) plus the micro-interaction
+// keyframes. Lives here — not in index.html/tailwind config — so the whole
+// skin still deploys by pasting this one file.
+const PROFIT_GLOW_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.font-data{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+@keyframes fmProfitGlow{0%,100%{text-shadow:0 0 0 rgba(16,185,129,0)}50%{text-shadow:0 0 16px rgba(16,185,129,.6)}}
+.fm-profit{animation:fmProfitGlow 2.6s ease-in-out infinite}
+@keyframes fmViewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fm-view{animation:fmViewIn .22s ease-out both}
+@keyframes fmShimmer{from{background-position:-200% 0}to{background-position:200% 0}}
+.fm-skel{background:linear-gradient(90deg,rgba(148,163,184,.08) 25%,rgba(148,163,184,.18) 50%,rgba(148,163,184,.08) 75%);background-size:200% 100%;animation:fmShimmer 1.4s linear infinite;border-radius:3px}
+.fm-press{transition:transform .08s ease}
+.fm-press:active{transform:translateY(1px)}
+@media (prefers-reduced-motion: reduce){.fm-profit,.fm-view,.fm-skel{animation:none}}`;
+
+// Animate a number toward its target (eased, ~0.7s). Respects reduced motion.
+// Use on headline money figures so totals "roll in" instead of popping.
+function useCountUp(target, dur = 700) {
+  const [val, setVal] = useState(0);
+  const prevRef = useRef(0);
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = Number(target) || 0;
+    prevRef.current = to;
+    let reduce = false;
+    try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+    if (reduce || from === to) { setVal(to); return; }
+    let raf;
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      setVal(from + (to - from) * e);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, dur]);
+  return val;
+}
 
 // Colored status pill.
 function Badge({ children, tone = 'slate', className = '' }) {
@@ -7589,7 +7634,19 @@ function Badge({ children, tone = 'slate', className = '' }) {
     red: 'bg-red-500/20 text-red-400 border-red-500/30',
     indigo: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
   };
-  return <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border ${tones[tone] || tones.slate} ${className}`}>{children}</span>;
+  return <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-sm border ${tones[tone] || tones.slate} ${className}`}>{children}</span>;
+}
+
+// Shimmer placeholder rows shown while a list loads — reads as "the console
+// is working," not frozen. Drop-in replacement for the plain "Loading…" text.
+function SkelRows({ rows = 3, className = '' }) {
+  return (
+    <div className={`space-y-2.5 ${className}`} aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="fm-skel h-10 w-full" style={{ opacity: 1 - i * 0.22 }} />
+      ))}
+    </div>
+  );
 }
 
 // Labeled form field wrapper.
@@ -7605,15 +7662,15 @@ function Field({ label, hint, children, className = '' }) {
 
 // Buttons — consistent primary / ghost treatments.
 function PrimaryButton({ children, className = '', ...rest }) {
-  return <button className={`inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
+  return <button className={`fm-press inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
 }
 function GhostButton({ children, className = '', ...rest }) {
-  return <button className={`inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
+  return <button className={`fm-press inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
 }
 
 // Table primitives — consistent header + cell styling.
 function Th({ children, className = '' }) {
-  return <th className={`text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 ${className}`}>{children}</th>;
+  return <th className={`font-data text-left text-[10px] font-medium text-slate-500 uppercase tracking-[0.14em] px-4 py-3 ${className}`}>{children}</th>;
 }
 function Td({ children, className = '' }) {
   return <td className={`px-4 py-3 text-sm text-slate-300 align-middle ${className}`}>{children}</td>;
@@ -8022,7 +8079,7 @@ function InvoicesView() {
         </div>
       </div>
 
-      {loading ? <div className="text-slate-500 text-center py-12">Loading…</div>
+      {loading ? <SkelRows rows={4} className="py-6" />
         : invoices.length === 0 ? <div className="text-slate-500 text-center py-12">No delivered loads in this week.</div>
         : (
           <div className="space-y-3">
@@ -8176,7 +8233,7 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
           </div>
           <div className="max-h-96 overflow-y-auto">
             {!loaded ? (
-              <div className="px-4 py-6 text-sm text-slate-500 text-center">Loading…</div>
+              <div className="px-4 py-4"><SkelRows rows={2} /></div>
             ) : items.length === 0 ? (
               <div className="px-4 py-8 text-sm text-slate-500 text-center">You're all caught up. 🎉</div>
             ) : (
