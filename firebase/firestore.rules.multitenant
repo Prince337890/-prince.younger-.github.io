@@ -221,8 +221,19 @@ service cloud.firestore {
     // A dispatcher queues welcome emails by creating docs here; the Firebase
     // "Trigger Email from Firestore" extension delivers them server-side (it
     // bypasses these rules), so clients get create-only and nothing else.
+    //
+    // Every mail doc must be stamped with the sender's own uid and their
+    // workspace's orgId. This ties each queued email to a real dispatcher (so
+    // it's auditable and can't be spoofed as another workspace), stops plain
+    // carriers from sending at all, and keeps the queue unreadable. (Firestore
+    // rules can't query users-by-email, so the recipient list itself can only
+    // be fully constrained server-side; a Cloud Function is the next step if
+    // stricter recipient control is ever needed.)
     match /mail/{id} {
-      allow create: if isDispatcher();
+      allow create: if isSuper()
+                    || (isDispatcher()
+                        && request.resource.data.senderUid == request.auth.uid
+                        && request.resource.data.orgId == myOrg());
       allow read, update, delete: if false;
     }
 

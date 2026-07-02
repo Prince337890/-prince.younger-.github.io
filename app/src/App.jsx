@@ -7,7 +7,7 @@ import {
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
   getFirestore, doc, getDoc, getDocs, collection, setDoc, addDoc,
-  query, where, serverTimestamp, updateDoc, deleteDoc
+  query, where, serverTimestamp, updateDoc, deleteDoc, onSnapshot
 } from 'firebase/firestore';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
@@ -166,10 +166,38 @@ const PORTAL_URL = 'https://portal.forwardmotionfreight.com';
 // Queue a transactional email. Writes a doc to the `mail` collection that the
 // Firebase "Trigger Email from Firestore" extension picks up and sends. Never
 // throws into the caller — a mail hiccup must not block account creation.
+// Normalize a Firestore Timestamp | ms-number | ISO-string to epoch ms.
+function toMs(t) {
+  if (!t) return null;
+  if (typeof t === 'number') return t;
+  if (t.toDate) { try { return t.toDate().getTime(); } catch (_) { return null; } }
+  if (t.seconds) return t.seconds * 1000;
+  const d = new Date(t); return isNaN(d) ? null : d.getTime();
+}
+// Compact "2h ago" / "3d ago" relative time. Falls back to '' if unknown.
+function timeAgo(t) {
+  const ms = toMs(t);
+  if (!ms) return '';
+  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30); if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
+}
+
 async function queueEmail(to, subject, html) {
   if (!to) return;
   try {
-    await addDoc(collection(db, 'mail'), { to: [to], message: { subject, html } });
+    // Stamp sender + org so the mail-queue rule can tie this to a real
+    // dispatcher (the Trigger Email extension ignores the extra fields).
+    await addDoc(collection(db, 'mail'), {
+      to: [to],
+      message: { subject, html },
+      senderUid: auth.currentUser ? auth.currentUser.uid : null,
+      orgId: ACTIVE_ORG || null,
+    });
   } catch (e) {
     console.error('queueEmail failed (account still created):', e);
   }
@@ -504,7 +532,7 @@ export default function App() {
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
-      case 'carriers': return isAdmin ? <CarriersView /> : <DashboardView />;
+      case 'carriers': return isAdmin ? <CarriersView onNavigate={go} /> : <DashboardView />;
       case 'crm': return isAdmin ? <CrmView onNavigate={go} /> : <DashboardView />;
       case 'vip': return isAdmin ? <VipServicesView /> : <DashboardView />;
       case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
@@ -705,7 +733,7 @@ export default function App() {
                   else setViewAs(null);
                 }}
                 className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 max-w-[150px]"
-                title="View a carrier's portal"
+                title="View as — open a carrier's portal (read-only) to see exactly what they see, help them over the phone, approve their vault docs, or manage their agreements. Pick 'Admin (you)' to return."
               >
                 <option value="">Admin (you)</option>
                 {carrierOpts.map((c) => <option key={c.id} value={c.id}>View: {c.name}</option>)}
@@ -880,6 +908,28 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
   const [active, setActive] = useState(null);
   const [pendingOffer, setPendingOffer] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [setup, setSetup] = useState(null); // carrier onboarding checklist state
+
+  // Carrier getting-started checklist: read their own user + vault docs once.
+  useEffect(() => {
+    if (isAdmin || !targetUid) return;
+    (async () => {
+      try {
+        const [uSnap, vSnap] = await Promise.all([
+          getDoc(doc(db, 'users', targetUid)),
+          getDocs(query(collection(db, 'vault_docs'), where('uid', '==', targetUid))),
+        ]);
+        const d = uSnap.exists() ? uSnap.data() : {};
+        const hos = d.carrierProfile && (d.carrierProfile.driveAvail !== undefined && d.carrierProfile.driveAvail !== '');
+        setSetup({
+          w9: !!(d.w9 && d.w9.legalName),
+          agreements: !!d.dispatchAgreement && !!d.lpoa && !(d.resignRequest && (d.resignRequest.dispatchAgreement || d.resignRequest.lpoa)),
+          hos: !!hos,
+          docs: vSnap.size > 0,
+        });
+      } catch (_) { /* checklist is best-effort */ }
+    })();
+  }, [isAdmin, targetUid]);
 
   const prettyName = (handle) =>
     handle.replace(/[0-9]/g, '')
@@ -897,32 +947,44 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
     return d;
   };
 
+  // Compute dashboard state from the carrier's loads (shared by the live
+  // listener and the manual refresh callback).
+  const applyLoads = React.useCallback((rows) => {
+    // A load awaiting the driver's accept/decline overrides the dashboard.
+    setPendingOffer(rows.find((l) => l.offerStatus === 'pending') || null);
+    const pending = rows
+      .filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared' && l.offerStatus !== 'pending' && l.offerStatus !== 'declined')
+      .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
+    setActive(pending[0] || null);
+    const sow = startOfWeek();
+    const total = rows.reduce((sum, l) => {
+      const delivered = l.status === 'Delivered' || l.status === 'Cleared';
+      const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
+      return delivered && inWeek ? sum + (Number(l.gross_pay) || 0) : sum;
+    }, 0);
+    setEarnings(total);
+    setLoaded(true);
+  }, []);
+
   const fetchData = React.useCallback(async () => {
     if (!targetUid || isAdmin) return;
     try {
       const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
-      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      // A load awaiting the driver's accept/decline overrides the dashboard.
-      setPendingOffer(rows.find((l) => l.offerStatus === 'pending') || null);
-      const pending = rows
-        .filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared' && l.offerStatus !== 'pending' && l.offerStatus !== 'declined')
-        .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
-      setActive(pending[0] || null);
-      const sow = startOfWeek();
-      const total = rows.reduce((sum, l) => {
-        const delivered = l.status === 'Delivered' || l.status === 'Cleared';
-        const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
-        return delivered && inWeek ? sum + (Number(l.gross_pay) || 0) : sum;
-      }, 0);
-      setEarnings(total);
-    } catch (e) {
-      console.error('Error loading dashboard:', e);
-    } finally {
-      setLoaded(true);
-    }
-  }, [targetUid, isAdmin]);
+      applyLoads(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error('Error loading dashboard:', e); setLoaded(true); }
+  }, [targetUid, isAdmin, applyLoads]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // LIVE: a new offer, an accepted/declined change, or a delivered load shows
+  // up on the carrier's dashboard the instant it happens — no refresh needed.
+  useEffect(() => {
+    if (!targetUid || isAdmin) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'loads'), where('uid', '==', targetUid)),
+      (snap) => applyLoads(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (e) => { console.error('dashboard live listener failed', e); fetchData(); }
+    );
+    return () => unsub();
+  }, [targetUid, isAdmin, applyLoads, fetchData]);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const earnUp = useCountUp(earnings);
@@ -962,6 +1024,30 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
           <div className="md:text-right">
             <div className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-400 mb-1">Gross Earnings (This Week)</div>
             <div className="font-data text-3xl font-semibold text-emerald-400">{money(earnUp)}</div>
+            <div className="text-[11px] text-slate-500 mt-1 md:max-w-[220px] md:ml-auto">You collect from your dispatcher (factoring or direct) — see <button onClick={() => onNavigate && onNavigate('financials')} className="text-amber-400 hover:underline">Financial Routing</button>.</div>
+          </div>
+        </Card>
+      )}
+
+      {/* Carrier getting-started checklist — only while something's incomplete. */}
+      {!isAdmin && setup && !(setup.w9 && setup.agreements && setup.hos && setup.docs) && (
+        <Card className="p-5 border-amber-500/30">
+          <div className="flex items-center gap-2 mb-1"><span className="text-amber-400">🚀</span><h3 className="font-bold text-white">Finish setting up your profile</h3></div>
+          <p className="text-xs text-slate-400 mb-3">A few one-time steps so your dispatcher can start booking you loads.</p>
+          <div className="space-y-2">
+            {[
+              ['w9', 'Complete your W-9', 'agreements'],
+              ['agreements', 'Sign your Dispatch Agreement & Power of Attorney', 'agreements'],
+              ['hos', 'Set your Hours of Service', 'profile'],
+              ['docs', 'Upload your documents (Authority, COI, NOA) to the Vault', 'vault'],
+            ].map(([key, label, tab]) => (
+              <button key={key} onClick={() => onNavigate && onNavigate(tab)}
+                className="w-full flex items-center gap-3 text-left text-sm rounded-md px-3 py-2 hover:bg-white/5 transition-colors">
+                <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${setup[key] ? 'bg-emerald-500/20 text-emerald-400' : 'border border-slate-600 text-slate-500'}`}>{setup[key] ? '✓' : ''}</span>
+                <span className={setup[key] ? 'text-slate-500 line-through' : 'text-slate-200'}>{label}</span>
+                {!setup[key] && <span className="ml-auto text-xs text-amber-400 shrink-0">Do it →</span>}
+              </button>
+            ))}
           </div>
         </Card>
       )}
@@ -1237,6 +1323,7 @@ function PendingOfferScreen({ offer, onResolved }) {
         </Badge>
         <h2 className="text-2xl font-bold text-white mt-3">Review Your Load Offer</h2>
         <p className="text-slate-400 text-sm mt-1">Your dispatcher is holding this load for you. Respond to lock it in.</p>
+        {offer.offerSentAt && <p className="text-xs text-slate-500 mt-1">Sent {timeAgo(offer.offerSentAt)}</p>}
       </div>
 
       <Card className="overflow-hidden">
@@ -2005,20 +2092,29 @@ function LaneManagementView({ uid }) {
 
   const STATUS_FLOW = ['Dispatched', 'Arrived at Shipper', 'Loaded', 'In Transit', 'Delivered'];
 
+  const applyRows = (rows) => {
+    rows.sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
+    setLoads(rows);
+    setLoading(false);
+  };
   const fetchLoads = async () => {
     try {
       const snap = await getDocs(query(collection(db, 'loads'), where('uid', '==', targetUid)));
-      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      rows.sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''));
-      setLoads(rows);
-    } catch (err) {
-      console.error('Error loading lanes:', err);
-    } finally {
-      setLoading(false);
-    }
+      applyRows(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) { console.error('Error loading lanes:', err); setLoading(false); }
   };
 
-  useEffect(() => { fetchLoads(); }, []);
+  // LIVE: a RateCon your dispatcher just attached, or a status they advanced,
+  // shows up here instantly.
+  useEffect(() => {
+    if (!targetUid) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'loads'), where('uid', '==', targetUid)),
+      (snap) => applyRows(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => { console.error('lanes live listener failed', err); fetchLoads(); }
+    );
+    return () => unsub();
+  }, [targetUid]);
 
   const pending = loads.filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared');
   const active = pending[0] || null;
@@ -2956,6 +3052,7 @@ function AllLoadsView() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [driverFilter, setDriverFilter] = useState('All');
+  const [loadSearch, setLoadSearch] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null);
@@ -3111,10 +3208,12 @@ function AllLoadsView() {
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const driverEmails = Array.from(new Set(loads.map((l) => users[l.uid] || l.uid).filter(Boolean)));
 
+  const q = loadSearch.trim().toLowerCase();
   const filtered = loads.filter((l) => {
     const okStatus = statusFilter === 'All' || l.status === statusFilter;
     const okDriver = driverFilter === 'All' || (users[l.uid] || l.uid) === driverFilter;
-    return okStatus && okDriver;
+    const okSearch = !q || `${l.loadId || ''} ${l.origin || ''} ${l.destination || ''} ${l.commodity || ''} ${users[l.uid] || ''}`.toLowerCase().includes(q);
+    return okStatus && okDriver && okSearch;
   });
 
   const statusStyle = (s) => {
@@ -3169,6 +3268,8 @@ function AllLoadsView() {
           <option value="All">All statuses</option>
           {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        <input value={loadSearch} onChange={(e) => setLoadSearch(e.target.value)} placeholder="Search load #, city, commodity…"
+          className={`${INPUT_CLS} w-full sm:w-64`} />
       </div>
 
       {filtered.length === 0 ? (
@@ -4570,7 +4671,7 @@ function IntakeLink() {
   );
 }
 
-function CarriersView() {
+function CarriersView({ onNavigate }) {
   const [list, setList] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4774,7 +4875,7 @@ function CarriersView() {
   };
 
   const remove = async (id) => {
-    if (!window.confirm('Remove this carrier profile?')) return;
+    if (!window.confirm('Remove this carrier profile?\n\nThis only removes them from your Carriers list. Their login, signed agreements, and past loads/invoices are all kept on record — nothing legal or financial is deleted.')) return;
     try {
       await deleteDoc(doc(db, 'carriers', id));
       setList((p) => p.filter((c) => c.id !== id));
@@ -4783,10 +4884,23 @@ function CarriersView() {
     }
   };
 
+  // Trigger a password-reset email to a carrier who's locked out. Firebase
+  // sends it directly; no temp password to relay.
+  const [resetMsg, setResetMsg] = useState('');
+  const sendReset = async (email) => {
+    if (!email) return;
+    try { await sendPasswordResetEmail(auth, email); setResetMsg('Reset link sent to ' + email); }
+    catch (e) { console.error('reset failed', e); setResetMsg('Could not send reset — ' + (e.code || e.message)); }
+    setTimeout(() => setResetMsg(''), 4000);
+  };
+
+  const flash = (msg) => { setResetMsg(msg); setTimeout(() => setResetMsg(''), 2500); };
+
   const updateHours = async (id, hours) => {
     try {
       await updateDoc(doc(db, 'carriers', id), { currentDriveHours: Number(hours) || 0 });
       setList((p) => p.map((c) => (c.id === id ? { ...c, currentDriveHours: Number(hours) || 0 } : c)));
+      flash('Drive hours saved ✓');
     } catch (e) {
       console.error('Error updating hours:', e);
     }
@@ -4797,6 +4911,7 @@ function CarriersView() {
     try {
       await updateDoc(doc(db, 'carriers', id), { feePct: v });
       setList((p) => p.map((c) => (c.id === id ? { ...c, feePct: v } : c)));
+      flash(`Fee updated to ${v}% ✓`);
     } catch (e) { console.error('Error updating fee:', e); }
   };
 
@@ -4804,6 +4919,7 @@ function CarriersView() {
     try {
       await updateDoc(doc(db, 'carriers', id), { availability: value });
       setList((p) => p.map((c) => (c.id === id ? { ...c, availability: value } : c)));
+      flash('Status updated ✓');
     } catch (e) { console.error('Error updating availability:', e); }
   };
 
@@ -4983,6 +5099,7 @@ function CarriersView() {
               className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-amber-500 w-full sm:w-64" />
           )}
         </div>
+        {resetMsg && <div className="mb-3 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded px-3 py-2">{resetMsg}</div>}
         {loading ? (
           <SkelRows rows={3} />
         ) : list.length === 0 ? (
@@ -5010,8 +5127,17 @@ function CarriersView() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Remove</button>
+                    <div className="flex items-center gap-1.5">
+                      {c.linkedDriverUid && driverEmail(c.linkedDriverUid) && (
+                        <button onClick={() => sendReset(driverEmail(c.linkedDriverUid))} title="Email this carrier a password-reset link"
+                          className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg">Reset PW</button>
+                      )}
+                      <button onClick={() => remove(c.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg">Remove</button>
+                    </div>
                     {c.vipConcierge && <span className="text-[10px] bg-amber-500/15 text-amber-400 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5"><HeartPulse size={10} /> VIP</span>}
+                    {agreementStatus(c) === 'signed' && onNavigate && (
+                      <button onClick={() => onNavigate('calc')} className="text-[11px] text-amber-400 hover:text-amber-300">Ready — price a load →</button>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -6676,6 +6802,11 @@ function CarrierAgreementsView({ uid, isAdmin }) {
           <div className="mt-3 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-300">
             📝 Your dispatcher updated the terms — review the document above and sign again. Your previous signature ({lpoa.signedName}, {fmt(lpoa.signedAtMs)}) stays on record.
           </div>
+        )}
+        {(!lpoa || resign.lpoa) && canSign && (
+          <p className="mt-3 text-xs text-slate-400 rounded-md bg-slate-800/50 border border-slate-700 px-3 py-2">
+            💡 In plain terms: this only lets your dispatcher sign <strong className="text-slate-200">rate confirmations</strong> and broker load paperwork for you. It does <strong className="text-slate-200">not</strong> touch your bank account or money, and you can revoke it in writing anytime.
+          </p>
         )}
         {lpoa && !resign.lpoa ? <ESigned rec={lpoa} />
           : canSign ? <ESignBox value={sigP} onChange={setSigP} agree={agreeP} onAgree={setAgreeP} onSign={signLpoa} label="I grant this Limited Power of Attorney and I’m signing it electronically." />
@@ -8406,10 +8537,23 @@ function InvoicesView() {
       return { loadId: l.loadId || l.id, lane: `${l.origin || '?'} → ${l.destination || '?'}`, date: l.delivery_date || '', gross, pct, fee: gross * pct / 100 };
     });
     return { uid, name, mc: c && c.mcNumber, email: emailByUid[uid], lines,
+      loadIds: items.map((l) => l.id),
+      paid: items.length > 0 && items.every((l) => l.invoicePaid === true),
       totalGross: lines.reduce((s, x) => s + x.gross, 0), totalFee: lines.reduce((s, x) => s + x.fee, 0) };
   };
   const invoices = Object.entries(groups).map(([uid, items]) => invoiceFor(uid, items)).sort((a, b) => b.totalFee - a.totalFee);
   const weekFee = invoices.reduce((s, i) => s + i.totalFee, 0);
+  const collectedFee = invoices.filter((i) => i.paid).reduce((s, i) => s + i.totalFee, 0);
+  const outstandingFee = weekFee - collectedFee;
+
+  // Mark every load on this invoice paid/unpaid. Persists on the loads
+  // themselves so the status is remembered across weeks and sessions.
+  const setInvoicePaid = async (inv, paid) => {
+    setLoads((prev) => prev.map((l) => (inv.loadIds.includes(l.id) ? { ...l, invoicePaid: paid } : l)));
+    try {
+      await Promise.all(inv.loadIds.map((id) => updateDoc(doc(db, 'loads', id), { invoicePaid: paid, invoicePaidAt: paid ? serverTimestamp() : null })));
+    } catch (e) { console.error('mark paid failed', e); }
+  };
 
   const exportCsv = (inv) => {
     const rows = [['Load', 'Lane', 'Delivered', 'Gross', 'Fee %', 'Dispatch Fee']];
@@ -8444,9 +8588,15 @@ function InvoicesView() {
           <div className="text-xs text-slate-500">{weekOffset === 0 ? 'This week' : weekOffset === -1 ? 'Last week' : `${Math.abs(weekOffset)} weeks ${weekOffset < 0 ? 'ago' : 'ahead'}`}</div>
         </div>
         <GhostButton onClick={() => setWeekOffset((w) => w + 1)} className="text-sm">Next →</GhostButton>
-        <div className="ml-auto text-right">
-          <div className="text-[11px] uppercase tracking-wide text-slate-500">Total fees this week</div>
-          <div className="text-xl font-bold text-emerald-400 fm-profit">{money(weekFee)}</div>
+        <div className="ml-auto flex items-center gap-5 text-right">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Outstanding</div>
+            <div className="text-lg font-bold text-amber-400">{money(outstandingFee)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Collected</div>
+            <div className="text-lg font-bold text-emerald-400">{money(collectedFee)}</div>
+          </div>
         </div>
       </div>
 
@@ -8455,17 +8605,23 @@ function InvoicesView() {
         : (
           <div className="space-y-3">
             {invoices.map((inv) => (
-              <Card key={inv.uid} className="p-5">
+              <Card key={inv.uid} className={`p-5 ${inv.paid ? 'border-emerald-500/30' : ''}`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <button onClick={() => setOpen(open === inv.uid ? null : inv.uid)} className="text-left min-w-0">
-                    <div className="font-bold text-white">{inv.name}{inv.mc ? <span className="text-slate-400 font-normal"> · {inv.mc}</span> : ''}</div>
+                    <div className="font-bold text-white flex items-center gap-2">{inv.name}{inv.mc ? <span className="text-slate-400 font-normal"> · {inv.mc}</span> : ''}
+                      {inv.paid ? <Badge tone="emerald" className="text-[10px]">Paid</Badge> : <Badge tone="amber" className="text-[10px]">Unpaid</Badge>}
+                    </div>
                     <div className="text-xs text-slate-400">{inv.lines.length} load(s) · gross {money(inv.totalGross)}</div>
                   </button>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div className="text-[11px] uppercase tracking-wide text-slate-500">Fee due</div>
-                      <div className="text-lg font-bold text-emerald-400">{money(inv.totalFee)}</div>
+                      <div className={`text-lg font-bold ${inv.paid ? 'text-slate-500 line-through' : 'text-emerald-400'}`}>{money(inv.totalFee)}</div>
                     </div>
+                    <button onClick={() => setInvoicePaid(inv, !inv.paid)}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-semibold ${inv.paid ? 'border border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-emerald-500 text-slate-950'}`}>
+                      {inv.paid ? 'Mark unpaid' : 'Mark paid'}
+                    </button>
                     <button onClick={() => exportCsv(inv)} className="text-xs border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg hover:bg-slate-800">CSV</button>
                     <button onClick={() => printInvoice(inv)} className="text-xs bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg">Print / PDF</button>
                   </div>
@@ -8537,7 +8693,8 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
         userSnap.docs.forEach((d) => { emailByUid[d.id] = d.data().email || d.id; });
         const loads = loadSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         loads.filter((l) => l.offerStatus === 'pending').forEach((l) => {
-          out.push({ id: 'offer-' + l.id, tone: 'amber', icon: '📣', text: `Offer ${l.loadId || ''} awaiting ${emailByUid[l.uid] || 'carrier'}`, tab: 'allloads' });
+          const age = l.offerSentAt ? ` · sent ${timeAgo(l.offerSentAt)}` : '';
+          out.push({ id: 'offer-' + l.id, tone: 'amber', icon: '📣', text: `Offer ${l.loadId || ''} awaiting ${emailByUid[l.uid] || 'carrier'}${age}`, tab: 'allloads' });
         });
         loads.filter((l) => l.offerStatus === 'declined').forEach((l) => {
           out.push({ id: 'declined-' + l.id, tone: 'red', icon: '✕', text: `${emailByUid[l.uid] || 'Carrier'} declined ${l.loadId || ''}${l.declineReason ? ' — ' + l.declineReason : ''}`, tab: 'allloads' });
@@ -8577,6 +8734,23 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
   }, [isAdmin, uid]);
 
   useEffect(() => { build(); }, [build]);
+
+  // LIVE: rebuild the bell whenever loads change (a carrier accepts/declines,
+  // signs a RateCon, files detention) so the badge updates without a refresh.
+  // Loads carry the most time-sensitive alerts; compliance/VIP still refresh
+  // on open. Debounced so a burst of writes triggers a single rebuild.
+  useEffect(() => {
+    const q = isAdmin ? orgScoped('loads')
+      : uid ? query(collection(db, 'loads'), where('uid', '==', uid))
+      : null;
+    if (!q) return;
+    let t = null, first = true;
+    const unsub = onSnapshot(q, () => {
+      if (first) { first = false; return; } // build() already ran on mount
+      clearTimeout(t); t = setTimeout(() => build(), 400);
+    }, (e) => console.error('bell live listener failed', e));
+    return () => { clearTimeout(t); unsub(); };
+  }, [isAdmin, uid, build]);
 
   useEffect(() => {
     if (!open) return;
