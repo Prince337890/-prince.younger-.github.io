@@ -3254,7 +3254,7 @@ function AllLoadsView() {
         <GhostButton onClick={fetchAll} className="text-sm px-3 py-2">Refresh</GhostButton>
       </div>
 
-      <GuidedHint>Your command center for every load. Use the <strong>Status</strong> dropdown to advance a load, <strong>Edit</strong> to fix details or work the paperwork checklist, and <strong>Cancel Offer</strong> to pull back a pending offer.</GuidedHint>
+      <GuidedHint>Your command center for every load. <strong>Click any load</strong> to open its full detail — every field, the <strong>Status</strong> options, and the <strong>Paperwork to Collect</strong> checklist. Use the inline <strong>Status</strong> dropdown to advance a load without opening it, and <strong>Cancel Offer</strong> to pull back a pending offer.</GuidedHint>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatTile label="Total Loads" value={filtered.length} />
@@ -3289,17 +3289,18 @@ function AllLoadsView() {
               </thead>
               <tbody>
                 {filtered.map((l) => (
-                  <tr key={l.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                  <tr key={l.id} onClick={() => openEdit(l)} title="Open full load — details, status & paperwork to collect"
+                    className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors cursor-pointer">
                     <Td className="font-mono text-amber-500 font-semibold">{l.loadId || '—'}</Td>
                     <Td className="text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</Td>
                     <Td className="text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</Td>
                     <Td className="text-slate-400">{l.delivery_date || '—'}</Td>
                     <Td className="font-semibold text-white">{money(l.gross_pay)}</Td>
-                    <Td><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</Td>
-                    <Td>
+                    <Td onClick={(e) => e.stopPropagation()}><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</Td>
+                    <Td onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <OfferButton l={l} />
-                        <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg transition-colors">Edit</button>
+                        <button onClick={() => openEdit(l)} className="text-xs bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg transition-colors">Open</button>
                       </div>
                     </Td>
                   </tr>
@@ -3311,18 +3312,20 @@ function AllLoadsView() {
           <div className="md:hidden space-y-3">
             {filtered.map((l) => (
               <Card key={l.id} className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-amber-500 font-semibold text-sm">{l.loadId || '—'}</span>
-                  <span className="font-semibold text-white text-sm">{money(l.gross_pay)}</span>
+                <div onClick={() => openEdit(l)} className="space-y-2 cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-amber-500 font-semibold text-sm">{l.loadId || '—'}</span>
+                    <span className="font-semibold text-white text-sm">{money(l.gross_pay)}</span>
+                  </div>
+                  <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
+                  <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
+                  <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
+                  {offerBadge(l.offerStatus) && <div>{offerBadge(l.offerStatus)}{l.offerStatus === 'declined' && l.declineReason ? <span className="text-[10px] text-slate-500 ml-2">({l.declineReason})</span> : null}</div>}
                 </div>
-                <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
-                <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
-                <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
-                {offerBadge(l.offerStatus) && <div>{offerBadge(l.offerStatus)}{l.offerStatus === 'declined' && l.declineReason ? <span className="text-[10px] text-slate-500 ml-2">({l.declineReason})</span> : null}</div>}
                 <div className="flex gap-2 items-center">
                   <div className="flex-1"><StatusSelect l={l} full /></div>
                   <OfferButton l={l} />
-                  <button onClick={() => openEdit(l)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg transition-colors shrink-0">Edit</button>
+                  <button onClick={() => openEdit(l)} className="text-xs bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-semibold px-3 py-2 rounded-lg transition-colors shrink-0">Open</button>
                 </div>
               </Card>
             ))}
@@ -8590,6 +8593,32 @@ function InvoicesView() {
     a.download = `invoice_${inv.name.replace(/\s+/g, '_')}_${weekLabel.replace(/[^\w]+/g, '-')}.csv`;
     a.click(); URL.revokeObjectURL(a.href);
   };
+  // Open a pre-addressed email to the carrier with the invoice itemized in the
+  // body. Uses the dispatcher's own email client (mailto:) so it works today
+  // with no backend/cost; when the Trigger Email extension is live this can be
+  // swapped for a true one-click auto-send.
+  const emailInvoice = (inv) => {
+    if (!inv.email) { alert(`No email on file for ${inv.name}. Add the carrier's email (Carriers tab) to send their invoice.`); return; }
+    const lines = inv.lines.map((x) => `  • ${x.loadId}  ${x.lane}  (${x.date})  gross ${money(x.gross)} × ${x.pct}% = ${money(x.fee)}`).join('\n');
+    const subject = `Forward Motion Freight — Dispatch Invoice · Week of ${weekLabel}`;
+    const body =
+`Hi ${inv.name},
+
+Here is your dispatch invoice for the week of ${weekLabel}.
+
+Loads delivered:
+${lines}
+
+Total gross: ${money(inv.totalGross)}
+Dispatch fee due: ${money(inv.totalFee)}
+
+Payable per your dispatch agreement. Reply here with any questions.
+
+Thank you,
+Forward Motion Freight`;
+    window.location.href = `mailto:${encodeURIComponent(inv.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   const printInvoice = (inv) => {
     const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print the invoice.'); return; }
     const rowsHtml = inv.lines.map((x) => `<tr><td>${x.loadId}</td><td>${x.lane}</td><td>${x.date}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
@@ -8604,7 +8633,7 @@ function InvoicesView() {
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Auto-built from each carrier's delivered loads this week — ready to export and bill.</p>
-      <GuidedHint>Pick a week, and the system totals each carrier's delivered loads × your dispatch fee. Export to CSV for your records or Print/Save-PDF to send the carrier. This is your weekly billing, done.</GuidedHint>
+      <GuidedHint>Pick a week, and the system totals each carrier's delivered loads × your dispatch fee. <strong>Email</strong> sends the invoice straight to the carrier, or export to CSV / Print-PDF for your records. This is your weekly billing, done.</GuidedHint>
 
       <div className="flex items-center gap-3">
         <GhostButton onClick={() => setWeekOffset((w) => w - 1)} className="text-sm">← Prev</GhostButton>
@@ -8648,6 +8677,8 @@ function InvoicesView() {
                       {inv.paid ? 'Mark unpaid' : 'Mark paid'}
                     </button>
                     <button onClick={() => exportCsv(inv)} className="text-xs border border-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg hover:bg-slate-800">CSV</button>
+                    <button onClick={() => emailInvoice(inv)} title={inv.email ? `Email to ${inv.email}` : 'No carrier email on file'}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border ${inv.email ? 'border-blue-500/40 text-blue-300 bg-blue-500/10 hover:bg-blue-500/20' : 'border-slate-800 text-slate-600'}`}>Email</button>
                     <button onClick={() => printInvoice(inv)} className="text-xs bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg">Print / PDF</button>
                   </div>
                 </div>
