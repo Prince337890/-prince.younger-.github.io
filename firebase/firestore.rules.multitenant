@@ -38,21 +38,48 @@ service cloud.firestore {
 
     // ---- user accounts ----
     // Self-write covers a carrier's own availability, vipRequested,
-    // credentials, and CPM inputs (all on their user doc). A dispatcher can
-    // read/manage the user docs inside their own workspace.
+    // credentials, CPM inputs, W-9, profile, etc. (all on their user doc).
+    // A dispatcher can read/manage the user docs inside their own workspace.
+    //
+    // SECURITY: role / orgId / approved are AUTHORIZATION fields. A user must
+    // never be able to change their OWN authorization — otherwise any carrier
+    // (who already holds a valid auth token) could set role:'admin' +
+    // orgId:'<any workspace>' on themselves and take over that workspace.
+    // Those three fields are set only by a dispatcher/super at provisioning.
+    // (Writing an unchanged value is not a "change", so the app's login-time
+    //  merge of approved:true on an already-approved doc still passes.)
     match /users/{uid} {
       allow read:   if request.auth.uid == uid || isSuper()
                     || (isDispatcher() && resource.data.orgId == myOrg());
-      allow create: if request.auth.uid == uid || ownNew(request);
-      allow update: if request.auth.uid == uid || ownDoc(resource);
+      // Provisioning only — never self-create (blocks a fresh Google/email
+      // sign-in from minting itself an admin user doc).
+      allow create: if ownNew(request);
+      allow update: if isSuper()
+                    || (isDispatcher() && resource.data.orgId == myOrg())
+                    || (request.auth.uid == uid
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                              .hasAny(['role', 'orgId', 'approved']));
       allow delete: if ownDoc(resource);
     }
 
     // ---- loads (driver owns by uid; dispatcher owns by orgId) ----
+    // The dispatcher who owns the load can edit anything. The linked driver
+    // can only touch the fields their own screens write — status, offer
+    // response, RateCon signature, delivery debrief, detention, and the proof
+    // package. They must NOT be able to rewrite gross_pay / feePct / orgId,
+    // which drive invoicing and tenant scope.
+    function driverLoadKeys() {
+      return ['status', 'offerStatus', 'offerRespondedAt', 'declineReason',
+              'rateConSigned', 'deliveryReport', 'detention', 'docs', 'steps',
+              'showerRequested', 'showerRequestedAt'];
+    }
     match /loads/{id} {
       allow read:   if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
       allow create: if ownNew(request);
-      allow update: if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
+      allow update: if ownDoc(resource)
+                    || (signedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(driverLoadKeys()));
       allow delete: if ownDoc(resource);
     }
 
