@@ -203,16 +203,25 @@ async function queueEmail(to, subject, html) {
   }
 }
 
-function emailShell(bodyHtml) {
+// Brand-aware email wrapper. Pass a brand ({ name, logoUrl }) to co-brand the
+// banner with the dispatcher's business (white-label uses their logo; Pro shows
+// their name). A small "Powered by Forward OS" footer always stays. No brand →
+// the default Forward Motion Freight banner (used for FMF's own emails).
+function emailShell(bodyHtml, brand) {
+  const b = brand || {};
+  const banner = b.logoUrl
+    ? `<img src="${b.logoUrl}" alt="${(b.name || 'Logo').replace(/"/g, '')}" style="max-height:30px;max-width:220px;display:block" />`
+    : `<span style="color:#f59e0b;font-weight:bold;letter-spacing:2px;font-size:13px">${(b.name || 'Forward Motion Freight').toUpperCase()}</span>`;
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1f2937;line-height:1.6">
     <div style="background:#0a0f1a;padding:22px 24px;border-radius:12px 12px 0 0">
-      <span style="color:#f59e0b;font-weight:bold;letter-spacing:2px;font-size:13px">FORWARD MOTION FREIGHT</span>
+      ${banner}
     </div>
     <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:24px">${bodyHtml}</div>
+    <div style="text-align:center;padding:12px 0;color:#9ca3af;font-size:11px;letter-spacing:0.5px">Powered by Forward OS</div>
   </div>`;
 }
 
-function welcomeCarrierEmail({ name, email, tempPw, company, phone }) {
+function welcomeCarrierEmail({ name, email, tempPw, company, phone, logoUrl }) {
   const co = company || 'Forward Motion Freight';
   return emailShell(`
     <h2 style="margin:0 0 12px;font-size:20px">Welcome aboard, ${name || 'driver'}!</h2>
@@ -228,7 +237,7 @@ function welcomeCarrierEmail({ name, email, tempPw, company, phone }) {
     <p>Inside you'll find your assigned loads, pay, compliance dates, document vault, and your own cost-per-mile calculator — all in one place.</p>
     ${phone ? `<p>Questions about a load? Call your dispatcher: <strong>${phone}</strong>.</p>` : ''}
     <p style="color:#6b7280;font-size:13px">Questions? Just reply to this email and we'll get you sorted.</p>
-    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`);
+    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`, { name: company, logoUrl });
 }
 
 function welcomeCarrierText({ email, tempPw, company, phone }) {
@@ -257,7 +266,7 @@ function welcomeDispatcherEmail({ name, email, tempPw }) {
 // so a new offer must reach them immediately. Email is queued via the mail
 // collection; a copy-to-text version lets the dispatcher fire an SMS from their
 // own phone right now (until the Twilio auto-SMS function is deployed).
-function offerCarrierEmail({ carrierName, loadId, origin, destination, rate, pickup, delivery, commodity, dispatchPhone, company }) {
+function offerCarrierEmail({ carrierName, loadId, origin, destination, rate, pickup, delivery, commodity, dispatchPhone, company, logoUrl }) {
   const co = company || 'Forward Motion Freight';
   const money = (x) => '$' + (Number(x) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return emailShell(`
@@ -273,7 +282,7 @@ function offerCarrierEmail({ carrierName, loadId, origin, destination, rate, pic
     </table>
     <p><a href="${PORTAL_URL}" style="background:#f59e0b;color:#06141f;font-weight:bold;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">Review the offer &rarr;</a></p>
     ${dispatchPhone ? `<p style="color:#6b7280;font-size:13px">Questions? Call dispatch: <strong>${dispatchPhone}</strong>.</p>` : ''}
-    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`);
+    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`, { name: company, logoUrl });
 }
 
 function offerCarrierText({ loadId, origin, destination, rate, pickup, dispatchPhone, company }) {
@@ -352,7 +361,31 @@ const MARKET_PULSE = {
 // so the app keeps working exactly as before until the full cutover.
 // ============================================================================
 let ACTIVE_ORG = null;
-function setActiveOrg(orgId) { ACTIVE_ORG = orgId || null; }
+function setActiveOrg(orgId) { ACTIVE_ORG = orgId || null; _orgBrandCache = null; }
+
+// Per-workspace brand for co-branding (Pro shows the company name; the
+// Authority/white-label tier shows an uploaded logo). Loaded once per active
+// org and cached at the module level so the sidebar/emails don't re-read it.
+let _orgBrandCache = null;
+function useOrgBrand(enabled = true) {
+  const [brand, setBrand] = useState(_orgBrandCache && _orgBrandCache._org === ACTIVE_ORG ? _orgBrandCache : null);
+  useEffect(() => {
+    if (!enabled || !ACTIVE_ORG) return;
+    if (_orgBrandCache && _orgBrandCache._org === ACTIVE_ORG) { setBrand(_orgBrandCache); return; }
+    let live = true;
+    (async () => {
+      try {
+        const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG));
+        if (!live) return;
+        const d = o.exists() ? o.data() : {};
+        const b = { _org: ACTIVE_ORG, name: d.name || '', logoUrl: d.logoUrl || '', brandTier: d.brandTier || '' };
+        _orgBrandCache = b; setBrand(b);
+      } catch (_) { /* brand is best-effort; falls back to Forward OS */ }
+    })();
+    return () => { live = false; };
+  }, [enabled]);
+  return brand;
+}
 // Org-filtered query for dispatcher-wide reads; unscoped when no org is set.
 function orgScoped(name) {
   return ACTIVE_ORG ? query(collection(db, name), where('orgId', '==', ACTIVE_ORG)) : collection(db, name);
@@ -395,9 +428,34 @@ function ForwardOSLogo({ size = 36 }) {
   );
 }
 
-function BrandLockup({ size = 34, stack = false }) {
+// When `branded`, the lockup co-brands to the active workspace: the Authority
+// (white-label) tier shows the company's own logo, Pro shows the company name,
+// both with a small "Powered by Forward OS" line. No brand (or pre-login) →
+// the default Forward OS lockup.
+function BrandLockup({ size = 34, stack = false, branded = false }) {
+  const brand = useOrgBrand(branded);
+  const wrap = `flex items-center gap-2.5 ${stack ? 'flex-col text-center gap-2' : ''}`;
+
+  if (branded && brand && brand.logoUrl) {
+    return (
+      <div className={stack ? 'flex flex-col items-center gap-1' : 'flex flex-col leading-none'}>
+        <img src={brand.logoUrl} alt={brand.name || 'Workspace logo'} style={{ height: size, maxWidth: 168 }} className="object-contain" />
+        <div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold mt-1">POWERED BY FORWARD OS</div>
+      </div>
+    );
+  }
+  if (branded && brand && brand.name) {
+    return (
+      <div className={wrap}>
+        <div className={stack ? '' : 'leading-none'}>
+          <div className="text-base font-extrabold tracking-tight text-white leading-none">{brand.name}</div>
+          <div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold mt-1">POWERED BY FORWARD OS</div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className={`flex items-center gap-2.5 ${stack ? 'flex-col text-center gap-2' : ''}`}>
+    <div className={wrap}>
       <ForwardOSLogo size={size} />
       <div className={stack ? '' : 'leading-none'}>
         <div className="text-base font-extrabold tracking-tight text-white leading-none">Forward<span className="text-amber-500">OS</span></div>
@@ -634,7 +692,7 @@ export default function App() {
         } md:translate-x-0`}
       >
         <div className="p-6 flex items-start justify-between">
-          <BrandLockup size={34} />
+          <BrandLockup size={34} branded />
           <button
             onClick={() => setSidebarOpen(false)}
             className="md:hidden text-slate-400 hover:text-white text-3xl leading-none -mt-1"
@@ -6032,7 +6090,7 @@ function OnboardingWizard({ onDone }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans flex flex-col">
       <div className="border-b border-slate-800/80 px-4 md:px-8 py-4 flex items-center justify-between">
-        <BrandLockup size={30} />
+        <BrandLockup size={30} branded />
         <button onClick={() => signOut(auth)} className="text-xs text-slate-400 hover:text-white">Sign out</button>
       </div>
 
