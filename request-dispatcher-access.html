@@ -28,6 +28,9 @@
                 Forward OS dispatcher workspaces are provisioned by hand while we're in beta — no self-serve signup yet.
                 Tell us a bit about you and we'll follow up to get you set up.
             </p>
+            <p id="course-grad-note" class="mx-auto mt-4 hidden max-w-lg border border-[#7FB6DA]/30 bg-[#0a0f1a] px-4 py-3 text-sm text-[#7FB6DA]">
+                Course graduate? Your 30 days are free — no card, no catch. Do one real thing with it before day 30 and we lock your Founding Graduate rate.
+            </p>
 
             <form id="req" class="mx-auto mt-9 flex max-w-md flex-col gap-3 text-left">
                 <div>
@@ -89,6 +92,9 @@
       const el = (id) => document.getElementById(id);
       const form = el('req'), msg = el('r-msg'), btn = el('r-submit');
 
+      const fromCourse = new URLSearchParams(location.search).get('from') === 'course';
+      if (fromCourse) el('course-grad-note').classList.remove('hidden');
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = el('r-name').value.trim(), email = el('r-email').value.trim();
@@ -96,10 +102,11 @@
         if (!name || !email) return;
         btn.disabled = true; btn.textContent = 'Sending…'; msg.textContent = '';
         try {
-          const fromCourse = new URLSearchParams(location.search).get('from') === 'course';
           await addDoc(collection(db, 'dispatcher_leads'), { name, email, phone, situation, message, source: fromCourse ? 'request-dispatcher-access (course graduate)' : 'request-dispatcher-access', courseCompleted: fromCourse, createdAt: serverTimestamp() });
           form.style.display = 'none';
-          msg.textContent = "Request received — we'll be in touch soon.";
+          msg.textContent = fromCourse
+            ? "Request received. Your 30 days start the day we hand you your login — usually within 24–48 hours. Watch your inbox."
+            : "Request received — we'll be in touch soon.";
         } catch (err) {
           console.error(err);
           msg.textContent = 'Something went wrong — please try again in a moment.';
