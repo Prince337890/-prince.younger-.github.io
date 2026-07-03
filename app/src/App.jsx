@@ -409,7 +409,6 @@ function BrandLockup({ size = 34, stack = false }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [paymentMethod, setPaymentMethod] = useState('factoring');
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -550,7 +549,7 @@ export default function App() {
       case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'agreements': return <CarrierAgreementsView key={'agr-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'vault': return <DigitalVaultView key={'vault-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
-      case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />;
+      case 'financials': return <FinancialsView key={'fin-' + viewUid} uid={viewUid} />;
       case 'wellness': return <WellnessView />;
       case 'pets': return <PetLogisticsView />;
       case 'upgrades': return <UpgradesView key={'upg-' + viewUid} uid={viewUid} />;
@@ -1904,7 +1903,8 @@ function DeliveryDebriefModal({ load, onClose }) {
 
         <div className="space-y-2">
           <PrimaryButton onClick={() => submit(false)} disabled={busy} className="w-full py-3">{busy ? 'Sending…' : 'Send to Dispatcher'}</PrimaryButton>
-          <button onClick={() => submit(true)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm py-1">Skip</button>
+          <p className="text-[11px] text-amber-400/90 text-center">A signed POD is what gets this load invoiced — skipping it can delay your pay.</p>
+          <button onClick={() => submit(true)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm py-1">Skip for now</button>
         </div>
       </Card>
     </div>
@@ -1945,7 +1945,11 @@ function RateConCard({ load, onSigned }) {
         <a href={load.rateConUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-sm text-amber-400 hover:underline">📄 View the broker’s Rate Confirmation document</a>
       )}
       {signed ? (
-        <div className="mt-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3">✓ E-signed by <strong>{signed.name}</strong>. Your dispatcher has been notified.</div>
+        signed.byDispatcher ? (
+          <div className="mt-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-200 text-sm px-4 py-3">✓ Signed <strong>by your dispatcher on your behalf</strong>, under your Limited Power of Attorney{signed.name ? <> — recorded as “{signed.name}”</> : ''}. If this doesn’t look right, contact your dispatcher.</div>
+        ) : (
+          <div className="mt-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3">✓ E-signed by <strong>{signed.name}</strong>. Your dispatcher has been notified.</div>
+        )
       ) : (
         <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
           <p className="text-xs text-slate-400">Confirm the rate, stops, and times match what you agreed. Typing your name below is a legal electronic signature accepting these terms.</p>
@@ -2825,7 +2829,7 @@ function DigitalVaultView({ uid, isAdmin = false }) {
   );
 }
 // ---------- FINANCIALS ----------
-function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
+function FinancialsView({ uid }) {
   const targetUid = uid || auth.currentUser?.uid;
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2863,8 +2867,8 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
         <h2 className="text-2xl font-bold mb-2">Financial Routing</h2>
-        <p className="text-slate-400">Manage how you get paid and how your dispatch fees are settled.</p>
-        <GuidedHint>Shows the carrier how they get paid and their settlement ledger. Factoring vs. ACH is their choice — the math (gross, your fee, their net) is automatic.</GuidedHint>
+        <p className="text-slate-400">How you get paid, and your load-by-load settlement ledger.</p>
+        <GuidedHint>Shows the carrier how they get paid (through their factoring company) and their settlement ledger — gross, your fee, their net, computed automatically per load.</GuidedHint>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2873,27 +2877,15 @@ function FinancialsView({ uid, paymentMethod, setPaymentMethod }) {
         <StatTile label="Your Net Payout" value={money(totalNet)} accent="emerald" className="p-5" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div onClick={() => setPaymentMethod('factoring')}
-          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === 'factoring' ? 'border-amber-500 bg-amber-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}>
-          <div className="flex justify-between items-start mb-4">
-            <div className={`p-3 rounded-xl ${paymentMethod === 'factoring' ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-800 text-slate-400'}`}><Building size={24} /></div>
-            {paymentMethod === 'factoring' && <CheckCircle2 className="text-amber-500" size={24} />}
+      <Card className="p-6">
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-xl bg-amber-500/15 text-amber-500 shrink-0"><Building size={24} /></div>
+          <div>
+            <h3 className="text-xl font-bold mb-1">How you get paid</h3>
+            <p className="text-sm text-slate-400">You get paid through your factoring company. We submit your signed BOL with a Notice of Assignment, your factor funds you (often next business day), and your dispatch fee is settled out of that payment. <span className="text-slate-300">We never touch your bank account</span> — your exact split on every load is in the ledger below.</p>
           </div>
-          <h3 className="text-xl font-bold mb-2">The Factoring Split</h3>
-          <p className="text-sm text-slate-400">Automated, invisible settlement. We submit your BOL with a Notice of Assignment. They send you 90% and us our 10% directly.</p>
         </div>
-
-        <div onClick={() => setPaymentMethod('ach')}
-          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${paymentMethod === 'ach' ? 'border-amber-500 bg-amber-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'}`}>
-          <div className="flex justify-between items-start mb-4">
-            <div className={`p-3 rounded-xl ${paymentMethod === 'ach' ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-800 text-slate-400'}`}><CreditCard size={24} /></div>
-            {paymentMethod === 'ach' && <CheckCircle2 className="text-amber-500" size={24} />}
-          </div>
-          <h3 className="text-xl font-bold mb-2">Smart ACH Auto-Pay</h3>
-          <p className="text-sm text-slate-400">Keep your payouts whole. You get paid 100% from the broker. We run a weekly auto-draft for our percentage every Friday.</p>
-        </div>
-      </div>
+      </Card>
 
       <Card className="p-6 overflow-x-auto">
         <h3 className="text-lg font-bold mb-4">Settlements Ledger</h3>
@@ -6180,12 +6172,11 @@ function OnboardingWizard({ onDone }) {
                   <div><label className="block text-xs text-slate-400 mb-1">Contact Phone</label><input className={field} value={f.factorPhone} onChange={set('factorPhone')} /></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-xs text-slate-400 mb-1">ACH Routing Number</label><input className={field} value={f.achRouting} onChange={set('achRouting')} /></div>
-                  <div><label className="block text-xs text-slate-400 mb-1">ACH Account Number</label><input className={field} value={f.achAccount} onChange={set('achAccount')} /></div>
+                <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 text-sm text-slate-300">
+                  No problem — you don’t enter any bank details here. We settle every load through your factoring company or a Notice of Assignment. If you’d rather set up direct pay, your dispatcher will arrange that with you separately. <span className="text-slate-400">Your bank account number is never stored in the app.</span>
                 </div>
               )}
-              <p className="text-[11px] text-slate-500">Your banking details are stored with your carrier profile for settlement only.</p>
+              <p className="text-[11px] text-slate-500">We never touch your bank account. Settlement runs through factoring/NOA, and your dispatch fee comes out of that payment.</p>
             </div>
           )}
 
