@@ -3078,7 +3078,10 @@ function AssignLoadView() {
         <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
       </div>
       <p className="text-slate-400">Create a load and assign it to a driver — it appears instantly in their Lane Management & Schedule.</p>
-      <GuidedHint>Assign Load creates a load <strong>directly</strong> (no accept/decline). For a load the carrier should review and accept first, build it in the <strong>Rate Calculator</strong> and use “Send as Offer” instead.</GuidedHint>
+      <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+        <div className="font-semibold text-amber-300 flex items-center gap-2">⚠️ This assigns the load directly — no accept/decline</div>
+        <p className="text-slate-300 mt-1">The carrier is committed the moment you assign it here; they can’t review or decline. If you want them to confirm the rate first, price it in the <strong>Rate Calculator</strong> and use <strong>“Send as Offer”</strong> instead — that also runs the rate-floor, HOS, and compliance safety checks before it goes out.</p>
+      </div>
 
       {loading ? (
         <div className="text-slate-400">Loading drivers…</div>
