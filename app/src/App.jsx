@@ -3048,6 +3048,106 @@ function AssignLoadView() {
     </div>
   );
 }
+// ---------- TRIP PLAN (route-aware briefing) ----------
+// v1 is pure logic + your own Safe Parking data — no external routing API, no
+// cost. Distance comes from the load's loaded+deadhead miles; drive time and
+// the Hours-of-Service overnight breakpoints are computed; trusted parking is
+// matched to the origin/destination states. A later version can layer in
+// truck-legal routing + weather along the corridor.
+const US_STATE_CODES = new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']);
+function stateCodeFrom(loc) {
+  if (!loc) return null;
+  const toks = String(loc).toUpperCase().match(/\b[A-Z]{2}\b/g);
+  if (!toks) return null;
+  for (let i = toks.length - 1; i >= 0; i--) if (US_STATE_CODES.has(toks[i])) return toks[i];
+  return null;
+}
+function TripPlanPanel({ load }) {
+  const [spots, setSpots] = useState([]);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try { const snap = await getDocs(orgScoped('safe_parking')); if (live) setSpots(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); }
+      catch (e) { console.error('trip plan parking load failed', e); }
+    })();
+    return () => { live = false; };
+  }, []);
+
+  const AVG_MPH = 55, MAX_DRIVE = 11; // realistic OTR average + daily driving cap
+  const loaded = Number(load.loadedMiles) || 0;
+  const dead = Number(load.deadheadMiles) || 0;
+  const totalMi = loaded + dead;
+  const driveHrs = totalMi / AVG_MPH;
+  const days = totalMi > 0 ? Math.max(1, Math.ceil(driveHrs / MAX_DRIVE)) : 0;
+  const overnights = days > 0 ? days - 1 : 0;
+  const fmtHrs = (h) => { const t = Math.round(h * 60); const hh = Math.floor(t / 60); const mm = t % 60; return hh ? `${hh}h ${mm}m` : `${mm}m`; };
+
+  const oState = stateCodeFrom(load.origin);
+  const dState = stateCodeFrom(load.destination);
+  const routeStates = [...new Set([oState, dState].filter(Boolean))];
+  const matched = spots.filter((s) => routeStates.includes((s.state || '').toUpperCase().trim()));
+
+  const know = [
+    ['🕒', 'Hours of Service', `Plan the run against the 11-hour driving / 14-hour on-duty clock and the 70-hour/8-day limit. Build in the required 30-minute break by hour 8.`],
+    ['⛽', 'Fuel & scales', `Map fuel stops to the cheaper states on the lane and know which weigh stations are open${routeStates.length ? ` across ${routeStates.join(' → ')}` : ''}.`],
+    ['🌦', 'Weather & road', `Check the forecast and any construction/closures along the corridor before dispatch — a mountain pass or storm can add hours.`],
+    ['⭐', 'VIP add-ons', `Offer concierge extras where they fit the route: reserved safe parking near the overnight point, Healthy Hub / shower queue, pet logistics.`],
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+      <div className="text-sm font-semibold text-white flex items-center gap-2 flex-wrap">
+        🗺 Trip Plan
+        {oState && dState && <Badge tone="slate">{oState} → {dState}</Badge>}
+        <span className="text-[10px] text-slate-500 font-normal">route-aware briefing</span>
+      </div>
+
+      {totalMi > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+          <div><div className="text-[10px] uppercase tracking-wide text-slate-500">Distance</div><div className="font-data font-semibold text-white">{totalMi.toLocaleString()} mi</div></div>
+          <div><div className="text-[10px] uppercase tracking-wide text-slate-500">Est. drive</div><div className="font-data font-semibold text-white">{fmtHrs(driveHrs)}</div></div>
+          <div><div className="text-[10px] uppercase tracking-wide text-slate-500">Days</div><div className="font-data font-semibold text-white">{days}</div></div>
+          <div><div className="text-[10px] uppercase tracking-wide text-slate-500">Overnights</div><div className="font-data font-semibold text-amber-400">{overnights}</div></div>
+        </div>
+      ) : (
+        <p className="text-[11px] text-amber-400/80 mt-2">Add <strong>Loaded Miles</strong> above to get drive time, day count, and overnight planning.</p>
+      )}
+
+      {overnights > 0 && (
+        <p className="text-xs text-slate-400 mt-3">This run needs about <strong className="text-slate-200">{overnights}</strong> overnight stop{overnights === 1 ? '' : 's'}. End each driving day near a trusted, secure stop — suggestions below.</p>
+      )}
+
+      <div className="mt-3">
+        <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1.5">Trusted parking on this lane</div>
+        {matched.length > 0 ? (
+          <div className="space-y-1.5">
+            {matched.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 text-xs text-slate-300">
+                <MapPin size={13} className="text-emerald-400 shrink-0" />
+                <span className="font-medium text-white">{s.name}</span>
+                <span className="text-slate-500">{[s.highway_exit, s.state].filter(Boolean).join(' · ')}</span>
+                {s.has_showers && <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">showers</span>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-500">{routeStates.length ? `No trusted stops logged for ${routeStates.join(' / ')} yet — add them in Safe Parking so they show up here.` : 'Set the origin and destination (with a state, e.g. “Atlanta, GA”) to match trusted parking.'}</p>
+        )}
+      </div>
+
+      <div className="mt-3 border-t border-slate-800 pt-3 space-y-2">
+        <div className="text-[11px] uppercase tracking-wide text-slate-500">Know before you roll</div>
+        {know.map(([icon, t, body]) => (
+          <div key={t} className="flex gap-2 text-xs">
+            <span className="shrink-0">{icon}</span>
+            <span className="text-slate-400"><strong className="text-slate-200">{t}:</strong> {body}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---------- ADMIN: ALL LOADS ----------
 function AllLoadsView() {
   const [loads, setLoads] = useState([]);
@@ -3135,6 +3235,34 @@ function AllLoadsView() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  // --- "Carrier not in the app" mode ---------------------------------------
+  // When a carrier doesn't use the portal, the dispatcher runs the load on
+  // their behalf: accept the offer once the carrier confirms by phone/text, and
+  // record the RateCon e-signature (the LPOA authorizes signing rate cons for
+  // them). Proof docs are already uploadable via the LoadDocsPanel below.
+  const acceptOnBehalf = async (l) => {
+    if (!window.confirm(`Accept load ${l.loadId || ''} on ${users[l.uid] || 'the carrier'}'s behalf?\n\nUse this only when the carrier has confirmed by phone or text and isn't using the app. It moves the load to Dispatched.`)) return;
+    setUpdatingId(l.id);
+    try {
+      const patch = { offerStatus: 'accepted', status: 'Dispatched', offerRespondedAt: serverTimestamp(), offerAcceptedBy: 'dispatcher' };
+      await updateDoc(doc(db, 'loads', l.id), patch);
+      setLoads((prev) => prev.map((x) => (x.id === l.id ? { ...x, ...patch } : x)));
+      setEditing((ed) => (ed && ed.id === l.id ? { ...ed, ...patch } : ed));
+    } catch (e) { console.error('accept on behalf failed', e); alert('Could not accept — try again.'); }
+    finally { setUpdatingId(null); }
+  };
+  const signRateConOnBehalf = async (l) => {
+    const who = window.prompt(`Record the Rate Confirmation as signed on ${users[l.uid] || 'the carrier'}'s behalf (authorized by their LPOA).\n\nEnter how it was authorized — shown on the record — e.g. "Verbal OK — J. Smith, ${new Date().toLocaleDateString()}":`, '');
+    if (who === null) return;
+    const name = who.trim() || `${users[l.uid] || 'Carrier'} (via dispatcher)`;
+    try {
+      const rec = { name, at: serverTimestamp(), byDispatcher: true };
+      await updateDoc(doc(db, 'loads', l.id), { rateConSigned: rec });
+      setLoads((prev) => prev.map((x) => (x.id === l.id ? { ...x, rateConSigned: rec } : x)));
+      setEditing((ed) => (ed && ed.id === l.id ? { ...ed, rateConSigned: rec } : ed));
+    } catch (e) { console.error('sign on behalf failed', e); alert('Could not record the signature — try again.'); }
   };
 
   const offerBadge = (s) => {
@@ -3341,9 +3469,18 @@ function AllLoadsView() {
           >
             <form onSubmit={saveEdit} className="space-y-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Edit Load <span className="font-mono text-amber-500">{form.loadId}</span></h3>
+              <h3 className="text-lg font-bold">Load <span className="font-mono text-amber-500">{form.loadId}</span></h3>
               <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
             </div>
+
+            {editing.offerStatus === 'pending' && (
+              <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4">
+                <div className="text-sm font-semibold text-white flex items-center gap-2">🤝 Offer pending — carrier hasn’t responded in the app</div>
+                <p className="text-[11px] text-slate-400 mt-1">If this carrier doesn’t use the portal, accept on their behalf once they’ve confirmed by phone or text. The load moves to <strong>Dispatched</strong> and you keep working — no need to wait on a login.</p>
+                <button type="button" onClick={() => acceptOnBehalf(editing)} disabled={updatingId === editing.id}
+                  className="mt-3 text-xs bg-emerald-500 text-slate-950 font-semibold px-3 py-2 rounded-lg disabled:opacity-50">Accept on carrier’s behalf</button>
+              </div>
+            )}
 
             <Field label="Driver">
               <select className={field} value={form.driverUid} onChange={(e) => setField('driverUid', e.target.value)} required>
@@ -3373,6 +3510,8 @@ function AllLoadsView() {
               <Field label="Pickup Time"><input className={field} value={form.pickup_time} onChange={(e) => setField('pickup_time', e.target.value)} /></Field>
               <Field label="Delivery Time"><input className={field} value={form.delivery_time} onChange={(e) => setField('delivery_time', e.target.value)} /></Field>
             </div>
+
+            <TripPlanPanel load={editing} />
 
             <LoadStepChecklist
               load={editing}
@@ -3410,7 +3549,7 @@ function AllLoadsView() {
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="text-sm font-semibold text-white flex items-center gap-2">
                   📄 Rate Confirmation
-                  {editing.rateConSigned ? <Badge tone="emerald"><CheckCircle2 size={11} /> Signed by {editing.rateConSigned.name}</Badge>
+                  {editing.rateConSigned ? <Badge tone="emerald"><CheckCircle2 size={11} /> Signed by {editing.rateConSigned.name}{editing.rateConSigned.byDispatcher ? ' · on file' : ''}</Badge>
                     : editing.rateConUrl ? <Badge tone="amber">Sent — awaiting signature</Badge>
                     : <Badge tone="slate">Not attached</Badge>}
                 </div>
@@ -3421,6 +3560,10 @@ function AllLoadsView() {
               </div>
               {editing.rateConUrl && <a href={editing.rateConUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-400 hover:underline mt-2 inline-block">View attached document</a>}
               <p className="text-[11px] text-slate-500 mt-2">Attach the broker's RateCon — the carrier reviews and e-signs it from their Lane Management screen.</p>
+              {!editing.rateConSigned && (
+                <button type="button" onClick={() => signRateConOnBehalf(editing)}
+                  className="mt-2 text-xs text-blue-300 border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 rounded-lg hover:bg-blue-500/20">Record e-signature on carrier’s behalf</button>
+              )}
             </div>
 
             <LoadDocsPanel
