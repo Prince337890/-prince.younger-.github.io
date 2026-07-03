@@ -3462,17 +3462,18 @@ function AllLoadsView() {
       )}
 
       {editing && form && (
-        <div className="fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 overflow-y-auto" onClick={closeEdit}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8" onClick={closeEdit}>
           <Card
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl p-6 my-auto h-fit"
+            className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
           >
-            <form onSubmit={saveEdit} className="space-y-5">
-            <div className="flex items-center justify-between">
+            <form onSubmit={saveEdit} className="flex flex-col min-h-0 flex-1">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-800 shrink-0">
               <h3 className="text-lg font-bold">Load <span className="font-mono text-amber-500">{form.loadId}</span></h3>
               <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
             </div>
 
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
             {editing.offerStatus === 'pending' && (
               <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4">
                 <div className="text-sm font-semibold text-white flex items-center gap-2">🤝 Offer pending — carrier hasn’t responded in the app</div>
@@ -3574,8 +3575,9 @@ function AllLoadsView() {
                 setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, docs } : l)));
               }}
             />
+            </div>
 
-            <div className="flex items-center justify-between gap-3 pt-2 flex-wrap">
+            <div className="flex items-center justify-between gap-3 p-6 pt-4 border-t border-slate-800 shrink-0 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                 Delete Load
               </button>
