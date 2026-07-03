@@ -253,6 +253,37 @@ function welcomeDispatcherEmail({ name, email, tempPw }) {
     <p style="margin-top:18px">Keep moving forward,<br><strong>Forward Motion Freight — Operations</strong></p>`);
 }
 
+// Off-platform offer alert — carriers are driving, not watching a browser tab,
+// so a new offer must reach them immediately. Email is queued via the mail
+// collection; a copy-to-text version lets the dispatcher fire an SMS from their
+// own phone right now (until the Twilio auto-SMS function is deployed).
+function offerCarrierEmail({ carrierName, loadId, origin, destination, rate, pickup, delivery, commodity, dispatchPhone, company }) {
+  const co = company || 'Forward Motion Freight';
+  const money = (x) => '$' + (Number(x) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return emailShell(`
+    <h2 style="margin:0 0 12px;font-size:20px">New load offer${carrierName ? ', ' + carrierName : ''} — ${loadId}</h2>
+    <p>A load offer is waiting in your portal. Review and accept or decline before it's gone.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">
+      <tr><td style="padding:4px 0;color:#6b7280">Load</td><td style="text-align:right;font-weight:bold">${loadId}</td></tr>
+      <tr><td style="padding:4px 0;color:#6b7280">Lane</td><td style="text-align:right;font-weight:bold">${origin || '?'} &rarr; ${destination || '?'}</td></tr>
+      <tr><td style="padding:4px 0;color:#6b7280">Rate</td><td style="text-align:right;font-weight:bold;color:#059669">${money(rate)}</td></tr>
+      ${pickup ? `<tr><td style="padding:4px 0;color:#6b7280">Pickup</td><td style="text-align:right">${pickup}</td></tr>` : ''}
+      ${delivery ? `<tr><td style="padding:4px 0;color:#6b7280">Delivery</td><td style="text-align:right">${delivery}</td></tr>` : ''}
+      ${commodity ? `<tr><td style="padding:4px 0;color:#6b7280">Commodity</td><td style="text-align:right">${commodity}</td></tr>` : ''}
+    </table>
+    <p><a href="${PORTAL_URL}" style="background:#f59e0b;color:#06141f;font-weight:bold;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">Review the offer &rarr;</a></p>
+    ${dispatchPhone ? `<p style="color:#6b7280;font-size:13px">Questions? Call dispatch: <strong>${dispatchPhone}</strong>.</p>` : ''}
+    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`);
+}
+
+function offerCarrierText({ loadId, origin, destination, rate, pickup, dispatchPhone, company }) {
+  const co = company || 'Forward Motion Freight';
+  const money = (x) => '$' + (Number(x) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const pu = pickup ? `\nPickup: ${pickup}` : '';
+  const ph = dispatchPhone ? `\nQ's? ${dispatchPhone}` : '';
+  return `${co}: New load offer ${loadId}\n${origin || '?'} -> ${destination || '?'}\nRate: ${money(rate)}${pu}\n\nReview & accept in your portal: ${PORTAL_URL}${ph}`;
+}
+
 async function createDriverAccount(email, password) {
   const secondary = initializeApp(firebaseConfig, 'driver-creator-' + Date.now());
   const secondaryAuth = getAuth(secondary);
@@ -900,6 +931,45 @@ function MarketPulse() {
   );
 }
 
+// ---------- ADMIN: GET YOUR FIRST LOAD OUT ----------
+// A day-one dispatcher lands on an empty dashboard of zeros — this gives them
+// an actual next step. Disappears the moment they have any loads (they're
+// rolling and don't need hand-holding anymore).
+function AdminGettingStarted({ onNavigate }) {
+  const [counts, setCounts] = useState(null);
+  useEffect(() => { (async () => {
+    try {
+      const [cSnap, lSnap] = await Promise.all([getDocs(orgScoped('carriers')), getDocs(orgScoped('loads'))]);
+      setCounts({ carriers: cSnap.size, loads: lSnap.size });
+    } catch (_) { setCounts({ carriers: 0, loads: 0 }); }
+  })(); }, []);
+  if (!counts || counts.loads > 0) return null;
+  const steps = [
+    { done: counts.carriers > 0, label: 'Add your first carrier', desc: 'Save an owner-operator (and create their portal login) in Carriers & Access.', tab: 'carriers', cta: 'Add a carrier' },
+    { done: false, label: 'Price your first load', desc: 'Open the Rate Calculator, pick your carrier, and run the numbers — you’ll see your dispatch fee and True RPM.', tab: 'calc', cta: 'Open Rate Calculator' },
+    { done: false, label: 'Send it as an offer', desc: 'From the calculator, “Send as Offer” — the carrier gets an alert to accept or decline.', tab: 'calc', cta: 'Price & send' },
+  ];
+  return (
+    <Card className="p-6 border-amber-500/30">
+      <div className="flex items-center gap-2 mb-1"><span className="text-amber-400">🚀</span><h3 className="font-bold text-white">Get your first load out</h3></div>
+      <p className="text-sm text-slate-400 mb-4">Three steps to your first booked load. This card disappears once you’ve got loads moving.</p>
+      <div className="space-y-3">
+        {steps.map((s, i) => (
+          <button key={i} type="button" onClick={() => onNavigate && onNavigate(s.tab)}
+            className="w-full flex items-start gap-3 text-left rounded-lg border border-slate-800 hover:border-amber-500/40 hover:bg-slate-800/40 p-3 transition-colors">
+            <span className={`mt-0.5 shrink-0 w-5 h-5 rounded-full border flex items-center justify-center text-[11px] ${s.done ? 'bg-emerald-500 border-emerald-500 text-slate-950' : 'border-slate-600 text-slate-500'}`}>{s.done ? '✓' : i + 1}</span>
+            <span className="min-w-0">
+              <span className={`text-sm font-semibold ${s.done ? 'text-slate-400 line-through' : 'text-white'}`}>{s.label}</span>
+              <span className="block text-xs text-slate-500 mt-0.5">{s.desc}</span>
+            </span>
+            <span className="ml-auto shrink-0 text-xs text-amber-400 self-center">{s.cta} →</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // ---------- DASHBOARD ----------
 function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip }) {
   const u = auth.currentUser;
@@ -1011,6 +1081,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 
   return (
     <div className="space-y-6">
+      {isAdmin && <AdminGettingStarted onNavigate={onNavigate} />}
       {isAdmin && <AdminWeeklyGross />}
       {isAdmin && <MarketPulse />}
 
@@ -3646,7 +3717,7 @@ function LoginView({ accessDenied }) {
         <p className="text-center text-amber-400/90 font-semibold tracking-wide text-sm mb-8">Keep Moving Forward.</p>
 
         <h2 className="text-xl font-bold mb-2">Sign In</h2>
-        <p className="text-sm text-slate-400 mb-6">Access is invite-only. Use the email and temporary password your dispatcher gave you.</p>
+        <p className="text-sm text-slate-400 mb-6">Access is invite-only. Sign in with the email and temporary password from your welcome email.</p>
 
         {accessDenied && (
           <div className="mb-4 text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
@@ -3670,7 +3741,7 @@ function LoginView({ accessDenied }) {
         </form>
 
         <p className="text-center text-xs text-slate-500 mt-6">
-          Need access? Ask your dispatcher to add you.
+          Need access? <a href="https://forwardmotionfreight.com/request-dispatcher-access.html" className="text-amber-400 hover:underline">Request a workspace</a> or ask your dispatcher to add you.
         </p>
       </div>
     </div>
@@ -4171,6 +4242,12 @@ function NegotiationCalcView() {
 
   const [assigning, setAssigning] = useState(false);
   const [assignMsg, setAssignMsg] = useState('');
+  const [lastOfferText, setLastOfferText] = useState('');
+  const [orgInfo, setOrgInfo] = useState({ name: '', dispatchPhone: '' });
+  useEffect(() => { (async () => {
+    if (!ACTIVE_ORG) return;
+    try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setOrgInfo({ name: o.data().name || '', dispatchPhone: o.data().dispatchPhone || '' }); } catch (_) {}
+  })(); }, []);
   const assignLoad = async (asOffer = false) => {
     setAssignMsg('');
     if (!selectedCarrierObj) { setAssignMsg('Pick a saved carrier first.'); return; }
@@ -4244,6 +4321,20 @@ function NegotiationCalcView() {
         ...(asOffer ? { offerStatus: 'pending', offerSentAt: serverTimestamp() } : {}),
         createdAt: serverTimestamp(),
       }));
+      if (asOffer) {
+        const rate = Number(v.finalOffer) || Number(v.brokerOffer) || 0;
+        const origin = (v.originCity.trim() || v.originZip.trim());
+        const destination = (v.destCity.trim() || v.destZip.trim());
+        const pickup = v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '';
+        const delivery = v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '';
+        // Queue the off-platform email (sends once the Trigger Email extension is live)…
+        if (selectedCarrierObj.email) {
+          queueEmail(selectedCarrierObj.email, `New load offer ${loadId} — ${origin || '?'} → ${destination || '?'}`,
+            offerCarrierEmail({ carrierName: selectedCarrierObj.name, loadId, origin, destination, rate, pickup, delivery, commodity: v.commodity, dispatchPhone: orgInfo.dispatchPhone, company: orgInfo.name }));
+        }
+        // …and stage a text the dispatcher can send from their own phone right now.
+        setLastOfferText(offerCarrierText({ loadId, origin, destination, rate, pickup, dispatchPhone: orgInfo.dispatchPhone, company: orgInfo.name }));
+      }
       setAssignMsg(asOffer
         ? `Offer ${loadId} sent to ${selectedCarrierObj.name} — awaiting their accept/decline ✓`
         : `Load ${loadId} assigned to ${selectedCarrierObj.name} ✓`);
@@ -4275,7 +4366,10 @@ function NegotiationCalcView() {
   const weight = n(v.weight);
   const totalMiles = n(v.loadedMiles) + n(v.deadheadMiles);
 
-  const trueRpm = totalMiles > 0 ? brokerOffer / totalMiles : 0;
+  // Effective rate = the Final Agreed Rate once set, otherwise the broker offer —
+  // so True RPM and the dispatcher's fee reflect what was actually negotiated.
+  const effRate = n(v.finalOffer) || brokerOffer;
+  const trueRpm = totalMiles > 0 ? effRate / totalMiles : 0;
   const tripCost = (mpg > 0 ? (totalMiles / mpg) * fuelPrice : 0) + tolls + surcharge;
   const targetOffer = minRpm * totalMiles + tolls + surcharge;
   const gap = targetOffer - brokerOffer;
@@ -4286,6 +4380,10 @@ function NegotiationCalcView() {
   const marketGap = marketTarget > 0 ? marketTarget - brokerOffer : 0;
 
   const ready = brokerOffer > 0 && totalMiles > 0 && minRpm > 0;
+
+  // The dispatcher's own cut on this load — the number they most want to see.
+  const dispFeePct = Number(selectedCarrierObj?.feePct) || DEFAULT_FEE_PCT;
+  const yourFee = effRate * dispFeePct / 100;
 
   let status = 'idle';
   if (ready) {
@@ -4447,11 +4545,15 @@ function NegotiationCalcView() {
 
           <Metric label="True RPM" value={rpm(trueRpm)}
             accent={ready ? (trueRpm >= minRpm ? 'text-emerald-400' : 'text-amber-400') : 'text-white'}
-            guide="What the truck actually earns per mile driven. Compare to Carrier Min — if it's lower, you must negotiate." />
+            guide="What the truck actually earns per mile — on your Final Agreed Rate once you set it, otherwise the broker's offer. Compare to Carrier Min; if it's lower, negotiate." />
           <Metric label="Trip Cost" value={money(tripCost)}
             guide={`Hard cash to move the truck — fuel + tolls${surcharge > 0 ? ` + ${money(surcharge)} equipment accessorial` : ''}. The offer must cover this plus profit.`} />
           <Metric label="Target Offer (Floor)" value={money(targetOffer)} accent="text-amber-400" highlight
             guide="Your negotiation floor. Don't accept below this — counter the broker slightly higher than this number." />
+          {effRate > 0 && (
+            <Metric label={`Your Dispatch Fee (${dispFeePct}%)`} value={money(yourFee)} accent="text-emerald-400" highlight
+              guide={`What YOU keep on this load — ${dispFeePct}% of the gross${selectedCarrierObj ? `, ${selectedCarrierObj.name}'s rate` : ''}. Updates the moment you set the Final Agreed Rate.`} />
+          )}
           {gap > 0 && (
             <Metric label="The Gap (Counter By)" value={money(gap)} accent="text-amber-400"
               guide="Ask the broker for exactly this much more to make the load viable." />
@@ -4484,7 +4586,15 @@ function NegotiationCalcView() {
             <p className="text-[11px] text-slate-500">
               {selectedCarrierObj ? `Creates a dispatched load for ${selectedCarrierObj.name} and sends it to their portal.` : 'Pick a saved carrier above to enable.'}
             </p>
-            {assignMsg && <p className={`text-sm ${assignMsg.includes('✓') ? 'text-emerald-400' : 'text-amber-400'}`}>{assignMsg}</p>}
+            {assignMsg && <p className={`text-sm ${assignMsg.includes('✓') || assignMsg.includes('copied') ? 'text-emerald-400' : 'text-amber-400'}`}>{assignMsg}</p>}
+            {lastOfferText && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+                <p className="text-[11px] text-slate-400">Your carrier is on the road — send them the offer now so they see it before another dispatcher books the lane. (Auto-email is queued; text it too for speed.)</p>
+                <button type="button"
+                  onClick={() => { if (navigator.clipboard) { navigator.clipboard.writeText(lastOfferText).then(() => setAssignMsg('Offer text copied — paste it into a text to your carrier.')).catch(() => {}); } }}
+                  className="w-full text-xs font-semibold border border-blue-500/40 text-blue-200 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-2 rounded-lg">📋 Copy offer text to send your carrier</button>
+              </div>
+            )}
           </Card>
         </div>
       </div>
