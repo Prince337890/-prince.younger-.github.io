@@ -96,7 +96,8 @@
         if (!name || !email) return;
         btn.disabled = true; btn.textContent = 'Sending…'; msg.textContent = '';
         try {
-          await addDoc(collection(db, 'dispatcher_leads'), { name, email, phone, situation, message, source: 'request-dispatcher-access', createdAt: serverTimestamp() });
+          const fromCourse = new URLSearchParams(location.search).get('from') === 'course';
+          await addDoc(collection(db, 'dispatcher_leads'), { name, email, phone, situation, message, source: fromCourse ? 'request-dispatcher-access (course graduate)' : 'request-dispatcher-access', courseCompleted: fromCourse, createdAt: serverTimestamp() });
           form.style.display = 'none';
           msg.textContent = "Request received — we'll be in touch soon.";
         } catch (err) {
