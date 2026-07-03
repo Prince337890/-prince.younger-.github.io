@@ -3372,108 +3372,27 @@ function AllLoadsView() {
 
   if (loading) return <div className="text-slate-400">Loading all loads…</div>;
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold">All Loads</h2>
-          <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
-        </div>
-        <GhostButton onClick={fetchAll} className="text-sm px-3 py-2">Refresh</GhostButton>
-      </div>
-
-      <GuidedHint>Your command center for every load. <strong>Click any load</strong> to open its full detail — every field, the <strong>Status</strong> options, and the <strong>Paperwork to Collect</strong> checklist. Use the inline <strong>Status</strong> dropdown to advance a load without opening it, and <strong>Cancel Offer</strong> to pull back a pending offer.</GuidedHint>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatTile label="Total Loads" value={filtered.length} />
-        <StatTile label="In Transit" value={filtered.filter((l) => l.status === 'In Transit').length} accent="blue" />
-        <StatTile label="Delivered" value={filtered.filter((l) => l.status === 'Delivered').length} accent="emerald" />
-        <StatTile label="Gross (shown)" value={money(totalGross)} accent="emerald" />
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} className={`${SELECT_CLS} w-auto`}>
-          <option value="All">All drivers</option>
-          {driverEmails.map((em) => <option key={em} value={em}>{em}</option>)}
-        </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT_CLS} w-auto`}>
-          <option value="All">All statuses</option>
-          {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input value={loadSearch} onChange={(e) => setLoadSearch(e.target.value)} placeholder="Search load #, city, commodity…"
-          className={`${INPUT_CLS} w-full sm:w-64`} />
-      </div>
-
-      {filtered.length === 0 ? (
-        <Card className="p-10 text-center text-slate-400">No loads match these filters.</Card>
-      ) : (
-        <>
-          <Card className="hidden md:block overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-800/30">
-                  <Th>Load</Th><Th>Driver</Th><Th>Route</Th><Th>Delivery</Th><Th>Gross</Th><Th>Status</Th><Th></Th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((l) => (
-                  <tr key={l.id} onClick={() => openEdit(l)} title="Open full load — details, status & paperwork to collect"
-                    className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors cursor-pointer">
-                    <Td className="font-mono text-amber-500 font-semibold">{l.loadId || '—'}</Td>
-                    <Td className="text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</Td>
-                    <Td className="text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</Td>
-                    <Td className="text-slate-400">{l.delivery_date || '—'}</Td>
-                    <Td className="font-semibold text-white">{money(l.gross_pay)}</Td>
-                    <Td onClick={(e) => e.stopPropagation()}><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</Td>
-                    <Td onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-2">
-                        <OfferButton l={l} />
-                        <button onClick={() => openEdit(l)} className="text-xs bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg transition-colors">Open</button>
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-
-          <div className="md:hidden space-y-3">
-            {filtered.map((l) => (
-              <Card key={l.id} className="p-4 space-y-2">
-                <div onClick={() => openEdit(l)} className="space-y-2 cursor-pointer">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-amber-500 font-semibold text-sm">{l.loadId || '—'}</span>
-                    <span className="font-semibold text-white text-sm">{money(l.gross_pay)}</span>
-                  </div>
-                  <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
-                  <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
-                  <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
-                  {offerBadge(l.offerStatus) && <div>{offerBadge(l.offerStatus)}{l.offerStatus === 'declined' && l.declineReason ? <span className="text-[10px] text-slate-500 ml-2">({l.declineReason})</span> : null}</div>}
-                </div>
-                <div className="flex gap-2 items-center">
-                  <div className="flex-1"><StatusSelect l={l} full /></div>
-                  <OfferButton l={l} />
-                  <button onClick={() => openEdit(l)} className="text-xs bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-semibold px-3 py-2 rounded-lg transition-colors shrink-0">Open</button>
-                </div>
-              </Card>
-            ))}
+  // Full-page load detail (replaces the modal). Clicking a load opens this in
+  // place of the list; "← All Loads" returns. No height ceiling, natural scroll.
+  if (editing && form) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" onClick={closeEdit} className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1.5 font-medium">← All Loads</button>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-slate-500">Load</span>
+            <span className="font-mono text-amber-500 font-semibold">{form.loadId || '—'}</span>
+            {editing.offerStatus && offerBadge(editing.offerStatus)}
           </div>
-        </>
-      )}
+        </div>
 
-      {editing && form && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8" onClick={closeEdit}>
-          <Card
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
-          >
-            <form onSubmit={saveEdit} className="flex flex-col min-h-0 flex-1">
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-800 shrink-0">
+        <Card className="p-6">
+          <form onSubmit={saveEdit} className="space-y-5">
+            <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Load <span className="font-mono text-amber-500">{form.loadId}</span></h3>
               <button type="button" onClick={closeEdit} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
             {editing.offerStatus === 'pending' && (
               <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4">
                 <div className="text-sm font-semibold text-white flex items-center gap-2">🤝 Offer pending — carrier hasn’t responded in the app</div>
@@ -3575,9 +3494,8 @@ function AllLoadsView() {
                 setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, docs } : l)));
               }}
             />
-            </div>
 
-            <div className="flex items-center justify-between gap-3 p-6 pt-4 border-t border-slate-800 shrink-0 flex-wrap">
+            <div className="flex items-center justify-between gap-3 border-t border-slate-800 mt-1 pt-4 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                 Delete Load
               </button>
@@ -3588,9 +3506,99 @@ function AllLoadsView() {
                 </PrimaryButton>
               </div>
             </div>
-            </form>
-          </Card>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">All Loads</h2>
+          <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
         </div>
+        <GhostButton onClick={fetchAll} className="text-sm px-3 py-2">Refresh</GhostButton>
+      </div>
+
+      <GuidedHint>Your command center for every load. <strong>Click any load</strong> to open its full detail — every field, the <strong>Status</strong> options, and the <strong>Paperwork to Collect</strong> checklist. Use the inline <strong>Status</strong> dropdown to advance a load without opening it, and <strong>Cancel Offer</strong> to pull back a pending offer.</GuidedHint>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatTile label="Total Loads" value={filtered.length} />
+        <StatTile label="In Transit" value={filtered.filter((l) => l.status === 'In Transit').length} accent="blue" />
+        <StatTile label="Delivered" value={filtered.filter((l) => l.status === 'Delivered').length} accent="emerald" />
+        <StatTile label="Gross (shown)" value={money(totalGross)} accent="emerald" />
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)} className={`${SELECT_CLS} w-auto`}>
+          <option value="All">All drivers</option>
+          {driverEmails.map((em) => <option key={em} value={em}>{em}</option>)}
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${SELECT_CLS} w-auto`}>
+          <option value="All">All statuses</option>
+          {STATUS_FLOW.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <input value={loadSearch} onChange={(e) => setLoadSearch(e.target.value)} placeholder="Search load #, city, commodity…"
+          className={`${INPUT_CLS} w-full sm:w-64`} />
+      </div>
+
+      {filtered.length === 0 ? (
+        <Card className="p-10 text-center text-slate-400">No loads match these filters.</Card>
+      ) : (
+        <>
+          <Card className="hidden md:block overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-800/30">
+                  <Th>Load</Th><Th>Driver</Th><Th>Route</Th><Th>Delivery</Th><Th>Gross</Th><Th>Status</Th><Th></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((l) => (
+                  <tr key={l.id} onClick={() => openEdit(l)} title="Open full load — details, status & paperwork to collect"
+                    className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors cursor-pointer">
+                    <Td className="font-mono text-amber-500 font-semibold">{l.loadId || '—'}</Td>
+                    <Td className="text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</Td>
+                    <Td className="text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</Td>
+                    <Td className="text-slate-400">{l.delivery_date || '—'}</Td>
+                    <Td className="font-semibold text-white">{money(l.gross_pay)}</Td>
+                    <Td onClick={(e) => e.stopPropagation()}><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</Td>
+                    <Td onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2">
+                        <OfferButton l={l} />
+                        <button onClick={() => openEdit(l)} className="text-xs bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-semibold px-3 py-1.5 rounded-lg transition-colors">Open</button>
+                      </div>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+
+          <div className="md:hidden space-y-3">
+            {filtered.map((l) => (
+              <Card key={l.id} className="p-4 space-y-2">
+                <div onClick={() => openEdit(l)} className="space-y-2 cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-amber-500 font-semibold text-sm">{l.loadId || '—'}</span>
+                    <span className="font-semibold text-white text-sm">{money(l.gross_pay)}</span>
+                  </div>
+                  <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
+                  <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
+                  <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
+                  {offerBadge(l.offerStatus) && <div>{offerBadge(l.offerStatus)}{l.offerStatus === 'declined' && l.declineReason ? <span className="text-[10px] text-slate-500 ml-2">({l.declineReason})</span> : null}</div>}
+                </div>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1"><StatusSelect l={l} full /></div>
+                  <OfferButton l={l} />
+                  <button onClick={() => openEdit(l)} className="text-xs bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-semibold px-3 py-2 rounded-lg transition-colors shrink-0">Open</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
