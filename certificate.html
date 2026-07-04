@@ -47,11 +47,41 @@
     <script>
       // SINGLE SOURCE for the certificate design. Keep in sync with
       // makeCertificate() in crash-course.html.
+      // Metallic-gold FMF seal: double ring, roped dots, monogram, and curved
+      // "FORWARD MOTION FREIGHT" / "CERTIFIED DISPATCHER" text around it.
+      function drawFmfSeal(x, cx, cy, R) {
+        const gold = x.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+        gold.addColorStop(0, '#8a6d1f'); gold.addColorStop(0.5, '#f4dc8f'); gold.addColorStop(1, '#8a6d1f');
+        x.save();
+        x.strokeStyle = gold; x.fillStyle = gold; x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.lineWidth = 4; x.beginPath(); x.arc(cx, cy, R, 0, Math.PI * 2); x.stroke();
+        x.lineWidth = 1.5; x.beginPath(); x.arc(cx, cy, R - 11, 0, Math.PI * 2); x.stroke();
+        for (let i = 0; i < 44; i++) { const a = (i / 44) * Math.PI * 2; x.beginPath(); x.arc(cx + Math.cos(a) * (R - 5.5), cy + Math.sin(a) * (R - 5.5), 0.9, 0, Math.PI * 2); x.fill(); }
+        x.font = 'bold 44px Archivo, Georgia, serif'; x.fillText('FMF', cx, cy - 6);
+        x.font = 'bold 12px "IBM Plex Mono", monospace'; x.fillText('★', cx, cy + 22);
+        const arc = (str, radius, bottom, per) => {
+          const total = (str.length - 1) * per, center = bottom ? Math.PI / 2 : -Math.PI / 2;
+          for (let i = 0; i < str.length; i++) {
+            const a = bottom ? (center + total / 2 - i * per) : (center - total / 2 + i * per);
+            x.save(); x.translate(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+            x.rotate(bottom ? (a - Math.PI / 2) : (a + Math.PI / 2));
+            x.fillText(str[i], 0, 0); x.restore();
+          }
+        };
+        x.font = 'bold 10px "IBM Plex Mono", monospace';
+        arc('FORWARD MOTION FREIGHT', R - 19, false, 0.135);
+        arc('CERTIFIED DISPATCHER', R - 19, true, 0.15);
+        x.restore(); x.textBaseline = 'alphabetic';
+      }
+
       function drawCertificate(ctx, name) {
         const x = ctx;
         x.fillStyle = '#0a0f1a'; x.fillRect(0, 0, 1200, 850);
         x.strokeStyle = '#7FB6DA'; x.lineWidth = 6; x.strokeRect(34, 34, 1132, 782);
         x.strokeStyle = 'rgba(127,182,218,.35)'; x.lineWidth = 2; x.strokeRect(52, 52, 1096, 746);
+        // Faint gold FMF monogram watermark behind the text.
+        x.save(); x.globalAlpha = 0.05; x.fillStyle = '#C9A24B'; x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.font = 'bold 340px Archivo, Georgia, serif'; x.fillText('FMF', 600, 440); x.restore(); x.textBaseline = 'alphabetic';
         x.textAlign = 'center';
         x.fillStyle = '#7FB6DA'; x.font = 'bold 26px Archivo, Arial'; x.fillText('FORWARD MOTION FREIGHT', 600, 150);
         x.fillStyle = '#94a3b8'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('CERTIFICATE OF COMPLETION', 600, 200);
@@ -64,6 +94,7 @@
         x.fillStyle = '#64748b'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('Completed ' + date, 600, 620);
         x.fillStyle = '#7FB6DA'; x.font = 'bold 30px Archivo, Arial'; x.fillText('Keep Moving Forward.', 600, 720);
         x.fillStyle = '#475569'; x.font = '16px "IBM Plex Mono", monospace'; x.fillText('forwardmotionfreight.com  ·  Free dispatcher crash course', 600, 770);
+        drawFmfSeal(x, 1012, 648, 82);
       }
 
       const canvas = document.getElementById('cert');
