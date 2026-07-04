@@ -185,6 +185,17 @@ service cloud.firestore {
       allow read, update, delete: if isSuper();
     }
 
+    // Crash-course progress, keyed by the learner's email. The public course
+    // page upserts each learner's own row (create/update with a valid email);
+    // only the super-admin reads the roster. Same open-write posture as
+    // course_leads — it's marketing telemetry, not sensitive workspace data.
+    match /course_progress/{id} {
+      allow create, update: if request.resource.data.email is string
+                            && request.resource.data.email.size() > 3
+                            && request.resource.data.email.size() < 200;
+      allow read, delete: if isSuper();
+    }
+
     // ---- signed agreements (APPEND-ONLY legal record) ----
     // Every e-signature writes a record here that NOBODY can edit or delete
     // from the client (not the carrier, not the dispatcher). Amended terms

@@ -614,6 +614,7 @@ export default function App() {
       case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
       case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} onReplayTour={() => setShowTour(true)} />;
       case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
+      case 'courseprogress': return isSuper ? <CourseProgressView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
       case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
@@ -730,6 +731,7 @@ export default function App() {
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
+              {isSuper && <NavItem icon={<GraduationCap size={18} />} label="Course Progress" isActive={activeTab === 'courseprogress'} onClick={() => go('courseprogress')} />}
             </>
           ) : (
             /* ----- CARRIER / driver tools (and admin "view as") ----- */
@@ -8104,6 +8106,101 @@ function TourOverlay({ role, onClose }) {
 }
 
 // ---------- SUPER-ADMIN: WORKSPACES (multi-tenant provisioning) ----------
+// ---------- SUPER-ADMIN: CRASH-COURSE PROGRESS ----------
+// Reads the global course_progress collection (one row per learner email) so
+// the super-admin can see who's mid-course, who stalled, and who finished.
+function CourseProgressView() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'course_progress'));
+      setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error('course progress load failed', e); setErr('Could not load — check that the course_progress rule is published.'); }
+    finally { setLoading(false); }
+  })(); }, []);
+
+  const toDate = (t) => { try { return t && t.toDate ? t.toDate() : (t ? new Date(t) : null); } catch (_) { return null; } };
+  const ago = (t) => {
+    const d = toDate(t); if (!d) return '—';
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 3600) return Math.max(1, Math.floor(s / 60)) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  };
+  const fmtDate = (t) => { const d = toDate(t); return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'; };
+
+  const term = q.trim().toLowerCase();
+  const filtered = rows
+    .filter((r) => !term || `${r.name || ''} ${r.email || ''}`.toLowerCase().includes(term))
+    .sort((a, b) => ((toDate(b.lastActiveAt) || 0) && toDate(b.lastActiveAt).getTime() || 0) - ((toDate(a.lastActiveAt) || 0) && toDate(a.lastActiveAt).getTime() || 0));
+
+  const total = rows.length;
+  const completed = rows.filter((r) => r.completed).length;
+  const inProgress = total - completed;
+  const rate = total ? Math.round((completed / total) * 100) : 0;
+
+  const statusBadge = (r) => r.completed
+    ? <Badge tone="emerald">✓ Completed</Badge>
+    : ((r.pct || 0) >= 1 ? <Badge tone="amber">In progress</Badge> : <Badge tone="slate">Signed up</Badge>);
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Course Progress</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">SUPER</Badge>
+      </div>
+      <p className="text-slate-400">Every crash-course learner, how far they’ve gotten, and when they were last active — one row per email.</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatTile label="Learners" value={total} />
+        <StatTile label="In Progress" value={inProgress} accent="amber" />
+        <StatTile label="Completed" value={completed} accent="emerald" />
+        <StatTile label="Completion Rate" value={rate + '%'} accent="emerald" />
+      </div>
+
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" className={`${INPUT_CLS} w-full sm:w-72`} />
+
+      {err && <p className="text-amber-400 text-sm">{err}</p>}
+      {loading ? <SkelRows rows={5} className="py-6" />
+        : filtered.length === 0 ? <Card className="p-10 text-center text-slate-400">No course activity yet. Signups appear here as learners start the course.</Card>
+        : (
+          <Card className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[640px]">
+              <thead><tr className="border-b border-slate-800 bg-slate-800/30">
+                <Th>Learner</Th><Th>Progress</Th><Th>Status</Th><Th>Started</Th><Th>Last active</Th>
+              </tr></thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                    <Td>
+                      <div className="font-medium text-white">{r.name || <span className="text-slate-500">—</span>}</div>
+                      <div className="text-xs text-slate-500">{r.email}</div>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className="h-full bg-amber-500" style={{ width: Math.min(100, r.pct || 0) + '%' }} /></div>
+                        <span className="text-xs text-slate-400 font-data">{r.pct || 0}%</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{r.daysPassed || 0}/{r.totalDays || 14} days completed</div>
+                    </Td>
+                    <Td>{statusBadge(r)}</Td>
+                    <Td className="text-slate-400">{fmtDate(r.startedAt)}</Td>
+                    <Td className="text-slate-400">{ago(r.lastActiveAt)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        )}
+    </div>
+  );
+}
+
 function WorkspacesView() {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);

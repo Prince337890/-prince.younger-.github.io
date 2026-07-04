@@ -67,7 +67,7 @@
 
     <script type="module">
       import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-      import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+      import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
       /* ---------------- COURSE CONTENT ---------------- */
       const DAYS = [
@@ -379,7 +379,7 @@
           const ratio = correct / q.length;
           if (ratio >= threshold(sc)) {
             result.textContent = `You scored ${correct}/${q.length} — passed! ✓`; result.style.color = '#34d399';
-            state.passed[sc.id] = true; save(); btnNext.disabled = false;
+            state.passed[sc.id] = true; save(); saveProgress(); btnNext.disabled = false;
           } else {
             result.textContent = `You scored ${correct}/${q.length}. You need ${Math.ceil(threshold(sc) * q.length)} to pass — review and try again.`; result.style.color = '#f87171';
             btnNext.disabled = true;
@@ -442,6 +442,7 @@
           </div>`;
         try { const url = makeCertificate(name); el('cert-img').src = url; el('cert-dl').href = url; } catch (e) { console.error('cert failed', e); }
         try { logGraduate(name); } catch (e) { console.error('grad log failed', e); }
+        try { saveProgress({ completed: true }); } catch (e) { console.error('progress save failed', e); }
       }
 
       // Every finisher is written to dispatcher_leads (tagged courseCompleted)
@@ -461,6 +462,30 @@
           });
           localStorage.setItem('fm_course_grad_logged', '1');
         } catch (e) { console.error('logGraduate', e); }
+      }
+
+      // Mirror the learner's progress to Firestore (course_progress), keyed by
+      // email so the same person on a new device updates ONE row instead of
+      // creating duplicates. Lets the dispatcher see who's on what day, how far
+      // along, when they were last active, and whether they finished.
+      const emailKey = (e) => e.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+      async function saveProgress(opts = {}) {
+        try {
+          const email = (localStorage.getItem('fm_course_email') || '').trim();
+          if (email.length <= 3) return;
+          const name = localStorage.getItem('fm_course_name') || '';
+          const daysPassed = DAYS.filter((d) => state.passed['d' + d.d]).length;
+          const pct = Math.round((daysPassed / DAYS.length) * 100);
+          const completed = opts.completed === true;
+          const payload = {
+            email, name, daysPassed, totalDays: DAYS.length, pct,
+            furthestScreen: state.idx + 1, totalScreens: SCREENS.length,
+            completed, lastActiveAt: serverTimestamp(), source: 'crash-course',
+          };
+          if (opts.started) payload.startedAt = serverTimestamp();
+          if (completed) payload.completedAt = serverTimestamp();
+          await setDoc(doc(db, 'course_progress', emailKey(email)), payload, { merge: true });
+        } catch (e) { console.error('saveProgress', e); }
       }
 
       btnNext.addEventListener('click', () => { if (btnNext.disabled) return; if (state.idx < SCREENS.length - 1) { state.idx++; save(); render(); } });
@@ -489,6 +514,7 @@
         try {
           await addDoc(collection(db, 'course_leads'), { email, name, source: 'crash-course', createdAt: serverTimestamp() });
           try { localStorage.setItem('fm_course_unlocked', '1'); localStorage.setItem('fm_course_name', name); localStorage.setItem('fm_course_email', email); } catch (_) {}
+          saveProgress({ started: true });
           startCourse();
         } catch (err) {
           console.error(err);
