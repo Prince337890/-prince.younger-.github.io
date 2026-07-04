@@ -614,6 +614,7 @@ export default function App() {
       case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
       case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} onReplayTour={() => setShowTour(true)} />;
       case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
+      case 'requests': return isSuper ? <AccessRequestsView /> : <DashboardView />;
       case 'courseprogress': return isSuper ? <CourseProgressView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
@@ -731,6 +732,7 @@ export default function App() {
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
+              {isSuper && <NavItem icon={<User size={18} />} label="Access Requests" isActive={activeTab === 'requests'} onClick={() => go('requests')} />}
               {isSuper && <NavItem icon={<GraduationCap size={18} />} label="Course Progress" isActive={activeTab === 'courseprogress'} onClick={() => go('courseprogress')} />}
             </>
           ) : (
@@ -8106,6 +8108,113 @@ function TourOverlay({ role, onClose }) {
 }
 
 // ---------- SUPER-ADMIN: WORKSPACES (multi-tenant provisioning) ----------
+// ---------- SUPER-ADMIN: ACCESS REQUESTS (dispatcher_leads) ----------
+// Everyone who submits the Request Dispatcher Access form (or finishes the
+// crash course) lands in dispatcher_leads. This is the super-admin's pipeline
+// so requests don't sit unseen in Firestore — with a "handled" toggle to work
+// them and keep the 24–48h provisioning promise.
+function AccessRequestsView() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [busyId, setBusyId] = useState('');
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'dispatcher_leads'));
+      setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (e) { console.error('access requests load failed', e); setErr('Could not load — check that the dispatcher_leads rule is published.'); }
+    finally { setLoading(false); }
+  })(); }, []);
+
+  const toDate = (t) => { try { return t && t.toDate ? t.toDate() : (t ? new Date(t) : null); } catch (_) { return null; } };
+  const ago = (t) => {
+    const d = toDate(t); if (!d) return '—';
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 3600) return Math.max(1, Math.floor(s / 60)) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  };
+  const SIT = { independent: 'Independent dispatcher', fmf: 'Dispatch for FMF', new: 'New / deciding' };
+  const sitLabel = (s) => SIT[s] || s || '—';
+
+  const term = q.trim().toLowerCase();
+  const filtered = rows
+    .filter((r) => !term || `${r.name || ''} ${r.email || ''} ${r.phone || ''}`.toLowerCase().includes(term))
+    .sort((a, b) => {
+      // Open requests first, then newest.
+      if (!!a.handled !== !!b.handled) return a.handled ? 1 : -1;
+      return ((toDate(b.createdAt) || 0) && toDate(b.createdAt).getTime() || 0) - ((toDate(a.createdAt) || 0) && toDate(a.createdAt).getTime() || 0);
+    });
+
+  const total = rows.length;
+  const grads = rows.filter((r) => r.courseCompleted).length;
+  const weekAgo = Date.now() - 7 * 86400000;
+  const newWeek = rows.filter((r) => { const d = toDate(r.createdAt); return d && d.getTime() >= weekAgo; }).length;
+  const open = rows.filter((r) => !r.handled).length;
+
+  const toggleHandled = async (r) => {
+    const next = !r.handled;
+    setBusyId(r.id);
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, handled: next } : x)));
+    try { await updateDoc(doc(db, 'dispatcher_leads', r.id), { handled: next, handledAt: next ? serverTimestamp() : null }); }
+    catch (e) { console.error('toggle handled failed', e); setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, handled: !next } : x))); }
+    finally { setBusyId(''); }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Access Requests</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">SUPER</Badge>
+      </div>
+      <p className="text-slate-400">Everyone who asked for a workspace or finished the crash course. Work them here — mark each one handled once you’ve set them up.</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatTile label="Total Requests" value={total} />
+        <StatTile label="Open" value={open} accent="amber" />
+        <StatTile label="New (7 days)" value={newWeek} accent="emerald" />
+        <StatTile label="Course Grads" value={grads} accent="emerald" />
+      </div>
+
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email, or phone…" className={`${INPUT_CLS} w-full sm:w-72`} />
+
+      {err && <p className="text-amber-400 text-sm">{err}</p>}
+      {loading ? <SkelRows rows={5} className="py-6" />
+        : filtered.length === 0 ? <Card className="p-10 text-center text-slate-400">No access requests yet.</Card>
+        : (
+          <div className="space-y-3">
+            {filtered.map((r) => (
+              <Card key={r.id} className={`p-4 ${r.handled ? 'opacity-60' : ''}`}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white flex items-center gap-2 flex-wrap">
+                      {r.name || <span className="text-slate-500">—</span>}
+                      {r.courseCompleted && <Badge tone="emerald" className="text-[10px]">🎓 Course grad</Badge>}
+                      <Badge tone="slate" className="text-[10px]">{sitLabel(r.situation)}</Badge>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {r.email && <a href={`mailto:${r.email}`} className="hover:text-amber-400">{r.email}</a>}
+                      {r.phone && <a href={`tel:${r.phone}`} className="hover:text-amber-400">{r.phone}</a>}
+                      <span className="text-slate-500">{ago(r.createdAt)}</span>
+                    </div>
+                    {r.message && <p className="text-sm text-slate-300 mt-2">{r.message}</p>}
+                  </div>
+                  <button onClick={() => toggleHandled(r)} disabled={busyId === r.id}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold shrink-0 disabled:opacity-50 ${r.handled ? 'border border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-emerald-500 text-slate-950'}`}>
+                    {r.handled ? 'Reopen' : 'Mark handled'}
+                  </button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
 // ---------- SUPER-ADMIN: CRASH-COURSE PROGRESS ----------
 // Reads the global course_progress collection (one row per learner email) so
 // the super-admin can see who's mid-course, who stalled, and who finished.
