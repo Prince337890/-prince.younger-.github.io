@@ -27,14 +27,19 @@
             <p class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
                 Fourteen lessons, a quiz after every day, a review at the end of each week, and a final exam. Pass it and earn a shareable Certificate of Completion — plus a clear next step.
             </p>
-            <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3 sm:flex-row">
-                <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
-                    class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+            <form id="signup" class="mx-auto mt-9 flex max-w-md flex-col gap-3">
+                <div class="flex flex-col gap-3 sm:flex-row">
+                    <input id="cc-name" type="text" placeholder="First name" autocomplete="given-name"
+                        class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                    <input id="cc-lastname" type="text" placeholder="Last name" autocomplete="family-name"
+                        class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
+                </div>
                 <input id="cc-email" type="email" required placeholder="you@email.com" autocomplete="email"
                     class="w-full border border-white/15 bg-[#0a0f1a] px-4 py-3.5 text-white placeholder-slate-500 outline-none focus:border-[#7FB6DA]" />
                 <button id="cc-submit" type="submit"
-                    class="shrink-0 bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Start free</button>
+                    class="bg-[#7FB6DA] px-6 py-3.5 font-bold text-[#06141f] transition hover:bg-[#A6D2EC]">Start free</button>
             </form>
+            <p class="mt-2 text-xs text-slate-600">Your name appears on your Certificate of Completion, so enter it as you'd like it to read.</p>
             <p id="cc-msg" class="mt-3 text-sm text-[#7FB6DA] min-h-[1.25rem]"></p>
             <p class="mt-2 text-xs text-slate-600">No spam. Free, instant access. Your progress saves automatically on this device.</p>
         </div>
@@ -427,7 +432,7 @@
         x.fillStyle = '#7FB6DA'; x.font = 'bold 26px Archivo, Arial'; x.fillText('FORWARD MOTION FREIGHT', 600, 150);
         x.fillStyle = '#94a3b8'; x.font = '20px "IBM Plex Mono", monospace'; x.fillText('CERTIFICATE OF COMPLETION', 600, 200);
         x.fillStyle = '#ffffff'; x.font = '300 30px Archivo, Arial'; x.fillText('This certifies that', 600, 320);
-        x.fillStyle = '#ffffff'; x.font = 'bold 64px Archivo, Arial'; x.fillText(name || 'Graduate', 600, 410);
+        x.fillStyle = '#ffffff'; x.font = 'bold 64px Archivo, Arial'; x.fillText(name || 'Graduate', 600, 410, 1000);
         x.strokeStyle = '#7FB6DA'; x.lineWidth = 2; x.beginPath(); x.moveTo(350, 440); x.lineTo(850, 440); x.stroke();
         x.fillStyle = '#cbd5e1'; x.font = '24px Archivo, Arial';
         x.fillText('has successfully completed the', 600, 500);
@@ -539,7 +544,8 @@
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = el('cc-email').value.trim(), name = el('cc-name').value.trim();
+        const email = el('cc-email').value.trim();
+        const name = [el('cc-name').value.trim(), el('cc-lastname').value.trim()].filter(Boolean).join(' ');
         if (!email) return;
         btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
         try {
