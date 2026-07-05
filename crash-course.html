@@ -263,6 +263,10 @@
       /* ---------------- ENGINE ---------------- */
       const KEY = 'fm_course_progress_v2';
       let state = { idx: 0, passed: {} };
+      // Per-day view: false = reading the lesson, true = taking the quiz (lesson
+      // hidden so the answers aren't sitting right above the questions). Resets
+      // to reading whenever you move to another screen.
+      let quizMode = false;
       try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) state = s; } catch (_) {}
       const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
       const learnerName = () => { try { return localStorage.getItem('fm_course_name') || ''; } catch (_) { return ''; } };
@@ -336,16 +340,34 @@
 
         if (sc.type === 'day' || sc.type === 'review') {
           const d = sc.data;
+          if (!quizMode) {
+            // Reading view — lesson shown, quiz gated behind a button.
+            screenEl.innerHTML = `
+              <div class=" border border-white/10 bg-[#0a0f1a] p-7">
+                <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d.review ? 'Week 1 Review' : 'Day ' + d.d}</div>
+                <h2 class="mt-1 font-display text-2xl font-extrabold text-white">${esc(d.t)}</h2>
+                <p class="mt-1 text-sm text-slate-400">${esc(d.s)}</p>
+                ${!d.review ? '<p class="mt-4 bg-white/5 px-3 py-2 text-xs text-slate-400">Read it through, then test out. The lesson is hidden during the quiz, so learn it here first — the final exam covers all of it.</p>' : ''}
+                <p class="mt-4 text-[15px] leading-relaxed text-slate-200">${esc(d.p)}</p>
+                <ul class="mt-4 space-y-1.5">${d.b.map((x) => `<li class="flex gap-2 text-sm text-slate-400"><span class="text-[#7FB6DA]">•</span><span>${esc(x)}</span></li>`).join('')}</ul>
+                <button id="start-quiz" class="mt-6 bg-[#7FB6DA] px-5 py-2.5 text-sm font-bold text-[#06141f] hover:bg-[#A6D2EC]">Take the ${d.review ? 'review' : 'quiz'} →</button>
+              </div>`;
+            btnNext.disabled = !state.passed[sc.id];
+            const sq = el('start-quiz'); if (sq) sq.addEventListener('click', () => { quizMode = true; render(); });
+            window.scrollTo({ top: el('course').offsetTop - 20, behavior: 'smooth' });
+            return;
+          }
+          // Quiz view — lesson hidden; a compact header + the questions only.
           screenEl.innerHTML = `
-            <div class=" border border-white/10 bg-[#0a0f1a] p-7">
-              <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d.review ? 'Week 1 Review' : 'Day ' + d.d}</div>
-              <h2 class="mt-1 font-display text-2xl font-extrabold text-white">${esc(d.t)}</h2>
-              <p class="mt-1 text-sm text-slate-400">${esc(d.s)}</p>
-              ${!d.review ? '<p class="mt-4 bg-white/5 px-3 py-2 text-xs text-slate-400">Take your time — read it through before you test out. You can Skip ahead, but the final exam covers all of it.</p>' : ''}
-              <p class="mt-4 text-[15px] leading-relaxed text-slate-200">${esc(d.p)}</p>
-              <ul class="mt-4 space-y-1.5">${d.b.map((x) => `<li class="flex gap-2 text-sm text-slate-400"><span class="text-[#7FB6DA]">•</span><span>${esc(x)}</span></li>`).join('')}</ul>
+            <div class=" border border-white/10 bg-[#0a0f1a] px-7 py-5 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div class="text-[11px] font-semibold uppercase tracking-wide text-[#7FB6DA]">${d.review ? 'Week 1 Review' : 'Day ' + d.d} · Quiz</div>
+                <h2 class="mt-1 font-display text-lg font-extrabold text-white">${esc(d.t)}</h2>
+              </div>
+              <button id="review-lesson" class="text-xs font-semibold text-slate-400 hover:text-white underline">← Review the lesson</button>
             </div>
             ${quizHtml(sc, d.review ? 'Week 1 Review' : 'Day ' + d.d + ' Quiz')}`;
+          const rl = el('review-lesson'); if (rl) rl.addEventListener('click', () => { quizMode = false; render(); });
         } else if (sc.type === 'review2' || sc.type === 'final') {
           const icon = sc.type === 'final' ? '🎓' : '📋';
           screenEl.innerHTML = `
@@ -524,9 +546,9 @@
         } catch (e) { console.error('saveProgress', e); }
       }
 
-      btnNext.addEventListener('click', () => { if (btnNext.disabled) return; if (state.idx < SCREENS.length - 1) { state.idx++; save(); render(); } });
-      btnBack.addEventListener('click', () => { if (state.idx > 0) { state.idx--; save(); render(); } });
-      btnSkip.addEventListener('click', (e) => { e.preventDefault(); if (state.idx < SCREENS.length - 1) { state.idx++; save(); render(); } });
+      btnNext.addEventListener('click', () => { if (btnNext.disabled) return; if (state.idx < SCREENS.length - 1) { state.idx++; quizMode = false; save(); render(); } });
+      btnBack.addEventListener('click', () => { if (state.idx > 0) { state.idx--; quizMode = false; save(); render(); } });
+      btnSkip.addEventListener('click', (e) => { e.preventDefault(); if (state.idx < SCREENS.length - 1) { state.idx++; quizMode = false; save(); render(); } });
 
       /* ---------------- EMAIL GATE ---------------- */
       const cfg = {
