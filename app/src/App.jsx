@@ -466,7 +466,10 @@ function BrandLockup({ size = 34, stack = false, branded = false }) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    // Restore the tab from the URL hash so a refresh keeps you where you were.
+    try { return (window.location.hash || '').replace(/^#/, '') || 'dashboard'; } catch (_) { return 'dashboard'; }
+  });
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -563,7 +566,20 @@ export default function App() {
   const go = (tab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
+    // Reflect the tab in the URL hash so a refresh (and the browser back/forward
+    // buttons) keep you on this page instead of resetting to the Dashboard.
+    try { if (('#' + tab) !== window.location.hash) window.location.hash = tab; } catch (_) {}
   };
+
+  // Keep the active tab in sync with the URL hash (browser back/forward, and
+  // manual edits / bookmarks to a #tab).
+  useEffect(() => {
+    const onHash = () => {
+      try { setActiveTab((window.location.hash || '').replace(/^#/, '') || 'dashboard'); } catch (_) {}
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
 
   // Carrier self-sets their availability; mirror it onto their linked carrier
   // profile so the dispatcher's Carriers/Rate Calculator views stay in sync.
