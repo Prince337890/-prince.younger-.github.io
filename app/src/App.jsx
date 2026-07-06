@@ -663,6 +663,7 @@ export default function App() {
       case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
       case 'requests': return isSuper ? <AccessRequestsView onNavigate={go} /> : <DashboardView />;
       case 'courseprogress': return isSuper ? <CourseProgressView /> : <DashboardView />;
+      case 'fmfrevshare': return isSuper ? <FmfRevShareView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
       case 'assign': return isAdmin ? (fmfUnsigned ? <AgreementRequired onNavigate={go} /> : <AssignLoadView />) : <DashboardView />;
@@ -787,6 +788,7 @@ export default function App() {
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
               {isSuper && <NavItem icon={<User size={18} />} label="Access Requests" isActive={activeTab === 'requests'} onClick={() => go('requests')} />}
               {isSuper && <NavItem icon={<GraduationCap size={18} />} label="Course Progress" isActive={activeTab === 'courseprogress'} onClick={() => go('courseprogress')} />}
+              {isSuper && <NavItem icon={<Wallet size={18} />} label="FMF Rev-Share" isActive={activeTab === 'fmfrevshare'} onClick={() => go('fmfrevshare')} />}
             </>
           ) : (
             /* ----- CARRIER / driver tools (and admin "view as") ----- */
@@ -8579,6 +8581,134 @@ function CourseProgressView() {
             </table>
           </Card>
         )}
+    </div>
+  );
+}
+
+// ---------- SUPER-ADMIN: FMF REVENUE-SHARE (amount due per dispatcher) ----------
+// Per FMF dispatcher, sums their dispatch-fee income for a month (from loads
+// booked in the portal) and applies the 20% share + monthly minimum, so the
+// self-report becomes a system-computed "amount due." Read-only; mirrors the
+// dashboard's fee logic (Delivered/Cleared loads, delivery_date in the month).
+function FmfRevShareView() {
+  const [orgs, setOrgs] = useState([]);
+  const [loads, setLoads] = useState([]);
+  const [userMap, setUserMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [month, setMonth] = useState(() => {
+    try { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); } catch (_) { return ''; }
+  });
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    try {
+      const [oSnap, lSnap, uSnap] = await Promise.all([
+        getDocs(collection(db, 'orgs')),
+        getDocs(collection(db, 'loads')),
+        getDocs(collection(db, 'users')),
+      ]);
+      setOrgs(oSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((o) => o.orgType === 'fmf'));
+      setLoads(lSnap.docs.map((d) => d.data()));
+      const um = {}; uSnap.docs.forEach((d) => { um[d.id] = d.data(); });
+      setUserMap(um);
+    } catch (e) { console.error('revshare load failed', e); setErr('Could not load — check that the multi-tenant rules are published.'); }
+    finally { setLoading(false); }
+  })(); }, []);
+
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const inMonth = (dateStr) => !!dateStr && !!month && String(dateStr).slice(0, 7) === month;
+  const monthLabel = (m) => { try { const [y, mo] = m.split('-'); return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); } catch (_) { return m; } };
+  const monthOpts = (() => {
+    const out = []; try {
+      const d = new Date(); d.setDate(1);
+      for (let i = 0; i < 12; i++) { out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); d.setMonth(d.getMonth() - 1); }
+    } catch (_) {}
+    return out;
+  })();
+
+  const rows = orgs.map((o) => {
+    const mine = loads.filter((l) => l.orgId === o.id && (l.status === 'Delivered' || l.status === 'Cleared') && inMonth(l.delivery_date));
+    const feeIncome = mine.reduce((s, l) => s + (Number(l.gross_pay) || 0) * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100), 0);
+    const share = feeIncome * (FMF_REVSHARE_PCT / 100);
+    const minApplied = share < FMF_REVSHARE_MIN;
+    const due = Math.max(share, FMF_REVSHARE_MIN);
+    const u = userMap[o.ownerUid] || {};
+    const who = u.displayName || o.ownerEmail || o.name || '—';
+    const signed = !!u.revShareAgreement;
+    return { id: o.id, who, workspace: o.name, count: mine.length, feeIncome, share, minApplied, due, signed };
+  }).sort((a, b) => b.due - a.due);
+
+  const totalDue = rows.reduce((s, r) => s + r.due, 0);
+  const totalFee = rows.reduce((s, r) => s + r.feeIncome, 0);
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h2 className="text-2xl font-bold">FMF Rev-Share</h2>
+        <Badge tone="indigo" className="font-bold tracking-wide">SUPER-ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">What each FMF dispatcher owes for the month — {FMF_REVSHARE_PCT}% of their dispatch-fee income, or the {money(FMF_REVSHARE_MIN)} minimum, whichever is greater. Computed from loads booked in Forward OS.</p>
+
+      <div className="flex items-center gap-2">
+        <label className="text-sm text-slate-400">Month</label>
+        <select value={month} onChange={(e) => setMonth(e.target.value)} className={`${SELECT_CLS} w-52`}>
+          {monthOpts.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <StatTile label={`Total Due (${monthLabel(month)})`} value={money(totalDue)} accent="emerald" />
+        <StatTile label="Total Fee Income" value={money(totalFee)} />
+        <StatTile label="FMF Dispatchers" value={orgs.length} />
+      </div>
+
+      {err && <p className="text-amber-400 text-sm">{err}</p>}
+      {loading ? <SkelRows rows={4} className="py-6" />
+        : orgs.length === 0 ? <Card className="p-10 text-center text-slate-400">No FMF dispatchers yet. Classify a workspace as “Forward Motion Freight” to see it here.</Card>
+        : (
+          <Card className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-800">
+                  <th className="px-4 py-3">Dispatcher</th>
+                  <th className="px-4 py-3 text-right">Loads</th>
+                  <th className="px-4 py-3 text-right">Fee income</th>
+                  <th className="px-4 py-3 text-right">FMF {FMF_REVSHARE_PCT}%</th>
+                  <th className="px-4 py-3 text-right">Amount due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-800/60 last:border-0">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-white flex items-center gap-2">{r.who}
+                        {!r.signed && <Badge tone="amber" className="text-[10px]">unsigned</Badge>}
+                      </div>
+                      <div className="text-[11px] text-slate-500">{r.workspace}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-300">{r.count}</td>
+                    <td className="px-4 py-3 text-right text-slate-300">{money(r.feeIncome)}</td>
+                    <td className="px-4 py-3 text-right text-slate-400">{money(r.share)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-400">
+                      {money(r.due)}
+                      {r.minApplied && <span className="ml-1 text-[10px] text-amber-400" title={`Below the ${money(FMF_REVSHARE_MIN)} minimum`}>min</span>}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t border-slate-700">
+                  <td className="px-4 py-3 font-bold text-white">Total</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-300">{money(totalFee)}</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-right font-bold text-emerald-400">{money(totalDue)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </Card>
+        )}
+
+      <p className="text-[11px] text-slate-500">Counts loads booked through Forward OS and marked <span className="text-slate-400">Delivered</span> or <span className="text-slate-400">Cleared</span> with a delivery date in the selected month. Loads booked off-platform won’t appear — reconcile against factoring statements if a total looks low. The “min” tag means the {money(FMF_REVSHARE_MIN)} floor applied because {FMF_REVSHARE_PCT}% came out lower.</p>
     </div>
   );
 }
