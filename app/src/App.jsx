@@ -8384,15 +8384,31 @@ function AccessRequestsView({ onNavigate }) {
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
   const [busyId, setBusyId] = useState('');
+  const [gradSet, setGradSet] = useState(() => new Set()); // emailKeys that finished the course (incl. final exam)
+
+  // course_progress is keyed by a normalized email — mirror that key here so a
+  // lead can be matched to their completion record even if the lead row itself
+  // isn't flagged (e.g. they requested access before passing the final exam).
+  const emailKey = (e) => String(e || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '_');
 
   useEffect(() => { (async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'dispatcher_leads'));
+      const [snap, cp] = await Promise.all([
+        getDocs(collection(db, 'dispatcher_leads')),
+        getDocs(collection(db, 'course_progress')).catch(() => ({ docs: [] })),
+      ]);
       setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const g = new Set();
+      cp.docs.forEach((d) => { const v = d.data(); if (v.completed === true && v.email) g.add(emailKey(v.email)); });
+      setGradSet(g);
     } catch (e) { console.error('access requests load failed', e); setErr('Could not load — check that the dispatcher_leads rule is published.'); }
     finally { setLoading(false); }
   })(); }, []);
+
+  // A lead has graduated (passed the final exam) if their lead row is flagged
+  // OR their course_progress record is marked completed.
+  const isGrad = (r) => !!r.courseCompleted || gradSet.has(emailKey(r.email));
 
   const toDate = (t) => { try { return t && t.toDate ? t.toDate() : (t ? new Date(t) : null); } catch (_) { return null; } };
   const ago = (t) => {
@@ -8415,7 +8431,7 @@ function AccessRequestsView({ onNavigate }) {
     });
 
   const total = rows.length;
-  const grads = rows.filter((r) => r.courseCompleted).length;
+  const grads = rows.filter((r) => isGrad(r)).length;
   const weekAgo = Date.now() - 7 * 86400000;
   const newWeek = rows.filter((r) => { const d = toDate(r.createdAt); return d && d.getTime() >= weekAgo; }).length;
   const open = rows.filter((r) => !r.handled).length;
@@ -8457,7 +8473,9 @@ function AccessRequestsView({ onNavigate }) {
                   <div className="min-w-0">
                     <div className="font-semibold text-white flex items-center gap-2 flex-wrap">
                       {r.name || <span className="text-slate-500">—</span>}
-                      {r.courseCompleted && <Badge tone="emerald" className="text-[10px]">🎓 Course grad</Badge>}
+                      {isGrad(r)
+                        ? <Badge tone="emerald" className="text-[10px]">🎓 Course grad</Badge>
+                        : <Badge tone="amber" className="text-[10px]" title="No completed crash-course record — final exam not confirmed">⚠ Exam not confirmed</Badge>}
                       <Badge tone="slate" className="text-[10px]">{sitLabel(r.situation)}</Badge>
                     </div>
                     <div className="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -8471,6 +8489,7 @@ function AccessRequestsView({ onNavigate }) {
                     {!r.handled && (
                       <button
                         onClick={() => {
+                          if (!isGrad(r) && !window.confirm(`${r.name || 'This person'} isn't confirmed to have passed the final exam — no completed crash-course record was found for ${r.email || 'their email'}.\n\nSet up their workspace anyway? (They can finish the exam later; this just skips the graduation check.)`)) return;
                           _provisionPrefill = { name: r.name || '', email: r.email || '', situation: r.situation || '', leadId: r.id };
                           if (onNavigate) onNavigate('workspaces');
                         }}
