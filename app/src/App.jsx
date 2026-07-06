@@ -503,6 +503,8 @@ export default function App() {
   const [showTour, setShowTour] = useState(false); // first-login walkthrough
   const [myOrgId, setMyOrgId] = useState(null); // multi-tenancy: the user's workspace
   const [myRole, setMyRole] = useState(null);   // 'admin' (dispatcher) | 'driver'
+  const [myOrgType, setMyOrgType] = useState(null);       // 'fmf' | 'independent' | null
+  const [revShareSigned, setRevShareSigned] = useState(false); // FMF dispatcher signed?
   const [guidedMode, setGuidedMode] = useState(() => { try { return localStorage.getItem('fm_guided') === '1'; } catch (_) { return false; } });
   const toggleGuided = () => setGuidedMode((g) => { const nv = !g; try { localStorage.setItem('fm_guided', nv ? '1' : '0'); } catch (_) {} return nv; });
 
@@ -548,6 +550,13 @@ export default function App() {
         setActiveOrg(data && data.orgId);
         setMyOrgId((data && data.orgId) || null);
         setMyRole((data && data.role) || (admin ? 'admin' : 'driver'));
+        setRevShareSigned(!!(data && data.revShareAgreement));
+        // Resolve the workspace type (FMF vs independent) for FMF-only gates
+        // like the dispatcher revenue-share agreement. Best-effort.
+        if (data && data.orgId) {
+          try { const o = await getDoc(doc(db, 'orgs', data.orgId)); setMyOrgType(o.exists() ? (o.data().orgType || null) : null); }
+          catch (_) { setMyOrgType(null); }
+        } else { setMyOrgType(null); }
         setUser(u);
         setAccessDenied(false);
       } catch (e) {
@@ -561,6 +570,8 @@ export default function App() {
 
   const isSuper = !!user && isAdminEmail(user.email); // super-admin (you) — provisions workspaces
   const isAdmin = isSuper || myRole === 'admin';       // dispatcher console access (role-based)
+  const isFmfDispatcher = isAdmin && !isSuper && myOrgType === 'fmf'; // dispatches under FMF
+  const fmfUnsigned = isFmfDispatcher && !revShareSigned;             // must sign to go live
 
   // Show the first-login tour once the user is fully signed in (not mid pw-change/onboarding).
   useEffect(() => {
@@ -633,7 +644,8 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} />;
+      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} showAgreementGate={fmfUnsigned && !viewAs} />;
+      case 'fmfagreement': return isAdmin ? <DispatcherAgreementView onSigned={() => setRevShareSigned(true)} /> : <DashboardView />;
       case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
       case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
@@ -653,7 +665,7 @@ export default function App() {
       case 'courseprogress': return isSuper ? <CourseProgressView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
-      case 'assign': return isAdmin ? <AssignLoadView /> : <DashboardView />;
+      case 'assign': return isAdmin ? (fmfUnsigned ? <AgreementRequired onNavigate={go} /> : <AssignLoadView />) : <DashboardView />;
       case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
@@ -746,6 +758,12 @@ export default function App() {
             <>
               <div className="px-4 mb-2 text-xs font-semibold text-amber-500 tracking-wider">OVERVIEW</div>
               <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => go('dashboard')} />
+              {isFmfDispatcher && (
+                <NavItem
+                  icon={<FileText size={18} />}
+                  label={<span className="flex items-center gap-2">Dispatcher Agreement{fmfUnsigned && <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Signature needed" />}</span>}
+                  isActive={activeTab === 'fmfagreement'} onClick={() => go('fmfagreement')} />
+              )}
 
               <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">THE DEAL DESK</div>
               <NavItem icon={<Wallet size={18} />} label="Rate Calculator" isActive={activeTab === 'calc'} onClick={() => go('calc')} />
@@ -1068,7 +1086,7 @@ function AdminGettingStarted({ onNavigate }) {
 }
 
 // ---------- DASHBOARD ----------
-function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip }) {
+function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip, showAgreementGate = false }) {
   const u = auth.currentUser;
   const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
@@ -1179,6 +1197,19 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 
   return (
     <div className="space-y-6">
+      {isAdmin && showAgreementGate && (
+        <Card className="p-4 border-amber-500/40 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <span className="text-amber-400 text-lg shrink-0">✍️</span>
+            <div className="min-w-0">
+              <div className="font-bold text-white">Sign your dispatcher agreement to go live</div>
+              <p className="text-xs text-amber-200/80 mt-0.5">You can look around, but you can’t book real freight until your Forward Motion Freight revenue-share agreement is signed.</p>
+            </div>
+          </div>
+          <button onClick={() => onNavigate && onNavigate('fmfagreement')}
+            className="text-xs px-4 py-2 rounded-lg font-semibold bg-amber-500 text-slate-950 hover:bg-amber-400 shrink-0">Review &amp; sign →</button>
+        </Card>
+      )}
       {isAdmin && (
         <div>
           <h2 className="text-2xl font-bold text-white">{greet}, {name}.</h2>
@@ -6996,6 +7027,128 @@ function AgreementText({ text }) {
   );
 }
 
+// ---------- FMF DISPATCHER: REVENUE-SHARE AGREEMENT (e-signed in-portal) ----------
+// FMF dispatchers dispatch under Forward Motion Freight's brand/authority and
+// owe FMF a share of their dispatch-fee income. They e-sign this in the portal
+// before they can book real freight. Reuses the append-only signed_agreements
+// record and the same e-sign components as the carrier agreements (no rule
+// change needed — a dispatcher may create a signed record for her own uid).
+const FMF_REVSHARE_PCT = 20;  // FMF's % of the dispatcher's dispatch-fee income
+const FMF_REVSHARE_MIN = 50;  // monthly floor in $ (raise as per-dispatcher cost firms up)
+
+const DEFAULT_REVSHARE_TEXT = `**FORWARD MOTION FREIGHT — DISPATCHER REVENUE-SHARE AGREEMENT**
+
+This Agreement is between **{{company}}** ("FMF") and **{{dispatcher}}** ({{email}}) ("Dispatcher"), effective **{{effective}}**.
+
+**1. Relationship.** Dispatcher is an independent contractor who dispatches freight under the Forward Motion Freight brand and operating authority using the Forward OS portal and FMF's support. Dispatcher brings and manages her own carriers; FMF does not supply carriers or leads under this Agreement.
+
+**2. What FMF provides.** Use of the FMF brand and authority, access to the Forward OS dispatch platform, and reasonable operational support.
+
+**3. Revenue share.** FMF receives **{{sharePct}}% of Dispatcher's dispatch-fee income** — {{sharePct}}% of the fees Dispatcher earns from her carriers. This is calculated on Dispatcher's dispatch fee, NOT on the gross value of the load. Example: a {{exGross}} load at a {{exFeePct}}% dispatch fee earns {{exFee}} in fee income, so FMF's {{sharePct}}% share is **{{exShare}}**.
+
+**4. Monthly minimum.** If {{sharePct}}% of Dispatcher's dispatch-fee income for a month is below **{{minimum}}/month**, the {{minimum}} minimum applies for that month instead.
+
+**5. Reporting & payment.** Dispatcher books loads through Forward OS, which records each load's gross and dispatch fee. Each month FMF totals Dispatcher's dispatch-fee income from the portal and Dispatcher remits the amount due. Dispatcher agrees to run loads dispatched under FMF's authority through Forward OS and to keep accurate records.
+
+**6. Change of arrangement.** If FMF later begins supplying leads or carriers to Dispatcher, the parties will renegotiate the revenue share in writing before that arrangement begins.
+
+**7. Term & termination.** Either party may terminate with written notice. Fees earned before termination remain due. On termination Dispatcher's access to Forward OS and the FMF brand/authority ends; Dispatcher's own carrier relationships remain hers.
+
+**8. Confidentiality.** Dispatcher will keep FMF's non-public business information confidential and will not copy or repurpose the Forward OS platform or FMF's processes outside this Agreement.
+
+By typing your full legal name below and signing, Dispatcher agrees to the terms of this Agreement.`;
+
+function fillRevShareTokens(text, v) {
+  return String(text || '').replace(/\{\{(company|dispatcher|email|sharePct|minimum|effective|exGross|exFeePct|exFee|exShare)\}\}/g, (_, k) => String(v[k] ?? ''));
+}
+
+// Shown in place of Assign Load when an FMF dispatcher hasn't signed yet.
+function AgreementRequired({ onNavigate }) {
+  return (
+    <div className="max-w-xl mx-auto mt-10">
+      <Card className="p-8 text-center border-amber-500/40">
+        <div className="text-4xl mb-3">✍️</div>
+        <h2 className="text-xl font-bold text-white mb-2">Sign your agreement to go live</h2>
+        <p className="text-slate-400 text-sm mb-5">Booking real freight under Forward Motion Freight’s authority requires your signed revenue-share agreement. Review the terms and e-sign — it takes a minute.</p>
+        <PrimaryButton onClick={() => onNavigate && onNavigate('fmfagreement')} className="px-6">Review &amp; sign the agreement</PrimaryButton>
+      </Card>
+    </div>
+  );
+}
+
+// The FMF dispatcher's own view: auto-filled revenue-share agreement, e-signed
+// in the portal. Signing writes the append-only record + a marker on her user
+// doc, which lifts the go-live gate (dashboard banner + Assign Load block).
+function DispatcherAgreementView({ onSigned }) {
+  const uid = auth.currentUser?.uid;
+  const [loading, setLoading] = useState(true);
+  const [signed, setSigned] = useState(null);
+  const [dispName, setDispName] = useState('');
+  const [email, setEmail] = useState('');
+  const [sig, setSig] = useState('');
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const company = 'Forward Motion Freight';
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    try {
+      const uSnap = await getDoc(doc(db, 'users', uid));
+      const ud = uSnap.exists() ? uSnap.data() : {};
+      setSigned(ud.revShareAgreement || null);
+      const nm = ud.displayName || (ud.email ? ud.email.split('@')[0] : '') || '';
+      setDispName(nm);
+      setEmail(ud.email || auth.currentUser?.email || '');
+      setSig(ud.revShareAgreement ? ud.revShareAgreement.signedName : nm);
+    } catch (e) { console.error('agreement load failed', e); }
+    finally { setLoading(false); }
+  })(); }, [uid]);
+
+  const exGross = 2000, exFeePct = 8;
+  const exFee = exGross * (exFeePct / 100);
+  const exShare = exFee * (FMF_REVSHARE_PCT / 100);
+  const usd = (n) => '$' + Number(n).toLocaleString('en-US');
+  const today = (() => { try { return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (_) { return ''; } })();
+  const tokenVals = {
+    company, dispatcher: dispName || 'Dispatcher', email, sharePct: FMF_REVSHARE_PCT,
+    minimum: usd(FMF_REVSHARE_MIN), effective: today,
+    exGross: usd(exGross), exFeePct, exFee: usd(exFee), exShare: usd(exShare),
+  };
+  const body = fillRevShareTokens(DEFAULT_REVSHARE_TEXT, tokenVals);
+
+  const doSign = async () => {
+    if (!sig.trim() || !agree || busy) return;
+    setBusy(true);
+    const rec = { signedName: sig.trim(), company, sharePct: FMF_REVSHARE_PCT, minimum: FMF_REVSHARE_MIN, email, signedAtMs: Date.now(), signedAt: serverTimestamp(), textSnapshot: body };
+    try {
+      await addDoc(collection(db, 'signed_agreements'), stampOrg({ ...rec, uid, type: 'revShareAgreement' }));
+      await setDoc(doc(db, 'users', uid), { revShareAgreement: rec }, { merge: true });
+      setSigned(rec);
+      if (onSigned) onSigned();
+    } catch (e) { console.error('revshare sign failed', e); alert('Could not record your signature — try again.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Dispatcher Agreement</h2>
+        {signed ? <Badge tone="emerald">Signed</Badge> : <Badge tone="amber">Needs signature</Badge>}
+      </div>
+      <p className="text-slate-400">Your revenue-share agreement with Forward Motion Freight. Review the terms and e-sign — this is required before you dispatch real freight under FMF’s authority.</p>
+      {loading ? <SkelRows rows={5} className="py-6" /> : (
+        <Card className="p-6">
+          <AgreementText text={signed ? signed.textSnapshot : body} />
+          {signed
+            ? <ESigned rec={signed} />
+            : <ESignBox value={sig} onChange={setSig} agree={agree} onAgree={setAgree} onSign={doSign}
+                label="Typing my full legal name is my electronic signature accepting this agreement." />}
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function CarrierAgreementsView({ uid, isAdmin }) {
   const targetUid = uid || auth.currentUser?.uid;
   const canSign = !isAdmin; // a dispatcher viewing-as sees it read-only
@@ -8476,7 +8629,7 @@ function WorkspacesView() {
       uSnap.docs.forEach((d) => {
         const u = d.data();
         st[d.id] = u.approved !== false;
-        act[d.id] = { lastLogin: u.lastLogin || null, mustChangePassword: u.mustChangePassword === true };
+        act[d.id] = { lastLogin: u.lastLogin || null, mustChangePassword: u.mustChangePassword === true, revShareSigned: !!u.revShareAgreement };
       });
       setOwnerStatus(st);
       setOwnerActivity(act);
@@ -8655,6 +8808,14 @@ function WorkspacesView() {
                           {activity.mustChangePassword
                             ? <span className="text-amber-400">Profile setup pending</span>
                             : loginMs ? <span className="text-emerald-400">Profile set up ✓</span> : null}
+                          {o.orgType === 'fmf' && (
+                            <>
+                              {' · '}
+                              {activity.revShareSigned
+                                ? <span className="text-emerald-400">Agreement signed ✓</span>
+                                : <span className="text-amber-400">Agreement unsigned</span>}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
