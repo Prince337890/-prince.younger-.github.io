@@ -32,9 +32,22 @@ service cloud.firestore {
     function ownDoc(res)   { return isSuper() || (isDispatcher() && res.data.orgId == myOrg()); }
     // Is an incoming write stamped with the caller's workspace?
     function ownNew(req)   { return isSuper() || (isDispatcher() && req.resource.data.orgId == myOrg()); }
+    // A dispatcher may edit an existing doc in their org ONLY if the write keeps
+    // it in their org. Without the ownNew() half, a dispatcher could rewrite an
+    // orgId to a *foreign* workspace and inject a record there (e.g. a bogus
+    // "verified" broker_check into someone else's liability trail). Both halves
+    // required: old doc is mine AND the result is still mine.
+    function ownEdit(res, req) { return ownDoc(res) && ownNew(req); }
     // Any signed-in member of the same workspace (dispatcher OR their drivers).
     function memberRead(res) { return isSuper() || (signedIn() && res.data.orgId == myOrg()); }
     function memberNew(req)   { return isSuper() || (signedIn() && req.resource.data.orgId == myOrg()); }
+    // Is the user `uid` a member of the caller's own workspace? (Used where the
+    // doc has no orgId of its own but references an owning user by uid.)
+    function sameOrgUser(uid) {
+      return isSuper()
+        || (isDispatcher()
+            && get(/databases/$(database)/documents/users/$(uid)).data.orgId == myOrg());
+    }
 
     // ---- user accounts ----
     // Self-write covers a carrier's own availability, vipRequested,
@@ -48,6 +61,13 @@ service cloud.firestore {
     // Those three fields are set only by a dispatcher/super at provisioning.
     // (Writing an unchanged value is not a "change", so the app's login-time
     //  merge of approved:true on an already-approved doc still passes.)
+    //
+    // SECURITY: the dispatcher branch also pins the RESULTING orgId to the
+    // caller's own workspace. Without that, a dispatcher could take a user
+    // they control (a driver they provisioned) and rewrite orgId:'<victim
+    // workspace>' + role:'admin' on them — planting an admin inside another
+    // tenant and taking it over. A dispatcher manages users in their own org
+    // only; they can never re-home a user into a foreign workspace.
     match /users/{uid} {
       allow read:   if request.auth.uid == uid || isSuper()
                     || (isDispatcher() && resource.data.orgId == myOrg());
@@ -55,7 +75,8 @@ service cloud.firestore {
       // sign-in from minting itself an admin user doc).
       allow create: if ownNew(request);
       allow update: if isSuper()
-                    || (isDispatcher() && resource.data.orgId == myOrg())
+                    || (isDispatcher() && resource.data.orgId == myOrg()
+                        && request.resource.data.orgId == myOrg())
                     || (request.auth.uid == uid
                         && !request.resource.data.diff(resource.data).affectedKeys()
                               .hasAny(['role', 'orgId', 'approved']));
@@ -76,7 +97,7 @@ service cloud.firestore {
     match /loads/{id} {
       allow read:   if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
       allow create: if ownNew(request);
-      allow update: if ownDoc(resource)
+      allow update: if ownEdit(resource, request)
                     || (signedIn() && resource.data.uid == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys()
                               .hasOnly(driverLoadKeys()));
@@ -90,17 +111,25 @@ service cloud.firestore {
       allow read:   if (signedIn() && resource.data.linkedDriverUid == request.auth.uid) || ownDoc(resource);
       allow create: if ownNew(request);
       allow delete: if ownDoc(resource);
-      allow update: if ownDoc(resource)
+      allow update: if ownEdit(resource, request)
         || (signedIn()
             && resource.data.linkedDriverUid == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availability']));
     }
 
     // ---- schedule events (each user owns their own) ----
+    // These docs carry a `uid` (whose calendar it is) but NO orgId, so a
+    // dispatcher's access is scoped by looking up that user's workspace via
+    // sameOrgUser(). Without the lookup, ANY dispatcher (role:'admin' is not
+    // org-scoped by itself) could read, edit, or delete EVERY other workspace's
+    // calendar events — a cross-tenant leak. A user always owns their own.
     match /schedule_events/{id} {
-      allow read:           if isDispatcher() || (signedIn() && resource.data.uid == request.auth.uid);
-      allow create:         if isDispatcher() || (signedIn() && request.resource.data.uid == request.auth.uid);
-      allow update, delete: if isDispatcher() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow read:           if sameOrgUser(resource.data.uid)
+                            || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create:         if sameOrgUser(request.resource.data.uid)
+                            || (signedIn() && request.resource.data.uid == request.auth.uid);
+      allow update, delete: if sameOrgUser(resource.data.uid)
+                            || (signedIn() && resource.data.uid == request.auth.uid);
     }
 
     // ---- compliance (one doc per driver uid) ----
@@ -116,45 +145,52 @@ service cloud.firestore {
     match /expenses/{id} {
       allow read:   if ownDoc(resource);
       allow create: if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
 
     // ---- broker checks (saved vetting records — the liability/proof trail) ----
     match /broker_checks/{id} {
       allow read:   if ownDoc(resource);
       allow create: if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
 
     // ---- lane intel ----
     // Any workspace member can read and ADD entries (drivers post delivery
     // debriefs that surface in Facility & Market Intel); only a dispatcher edits/deletes.
     match /lane_intel/{id} {
-      allow read:           if memberRead(resource);
-      allow create:         if memberNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow read:   if memberRead(resource);
+      allow create: if memberNew(request);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
 
     // ---- shared reference data: members read, dispatcher writes ----
     match /safe_parking/{id} {
       allow read:   if memberRead(resource);
       allow create: if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
     match /vehicles/{id} {
       allow read:   if memberRead(resource);
       allow create: if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
     match /fleet_drivers/{id} {
       allow read:   if memberRead(resource);
       allow create: if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
     match /hos_status/{id} {
       allow read:   if memberRead(resource);
       allow create: if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
 
     // ---- carrier intake packets (PUBLIC submit) ----
@@ -223,9 +259,10 @@ service cloud.firestore {
 
     // ---- CRM / network (dispatcher's brokers + carrier leads) ----
     match /crm_contacts/{id} {
-      allow read:           if ownDoc(resource);
-      allow create:         if ownNew(request);
-      allow update, delete: if ownDoc(resource);
+      allow read:   if ownDoc(resource);
+      allow create: if ownNew(request);
+      allow update: if ownEdit(resource, request);
+      allow delete: if ownDoc(resource);
     }
 
     // ---- digital vault documents ----
@@ -234,7 +271,9 @@ service cloud.firestore {
     match /vault_docs/{id} {
       allow read:   if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
       allow create: if (signedIn() && request.resource.data.uid == request.auth.uid && memberNew(request)) || ownNew(request);
-      allow update: if (signedIn() && resource.data.uid == request.auth.uid) || ownDoc(resource);
+      allow update: if (signedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['orgId']) == false)
+                    || ownEdit(resource, request);
       allow delete: if ownDoc(resource);
     }
 
