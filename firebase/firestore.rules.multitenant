@@ -126,6 +126,13 @@ service cloud.firestore {
       allow update, delete: if ownDoc(resource);
     }
 
+    // ---- carrier checks (same vetting trail, for the carrier side) ----
+    match /carrier_checks/{id} {
+      allow read:   if ownDoc(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+
     // ---- lane intel ----
     // Any workspace member can read and ADD entries (drivers post delivery
     // debriefs that surface in Facility & Market Intel); only a dispatcher edits/deletes.

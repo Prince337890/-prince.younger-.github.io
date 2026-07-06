@@ -603,6 +603,7 @@ export default function App() {
         { tab: 'laneintel', label: 'Lane Intel', icon: <Map size={16} />, keywords: ['market', 'lanes'] },
         { tab: 'trihaul', label: 'TriHaul Planner', icon: <Navigation size={16} />, keywords: ['triangle', 'route'] },
         { tab: 'brokercheck', label: 'Broker Check', icon: <ShieldCheck size={16} />, keywords: ['credit', 'broker'] },
+        { tab: 'carriercheck', label: 'Carrier Check', icon: <ShieldCheck size={16} />, keywords: ['vet', 'carrier', 'insurance'] },
         { tab: 'assign', label: 'Assign Load', icon: <Plus size={16} />, keywords: ['new load', 'dispatch'] },
         { tab: 'allloads', label: 'All Loads', icon: <Navigation size={16} />, keywords: ['loads', 'board'] },
         { tab: 'carriers', label: 'Carriers', icon: <Building size={16} />, keywords: ['fleet', 'owner operator'] },
@@ -750,6 +751,7 @@ export default function App() {
       case 'crm': return isAdmin ? <CrmView onNavigate={go} /> : <DashboardView />;
       case 'vip': return isAdmin ? <VipServicesView /> : <DashboardView />;
       case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
+      case 'carriercheck': return isAdmin ? <CarrierCheckView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
@@ -852,6 +854,7 @@ export default function App() {
 
               <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">CARRIERS &amp; ACCESS</div>
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
+              <NavItem icon={<ShieldCheck size={18} />} label="Carrier Check" isActive={activeTab === 'carriercheck'} onClick={() => go('carriercheck')} />
               <NavItem icon={<BookOpen size={18} />} label="CRM / Network" isActive={activeTab === 'crm'} onClick={() => go('crm')} />
               <NavItem icon={<User size={18} />} label="Logins &amp; Access" isActive={activeTab === 'drivers'} onClick={() => go('drivers')} />
               <NavItem icon={<HeartPulse size={18} />} label="VIP Services" isActive={activeTab === 'vip'} onClick={() => go('vip')} />
@@ -8016,6 +8019,157 @@ function BrokerCheckView() {
       )}
 
       <p className="text-[11px] text-slate-600">Manual vetting for now. Live SAFER lookups, the public suspended-broker list, and automatic factorability checks arrive with the backend phase.</p>
+    </div>
+  );
+}
+
+// ---------- ADMIN: CARRIER CHECK (vet a carrier before onboarding/dispatching) ----------
+// Mirror of Broker Check for the other side of the deal: verify a carrier's
+// authority, insurance, and identity before you put freight on their truck.
+// Saves to carrier_checks (same rule shape as broker_checks).
+function CarrierCheckView() {
+  const [c, setC] = useState({ name: '', mc: '', dot: '' });
+  const set = (k) => (e) => setC((s) => ({ ...s, [k]: e.target.value }));
+  const [checks, setChecks] = useState({});
+  const [flags, setFlags] = useState({});
+  const [saved, setSaved] = useState([]);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [savingChk, setSavingChk] = useState(false);
+  const chkMs = (t) => { try { return t?.toMillis ? t.toMillis() : (t?.seconds ? t.seconds * 1000 : 0); } catch (_) { return 0; } };
+  const fmtChkDate = (t) => { try { const d = t?.toDate ? t.toDate() : null; return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'just now'; } catch (_) { return '—'; } };
+  const loadSaved = async () => {
+    try { const snap = await getDocs(orgScoped('carrier_checks')); setSaved(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, x) => chkMs(x.createdAt) - chkMs(a.createdAt)).slice(0, 10)); }
+    catch (e) { console.error('carrier_checks load failed', e); }
+  };
+  useEffect(() => { loadSaved(); }, []);
+
+  const CHECKS = [
+    ['authority', 'Operating authority is ACTIVE on FMCSA SAFER (MC/DOT not revoked or pending)'],
+    ['oos', 'Not out-of-service; safety rating is not "Unsatisfactory"'],
+    ['insurance', 'Auto liability ≥ $1M and cargo ≥ $100k — COI verified WITH THE ISSUING AGENT, not just the PDF'],
+    ['docs', 'Onboarding packet complete: W-9, authority letter, COI, NOA (if factoring)'],
+    ['equipment', 'Equipment verified — truck/trailer type and count match what they claim'],
+    ['identity', 'Contact identity matches FMCSA-registered info (callback to the registered number)'],
+  ];
+  const RED_FLAGS = [
+    ['newAuthority', 'Authority is brand new (< 6 months) with no inspection history'],
+    ['fakeCoi', "COI won't verify with the issuing agent, or the agent number is unreachable"],
+    ['mismatch', 'Phone/email don’t match the FMCSA-registered company'],
+    ['chameleon', 'Chameleon signs — same address/officers as a revoked or shut-down carrier'],
+    ['noTracking', 'Refuses tracking or won’t share the actual driver’s contact'],
+    ['advances', 'Pushes hard for big fuel advances before pickup'],
+  ];
+
+  const allClear = CHECKS.every(([k]) => checks[k]);
+  const flagCount = RED_FLAGS.filter(([k]) => flags[k]).length;
+  let verdict;
+  if (flagCount >= 2) verdict = { tone: 'red', label: '🔴 HIGH RISK — do not dispatch', sub: 'Multiple identity/insurance red flags. A stolen load or a fake COI lands on you. Verify independently or walk away.' };
+  else if (!allClear || flagCount === 1) verdict = { tone: 'amber', label: '🟡 Caution — finish vetting', sub: 'Complete every check and clear all red flags before you put freight on this truck.' };
+  else verdict = { tone: 'emerald', label: '🟢 Cleared to dispatch', sub: 'All checks pass and no red flags. Keep this record with the carrier’s onboarding packet.' };
+  const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-amber-500/15 border-amber-500/40 text-amber-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
+
+  const reset = () => { setC({ name: '', mc: '', dot: '' }); setChecks({}); setFlags({}); setSaveMsg(''); };
+  const save = async () => {
+    if (!c.name.trim() && !c.mc.trim() && !c.dot.trim()) { setSaveMsg('Enter the carrier name, MC, or DOT first.'); return; }
+    setSavingChk(true); setSaveMsg('');
+    try {
+      await addDoc(collection(db, 'carrier_checks'), stampOrg({
+        carrierName: c.name.trim(), carrierMc: c.mc.trim(), carrierDot: c.dot.trim(),
+        verdict: verdict.label, verdictTone: verdict.tone,
+        checksPassed: CHECKS.filter(([k]) => checks[k]).length, checksTotal: CHECKS.length,
+        flagCount, checks, flags,
+        savedBy: auth.currentUser ? auth.currentUser.uid : null,
+        createdAt: serverTimestamp(),
+      }));
+      setSaveMsg('Saved to your vetting record ✓');
+      loadSaved();
+    } catch (e) { console.error('save carrier check failed', e); setSaveMsg('Could not save — check the console (is the carrier_checks rule published?).'); }
+    finally { setSavingChk(false); }
+  };
+  const saferUrl = 'https://safer.fmcsa.dot.gov/CompanySnapshot.aspx';
+  const liUrl = 'https://li-public.fmcsa.dot.gov/LIVIEW/pkg_menu.prc_menu';
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Carrier Check</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">Vet a carrier before you onboard them or put a load on their truck. Fake COIs, chameleon authorities, and identity theft are how loads get stolen — and the vetting trail is your proof you did the work.</p>
+
+      <GuidedHint>Run this when a new carrier wants on your board, and re-run it if their insurance renews or anything smells off. Two or more red flags = stop and verify with FMCSA + the insurance agent directly.</GuidedHint>
+
+      <Card className="p-6 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Field label="Carrier / Company Name"><input className={INPUT_CLS} value={c.name} onChange={set('name')} placeholder="Rolling Thunder LLC" /></Field>
+          <Field label="MC Number"><input className={INPUT_CLS} value={c.mc} onChange={set('mc')} placeholder="MC-654321" /></Field>
+          <Field label="DOT Number"><input className={INPUT_CLS} value={c.dot} onChange={set('dot')} placeholder="1234567" /></Field>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a href={saferUrl} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">Open FMCSA SAFER ↗</a>
+          <a href={liUrl} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">Open FMCSA L&amp;I (insurance/authority) ↗</a>
+        </div>
+      </Card>
+
+      <div className={`rounded-2xl border p-5 ${verdictCls}`}>
+        <div className="font-bold text-base">{verdict.label}</div>
+        <div className="text-sm opacity-80 mt-1">{verdict.sub}</div>
+      </div>
+
+      <Card className="p-6">
+        <PanelHeader icon={<ShieldCheck size={20} />} title="Vetting Checklist" badge={<Badge tone={allClear ? 'emerald' : 'slate'}>{CHECKS.filter(([k]) => checks[k]).length}/{CHECKS.length}</Badge>} />
+        <div className="space-y-2 mt-4">
+          {CHECKS.map(([k, label]) => (
+            <label key={k} className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2.5">
+              <input type="checkbox" checked={!!checks[k]} onChange={(e) => setChecks((s) => ({ ...s, [k]: e.target.checked }))} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <PanelHeader icon={<Activity size={20} />} title="Carrier-Fraud Red Flags" accent="red" badge={<Badge tone={flagCount === 0 ? 'emerald' : flagCount === 1 ? 'amber' : 'red'}>{flagCount} flagged</Badge>} />
+        <p className="text-xs text-slate-500 mt-2">Check anything you're seeing. Two or more is a strong signal to stop and verify independently.</p>
+        <div className="space-y-2 mt-4">
+          {RED_FLAGS.map(([k, label]) => (
+            <label key={k} className="flex items-start gap-3 text-sm text-slate-200 cursor-pointer bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2.5">
+              <input type="checkbox" checked={!!flags[k]} onChange={(e) => setFlags((s) => ({ ...s, [k]: e.target.checked }))} className="w-4 h-4 mt-0.5 rounded accent-red-500 shrink-0" />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <PrimaryButton onClick={save} disabled={savingChk} className="text-sm px-4 py-2">{savingChk ? 'Saving…' : 'Save this check'}</PrimaryButton>
+          <GhostButton onClick={reset} className="text-sm">Reset for next carrier</GhostButton>
+          {saveMsg && <span className={`text-sm ${saveMsg.includes('✓') ? 'text-emerald-400' : 'text-amber-400'}`}>{saveMsg}</span>}
+        </div>
+      </Card>
+
+      {saved.length > 0 && (
+        <Card className="p-6">
+          <PanelHeader icon={<FileText size={20} />} title="Saved Checks" badge={<Badge tone="slate">{saved.length}</Badge>} />
+          <p className="text-xs text-slate-500 mt-2">Your produceable vetting trail — one record per carrier you've checked, with the verdict and date.</p>
+          <div className="mt-4 space-y-2">
+            {saved.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 text-sm bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2.5 flex-wrap">
+                <div className="min-w-0">
+                  <span className="font-semibold text-white">{r.carrierName || '—'}</span>
+                  {r.carrierMc && <span className="text-slate-500 ml-2">{r.carrierMc}</span>}
+                  {r.carrierDot && <span className="text-slate-500 ml-2">DOT {r.carrierDot}</span>}
+                  <span className="text-slate-500 ml-2">· {r.checksPassed}/{r.checksTotal} checks · {r.flagCount} flag{r.flagCount === 1 ? '' : 's'}</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded ${({ red: 'bg-red-500/15 text-red-300', amber: 'bg-amber-500/15 text-amber-300', emerald: 'bg-emerald-500/15 text-emerald-300' })[r.verdictTone] || 'bg-slate-700 text-slate-300'}`}>{r.verdict}</span>
+                  <span className="text-[11px] text-slate-500">{fmtChkDate(r.createdAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <p className="text-[11px] text-slate-600">Manual vetting for now. Live SAFER/insurance lookups arrive with the backend phase.</p>
     </div>
   );
 }
