@@ -649,7 +649,7 @@ export default function App() {
       case 'mycpm': return <DriverExpensesView key={'cpm-' + viewUid} uid={viewUid} />;
       case 'settings': return <SettingsView isAdmin={isAdmin && !viewAs} myStatus={myStatus} onSetStatus={updateMyStatus} vipOn={vipOn} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} guidedMode={guidedMode} toggleGuided={toggleGuided} onNavigate={go} onReplayTour={() => setShowTour(true)} />;
       case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
-      case 'requests': return isSuper ? <AccessRequestsView /> : <DashboardView />;
+      case 'requests': return isSuper ? <AccessRequestsView onNavigate={go} /> : <DashboardView />;
       case 'courseprogress': return isSuper ? <CourseProgressView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
@@ -8214,7 +8214,14 @@ function TourOverlay({ role, onClose }) {
 // crash course) lands in dispatcher_leads. This is the super-admin's pipeline
 // so requests don't sit unseen in Firestore — with a "handled" toggle to work
 // them and keep the 24–48h provisioning promise.
-function AccessRequestsView() {
+
+// One-request handoff from Access Requests → Workspaces: "Set up workspace"
+// stashes the lead here, jumps to the Workspaces tab, and the provision form
+// reads + clears it on mount so the dispatcher's name/email/relationship are
+// pre-filled (and the lead auto-marked handled once the workspace is created).
+let _provisionPrefill = null;
+
+function AccessRequestsView({ onNavigate }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -8303,10 +8310,22 @@ function AccessRequestsView() {
                     </div>
                     {r.message && <p className="text-sm text-slate-300 mt-2">{r.message}</p>}
                   </div>
-                  <button onClick={() => toggleHandled(r)} disabled={busyId === r.id}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold shrink-0 disabled:opacity-50 ${r.handled ? 'border border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-emerald-500 text-slate-950'}`}>
-                    {r.handled ? 'Reopen' : 'Mark handled'}
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {!r.handled && (
+                      <button
+                        onClick={() => {
+                          _provisionPrefill = { name: r.name || '', email: r.email || '', situation: r.situation || '', leadId: r.id };
+                          if (onNavigate) onNavigate('workspaces');
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-amber-500 text-slate-950 hover:bg-amber-400">
+                        Set up workspace →
+                      </button>
+                    )}
+                    <button onClick={() => toggleHandled(r)} disabled={busyId === r.id}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 ${r.handled ? 'border border-slate-700 text-slate-400 hover:bg-slate-800' : 'border border-slate-600 text-slate-300 hover:bg-slate-800'}`}>
+                      {r.handled ? 'Reopen' : 'Mark handled'}
+                    </button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -8419,11 +8438,32 @@ function WorkspacesView() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [created, setCreated] = useState(null);
   const [err, setErr] = useState('');
-  const genPw = () => {
+  const [prefillLeadId, setPrefillLeadId] = useState(null); // access-request this workspace fulfills
+  const newPw = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let p = ''; for (let i = 0; i < 10; i++) p += chars[Math.floor(Math.random() * chars.length)];
-    setForm((f) => ({ ...f, pw: p }));
+    return p;
   };
+  const genPw = () => setForm((f) => ({ ...f, pw: newPw() }));
+
+  // Pull in a lead handed over from Access Requests ("Set up workspace"): fill
+  // the dispatcher's name/email/relationship (FMF also names the workspace so
+  // carriers see the FMF brand) and pre-generate a temp password. Runs once.
+  useEffect(() => {
+    const p = _provisionPrefill;
+    if (!p) return;
+    _provisionPrefill = null;
+    const orgType = p.situation === 'fmf' ? 'fmf' : 'independent';
+    setForm((f) => ({
+      ...f,
+      name: p.name || '',
+      email: p.email || '',
+      orgType,
+      workspaceName: orgType === 'fmf' ? 'Forward Motion Freight' : f.workspaceName,
+      pw: f.pw || newPw(),
+    }));
+    if (p.leadId) setPrefillLeadId(p.leadId);
+  }, []);
 
   const [ownerStatus, setOwnerStatus] = useState({}); // uid -> active(bool)
   const [ownerActivity, setOwnerActivity] = useState({}); // uid -> { lastLogin, mustChangePassword }
@@ -8519,6 +8559,11 @@ function WorkspacesView() {
       queueEmail(form.email.trim(), 'Your Forward OS dispatcher access is ready',
         welcomeDispatcherEmail({ name: form.name.trim(), email: form.email.trim(), tempPw: form.pw }));
       setForm({ workspaceName: '', name: '', email: '', pw: '', orgType: 'independent' });
+      // Close the loop: if this came from an access request, mark it handled.
+      if (prefillLeadId) {
+        try { await updateDoc(doc(db, 'dispatcher_leads', prefillLeadId), { handled: true, handledAt: serverTimestamp() }); } catch (_) { /* best-effort */ }
+        setPrefillLeadId(null);
+      }
       fetchOrgs();
     } catch (e2) {
       console.error('provision failed', e2);
