@@ -614,6 +614,7 @@ export default function App() {
         { tab: 'invoices', label: 'Invoices', icon: <FileText size={16} />, keywords: ['billing', 'invoice'] },
         { tab: 'fleet', label: 'Fleet (ELD)', icon: <Activity size={16} />, keywords: ['eld', 'trucks'] },
         { tab: 'training', label: 'Training', icon: <GraduationCap size={16} />, keywords: ['course', 'quiz'] },
+        { tab: 'walkthrough', label: 'First Load Walkthrough', icon: <Navigation size={16} />, keywords: ['walkthrough', 'tutorial', 'first load'] },
       );
       if (isSuper) {
         items.push(
@@ -752,6 +753,7 @@ export default function App() {
       case 'vip': return isAdmin ? <VipServicesView /> : <DashboardView />;
       case 'brokercheck': return isAdmin ? <BrokerCheckView /> : <DashboardView />;
       case 'carriercheck': return isAdmin ? <CarrierCheckView /> : <DashboardView />;
+      case 'walkthrough': return isAdmin ? <WalkthroughView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
@@ -864,6 +866,7 @@ export default function App() {
               <NavItem icon={<FileText size={18} />} label="Invoices" isActive={activeTab === 'invoices'} onClick={() => go('invoices')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
+              <NavItem icon={<Navigation size={18} />} label="First Load Walkthrough" isActive={activeTab === 'walkthrough'} onClick={() => go('walkthrough')} />
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
               {isSuper && <NavItem icon={<User size={18} />} label="Access Requests" isActive={activeTab === 'requests'} onClick={() => go('requests')} />}
               {isSuper && <NavItem icon={<GraduationCap size={18} />} label="Course Progress" isActive={activeTab === 'courseprogress'} onClick={() => go('courseprogress')} />}
@@ -8019,6 +8022,34 @@ function BrokerCheckView() {
       )}
 
       <p className="text-[11px] text-slate-600">Manual vetting for now. Live SAFER lookups, the public suspended-broker list, and automatic factorability checks arrive with the backend phase.</p>
+    </div>
+  );
+}
+
+// ---------- ADMIN: FIRST LOAD WALKTHROUGH (animated training, hosted page) ----------
+// The animated scene-by-scene story of one load — find it, vet the broker,
+// negotiate, RateCon, dispatch, deliver, invoice, get paid. The page itself is
+// the self-contained dispatch-walkthrough.html on the marketing site (deploys
+// with it); this tab frames it inside the portal.
+const WALKTHROUGH_URL = 'https://forwardmotionfreight.com/dispatch-walkthrough.html';
+function WalkthroughView() {
+  return (
+    <div className="max-w-5xl mx-auto space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold">First Load Walkthrough</h2>
+          <p className="text-slate-400 text-sm mt-1">One load, start to finish — negotiation, paperwork, dispatch, and how everyone gets paid. Step through it with the arrows.</p>
+        </div>
+        <a href={WALKTHROUGH_URL} target="_blank" rel="noopener noreferrer" className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg shrink-0">Open full screen ↗</a>
+      </div>
+      <Card className="p-0 overflow-hidden">
+        <iframe
+          src={WALKTHROUGH_URL}
+          title="First Load Walkthrough"
+          className="w-full block border-0"
+          style={{ height: 'calc(100vh - 220px)', minHeight: 480 }}
+        />
+      </Card>
     </div>
   );
 }
