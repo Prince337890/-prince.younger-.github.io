@@ -119,6 +119,13 @@ service cloud.firestore {
       allow update, delete: if ownDoc(resource);
     }
 
+    // ---- broker checks (saved vetting records — the liability/proof trail) ----
+    match /broker_checks/{id} {
+      allow read:   if ownDoc(resource);
+      allow create: if ownNew(request);
+      allow update, delete: if ownDoc(resource);
+    }
+
     // ---- lane intel ----
     // Any workspace member can read and ADD entries (drivers post delivery
     // debriefs that surface in Facility & Market Intel); only a dispatcher edits/deletes.

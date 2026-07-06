@@ -393,6 +393,22 @@ function orgScoped(name) {
 // Stamp the active org onto a document being created.
 function stampOrg(obj) { return ACTIVE_ORG ? { ...obj, orgId: ACTIVE_ORG } : obj; }
 
+// Collision-resistant load ID. A 6-digit space (900k values) plus an existence
+// check against this workspace's loads (retry on the rare clash) so two loads
+// can't end up sharing an FM-###### number on a RateCon, invoice, or factoring
+// submission. Async — always await it.
+async function genLoadId() {
+  const rand = () => 'FM-' + Math.floor(100000 + Math.random() * 900000);
+  for (let i = 0; i < 8; i++) {
+    const cand = rand();
+    try {
+      const snap = await getDocs(query(orgScoped('loads'), where('loadId', '==', cand)));
+      if (snap.empty) return cand;
+    } catch (_) { return cand; } // can't check → 900k space makes a clash unlikely
+  }
+  return 'FM-' + String(Date.now()).slice(-6);
+}
+
 // "Guided Mode" (training wheels) — when on, the UI nudges new dispatchers
 // through workflows with checklists and contextual hints. Read app-wide.
 const GuidedModeContext = React.createContext(false);
@@ -3092,7 +3108,7 @@ function AssignLoadView() {
 
   const blank = {
     driverUid: '',
-    loadId: 'FM-' + Math.floor(1000 + Math.random() * 9000),
+    loadId: 'FM-' + Math.floor(100000 + Math.random() * 900000),
     origin: '', destination: '', commodity: '', weight: '',
     po_number: '', pickup_number: '', pickup_time: '',
     delivery_time: '', delivery_date: '', gross_pay: '',
@@ -3121,16 +3137,23 @@ function AssignLoadView() {
     setSaving(true);
     setDone('');
     try {
+      // Keep a dispatcher-typed load ID if it's unique; otherwise (empty or a
+      // clash with an existing load) assign a guaranteed-unique one.
+      let loadId = (form.loadId || '').trim();
+      try {
+        if (!loadId || !(await getDocs(query(orgScoped('loads'), where('loadId', '==', loadId)))).empty) loadId = await genLoadId();
+      } catch (_) { if (!loadId) loadId = await genLoadId(); }
       await addDoc(collection(db, 'loads'), stampOrg({
         ...form,
+        loadId,
         uid: form.driverUid,
         gross_pay: Number(form.gross_pay) || 0,
         status: 'Dispatched',
         createdAt: serverTimestamp(),
       }));
       const drv = drivers.find((d) => d.uid === form.driverUid);
-      setDone(`Load ${form.loadId} assigned to ${drv?.email || 'driver'} ✓`);
-      setForm({ ...blank, loadId: 'FM-' + Math.floor(1000 + Math.random() * 9000) });
+      setDone(`Load ${loadId} assigned to ${drv?.email || 'driver'} ✓`);
+      setForm({ ...blank, loadId: 'FM-' + Math.floor(100000 + Math.random() * 900000) });
     } catch (e) {
       console.error('Error assigning load:', e);
       setDone('Error assigning load — check the console.');
@@ -4375,7 +4398,7 @@ function NegotiationCalcView() {
 
     setAssigning(true);
     try {
-      const loadId = 'FM-' + Math.floor(1000 + Math.random() * 9000);
+      const loadId = await genLoadId();
       await addDoc(collection(db, 'loads'), stampOrg({
         loadId,
         uid: selectedCarrierObj.linkedDriverUid,
@@ -7519,6 +7542,16 @@ function BrokerCheckView() {
   const set = (k) => (e) => setB((s) => ({ ...s, [k]: e.target.value }));
   const [checks, setChecks] = useState({});
   const [flags, setFlags] = useState({});
+  const [saved, setSaved] = useState([]);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [savingChk, setSavingChk] = useState(false);
+  const chkMs = (t) => { try { return t?.toMillis ? t.toMillis() : (t?.seconds ? t.seconds * 1000 : 0); } catch (_) { return 0; } };
+  const fmtChkDate = (t) => { try { const d = t?.toDate ? t.toDate() : null; return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'just now'; } catch (_) { return '—'; } };
+  const loadSaved = async () => {
+    try { const snap = await getDocs(orgScoped('broker_checks')); setSaved(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, c) => chkMs(c.createdAt) - chkMs(a.createdAt)).slice(0, 10)); }
+    catch (e) { console.error('broker_checks load failed', e); }
+  };
+  useEffect(() => { loadSaved(); }, []);
 
   const CHECKS = [
     ['authority', 'Operating authority is ACTIVE on FMCSA SAFER'],
@@ -7545,7 +7578,24 @@ function BrokerCheckView() {
   else verdict = { tone: 'emerald', label: '🟢 Cleared to book', sub: 'All checks pass and no red flags. Keep the proof package for this load.' };
   const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-amber-500/15 border-amber-500/40 text-amber-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
 
-  const reset = () => { setB({ name: '', mc: '' }); setChecks({}); setFlags({}); };
+  const reset = () => { setB({ name: '', mc: '' }); setChecks({}); setFlags({}); setSaveMsg(''); };
+  const save = async () => {
+    if (!b.name.trim() && !b.mc.trim()) { setSaveMsg('Enter the broker name or MC first.'); return; }
+    setSavingChk(true); setSaveMsg('');
+    try {
+      await addDoc(collection(db, 'broker_checks'), stampOrg({
+        brokerName: b.name.trim(), brokerMc: b.mc.trim(),
+        verdict: verdict.label, verdictTone: verdict.tone,
+        checksPassed: CHECKS.filter(([k]) => checks[k]).length, checksTotal: CHECKS.length,
+        flagCount, checks, flags,
+        savedBy: auth.currentUser ? auth.currentUser.uid : null,
+        createdAt: serverTimestamp(),
+      }));
+      setSaveMsg('Saved to your vetting record ✓');
+      loadSaved();
+    } catch (e) { console.error('save broker check failed', e); setSaveMsg('Could not save — check the console (is the broker_checks rule published?).'); }
+    finally { setSavingChk(false); }
+  };
   const saferUrl = 'https://safer.fmcsa.dot.gov/CompanySnapshot.aspx';
   const liUrl = 'https://li-public.fmcsa.dot.gov/LIVIEW/pkg_menu.prc_menu';
 
@@ -7599,10 +7649,34 @@ function BrokerCheckView() {
             </label>
           ))}
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <PrimaryButton onClick={save} disabled={savingChk} className="text-sm px-4 py-2">{savingChk ? 'Saving…' : 'Save this check'}</PrimaryButton>
           <GhostButton onClick={reset} className="text-sm">Reset for next broker</GhostButton>
+          {saveMsg && <span className={`text-sm ${saveMsg.includes('✓') ? 'text-emerald-400' : 'text-amber-400'}`}>{saveMsg}</span>}
         </div>
       </Card>
+
+      {saved.length > 0 && (
+        <Card className="p-6">
+          <PanelHeader icon={<FileText size={20} />} title="Saved Checks" badge={<Badge tone="slate">{saved.length}</Badge>} />
+          <p className="text-xs text-slate-500 mt-2">Your produceable vetting trail — one record per broker you've checked, with the verdict and date.</p>
+          <div className="mt-4 space-y-2">
+            {saved.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 text-sm bg-slate-800/40 border border-slate-700 rounded-lg px-3 py-2.5 flex-wrap">
+                <div className="min-w-0">
+                  <span className="font-semibold text-white">{r.brokerName || '—'}</span>
+                  {r.brokerMc && <span className="text-slate-500 ml-2">{r.brokerMc}</span>}
+                  <span className="text-slate-500 ml-2">· {r.checksPassed}/{r.checksTotal} checks · {r.flagCount} flag{r.flagCount === 1 ? '' : 's'}</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded ${({ red: 'bg-red-500/15 text-red-300', amber: 'bg-amber-500/15 text-amber-300', emerald: 'bg-emerald-500/15 text-emerald-300' })[r.verdictTone] || 'bg-slate-700 text-slate-300'}`}>{r.verdict}</span>
+                  <span className="text-[11px] text-slate-500">{fmtChkDate(r.createdAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <p className="text-[11px] text-slate-600">Manual vetting for now. Live SAFER lookups, the public suspended-broker list, and automatic factorability checks arrive with the backend phase.</p>
     </div>
