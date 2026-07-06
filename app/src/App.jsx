@@ -293,11 +293,14 @@ function offerCarrierText({ loadId, origin, destination, rate, pickup, dispatchP
   return `${co}: New load offer ${loadId}\n${origin || '?'} -> ${destination || '?'}\nRate: ${money(rate)}${pu}\n\nReview & accept in your portal: ${PORTAL_URL}${ph}`;
 }
 
-async function createDriverAccount(email, password) {
+async function createDriverAccount(email, password, displayName) {
   const secondary = initializeApp(firebaseConfig, 'driver-creator-' + Date.now());
   const secondaryAuth = getAuth(secondary);
   try {
     const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    // Seed the auth-profile name so their dashboard greets them by name on the
+    // very first login (before they've saved a profile). Best-effort.
+    if (displayName) { try { await updateProfile(cred.user, { displayName }); } catch (_) {} }
     return cred.user.uid;
   } finally {
     try { await signOut(secondaryAuth); } catch (_) {}
@@ -800,10 +803,11 @@ export default function App() {
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold uppercase shrink-0">
-              {user.email ? user.email[0] : 'D'}
+              {(user.displayName || user.email || 'D')[0]}
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-semibold truncate">{user.email}</div>
+              <div className="text-sm font-semibold truncate">{user.displayName || user.email}</div>
+              {user.displayName && <div className="text-[11px] text-slate-500 truncate">{user.email}</div>}
               {isAdmin ? (
                 <div className="text-xs text-emerald-400">● Admin</div>
               ) : (
@@ -1101,6 +1105,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
   const name = displayName || u?.displayName || (u?.email ? prettyName(u.email.split('@')[0]) : 'Driver');
+  const greet = (() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })();
 
   const startOfWeek = () => {
     const d = new Date();
@@ -1174,6 +1179,12 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 
   return (
     <div className="space-y-6">
+      {isAdmin && (
+        <div>
+          <h2 className="text-2xl font-bold text-white">{greet}, {name}.</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Here’s your deal desk. Let’s move some freight.</p>
+        </div>
+      )}
       {isAdmin && <AdminGettingStarted onNavigate={onNavigate} />}
       {isAdmin && <AdminWeeklyGross />}
       {isAdmin && <MarketPulse />}
@@ -8404,7 +8415,7 @@ function WorkspacesView() {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ workspaceName: '', email: '', pw: '', orgType: 'independent' });
+  const [form, setForm] = useState({ workspaceName: '', name: '', email: '', pw: '', orgType: 'independent' });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [created, setCreated] = useState(null);
   const [err, setErr] = useState('');
@@ -8501,13 +8512,13 @@ function WorkspacesView() {
     if (!form.workspaceName.trim() || !form.email.trim() || form.pw.length < 6) { setErr('Workspace name, dispatcher email, and a 6+ character password are all required.'); return; }
     setSaving(true);
     try {
-      const uid = await createDriverAccount(form.email.trim(), form.pw);
+      const uid = await createDriverAccount(form.email.trim(), form.pw, form.name.trim());
       const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), orgType: form.orgType, createdAt: serverTimestamp(), config: {} });
-      await setDoc(doc(db, 'users', uid), { email: form.email.trim(), approved: true, mustChangePassword: true, orgId: orgRef.id, role: 'admin', createdAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { email: form.email.trim(), displayName: form.name.trim(), approved: true, mustChangePassword: true, orgId: orgRef.id, role: 'admin', createdAt: serverTimestamp() }, { merge: true });
       setCreated({ email: form.email.trim(), pw: form.pw, workspace: form.workspaceName.trim() });
       queueEmail(form.email.trim(), 'Your Forward OS dispatcher access is ready',
-        welcomeDispatcherEmail({ name: '', email: form.email.trim(), tempPw: form.pw }));
-      setForm({ workspaceName: '', email: '', pw: '', orgType: 'independent' });
+        welcomeDispatcherEmail({ name: form.name.trim(), email: form.email.trim(), tempPw: form.pw }));
+      setForm({ workspaceName: '', name: '', email: '', pw: '', orgType: 'independent' });
       fetchOrgs();
     } catch (e2) {
       console.error('provision failed', e2);
@@ -8532,8 +8543,12 @@ function WorkspacesView() {
         <form onSubmit={provision} className="space-y-4">
           <h3 className="font-bold">Provision a Dispatcher Workspace</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Workspace name"><input className={INPUT_CLS} value={form.workspaceName} onChange={set('workspaceName')} placeholder="Cole Dispatch Co." /></Field>
+            <Field label="Dispatcher name"><input className={INPUT_CLS} value={form.name} onChange={set('name')} placeholder="Tanisha Nicholas" /></Field>
             <Field label="Dispatcher email"><input className={INPUT_CLS} type="email" value={form.email} onChange={set('email')} placeholder="dispatcher@example.com" /></Field>
+            <Field label="Workspace name" className="sm:col-span-2">
+              <input className={INPUT_CLS} value={form.workspaceName} onChange={set('workspaceName')} placeholder="Cole Dispatch Co." />
+              <p className="text-[11px] text-slate-500 mt-1">This is the brand their carriers see (header + emails). For an <span className="text-amber-300">FMF dispatcher</span>, use <span className="text-slate-300">“Forward Motion Freight”</span> so carriers see the FMF brand — not the dispatcher’s own name.</p>
+            </Field>
             <Field label="Relationship" className="sm:col-span-2">
               <select className={SELECT_CLS} value={form.orgType} onChange={set('orgType')}>
                 <option value="independent">Independent — runs their own dispatch business</option>
