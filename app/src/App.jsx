@@ -7090,6 +7090,7 @@ function DispatcherAgreementView({ onSigned }) {
   const [sig, setSig] = useState('');
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tpl, setTpl] = useState(''); // per-workspace override; '' → built-in default
   const company = 'Forward Motion Freight';
 
   useEffect(() => { (async () => {
@@ -7102,6 +7103,7 @@ function DispatcherAgreementView({ onSigned }) {
       setDispName(nm);
       setEmail(ud.email || auth.currentUser?.email || '');
       setSig(ud.revShareAgreement ? ud.revShareAgreement.signedName : nm);
+      if (ACTIVE_ORG) { try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setTpl(o.data().revShareText || ''); } catch (_) { /* falls back to default */ } }
     } catch (e) { console.error('agreement load failed', e); }
     finally { setLoading(false); }
   })(); }, [uid]);
@@ -7116,7 +7118,7 @@ function DispatcherAgreementView({ onSigned }) {
     minimum: usd(FMF_REVSHARE_MIN), effective: today,
     exGross: usd(exGross), exFeePct, exFee: usd(exFee), exShare: usd(exShare),
   };
-  const body = fillRevShareTokens(DEFAULT_REVSHARE_TEXT, tokenVals);
+  const body = fillRevShareTokens((tpl && tpl.trim()) || DEFAULT_REVSHARE_TEXT, tokenVals);
 
   const doSign = async () => {
     if (!sig.trim() || !agree || busy) return;
@@ -8722,6 +8724,9 @@ function WorkspacesView() {
   const [created, setCreated] = useState(null);
   const [err, setErr] = useState('');
   const [prefillLeadId, setPrefillLeadId] = useState(null); // access-request this workspace fulfills
+  const [tplText, setTplText] = useState(null);   // editable FMF dispatcher agreement (null = not loaded)
+  const [tplSaving, setTplSaving] = useState(false);
+  const [tplMsg, setTplMsg] = useState('');
   const newPw = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let p = ''; for (let i = 0; i < 10; i++) p += chars[Math.floor(Math.random() * chars.length)];
@@ -8747,6 +8752,29 @@ function WorkspacesView() {
     }));
     if (p.leadId) setPrefillLeadId(p.leadId);
   }, []);
+
+  // Seed the agreement editor from an existing FMF workspace's saved text (or
+  // the built-in default), once the workspaces have loaded. Only sets it once
+  // so it never clobbers edits in progress.
+  useEffect(() => {
+    if (tplText !== null || loading) return;
+    const withText = orgs.find((o) => o.orgType === 'fmf' && o.revShareText);
+    setTplText(withText ? withText.revShareText : DEFAULT_REVSHARE_TEXT);
+  }, [loading, orgs, tplText]);
+
+  const saveTemplate = async () => {
+    const fmfOrgs = orgs.filter((o) => o.orgType === 'fmf');
+    if (!fmfOrgs.length) { setTplMsg('No FMF workspaces yet — this text will apply to the next FMF dispatcher you provision.'); return; }
+    if (!window.confirm(`Update the dispatcher agreement for ${fmfOrgs.length} FMF workspace(s)? New signatures use the new text; already-signed records keep their original wording.`)) return;
+    setTplSaving(true); setTplMsg('');
+    try {
+      for (const o of fmfOrgs) { await updateDoc(doc(db, 'orgs', o.id), { revShareText: tplText }); }
+      setOrgs((prev) => prev.map((o) => (o.orgType === 'fmf' ? { ...o, revShareText: tplText } : o)));
+      setTplMsg(`Saved to ${fmfOrgs.length} workspace(s) ✓`);
+      setTimeout(() => setTplMsg(''), 3000);
+    } catch (e) { console.error('agreement template save failed', e); setTplMsg('Could not save — check the console.'); }
+    finally { setTplSaving(false); }
+  };
 
   const [ownerStatus, setOwnerStatus] = useState({}); // uid -> active(bool)
   const [ownerActivity, setOwnerActivity] = useState({}); // uid -> { lastLogin, mustChangePassword }
@@ -8836,7 +8864,10 @@ function WorkspacesView() {
     setSaving(true);
     try {
       const uid = await createDriverAccount(form.email.trim(), form.pw, form.name.trim());
-      const orgRef = await addDoc(collection(db, 'orgs'), { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), orgType: form.orgType, createdAt: serverTimestamp(), config: {} });
+      const orgPayload = { name: form.workspaceName.trim(), ownerUid: uid, ownerEmail: form.email.trim(), orgType: form.orgType, createdAt: serverTimestamp(), config: {} };
+      // Seed FMF workspaces with the current (possibly edited) agreement text.
+      if (form.orgType === 'fmf') orgPayload.revShareText = (tplText && tplText.trim()) || DEFAULT_REVSHARE_TEXT;
+      const orgRef = await addDoc(collection(db, 'orgs'), orgPayload);
       await setDoc(doc(db, 'users', uid), { email: form.email.trim(), displayName: form.name.trim(), approved: true, mustChangePassword: true, orgId: orgRef.id, role: 'admin', createdAt: serverTimestamp() }, { merge: true });
       setCreated({ email: form.email.trim(), pw: form.pw, workspace: form.workspaceName.trim() });
       queueEmail(form.email.trim(), 'Your Forward OS dispatcher access is ready',
@@ -8973,6 +9004,29 @@ function WorkspacesView() {
               })}
             </div>
           )}
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="font-bold mb-1">FMF Dispatcher Agreement</h3>
+        <p className="text-slate-400 text-sm mb-3">The revenue-share agreement your FMF dispatchers review and e-sign in the portal. Edit it here, then save. New signatures use the latest text; already-signed records keep the exact wording they signed.</p>
+        <div className="rounded-lg bg-slate-800/60 border border-slate-700 text-[11px] text-slate-400 px-3 py-2 mb-3">
+          Merge fields (auto-filled per dispatcher — leave them in): <span className="text-slate-300 font-mono">{'{{dispatcher}} {{email}} {{company}} {{sharePct}} {{minimum}} {{effective}} {{exGross}} {{exFeePct}} {{exFee}} {{exShare}}'}</span>. Wrap headings in <span className="text-slate-300 font-mono">**bold**</span>; separate paragraphs with a blank line.
+        </div>
+        <textarea
+          value={tplText || ''}
+          onChange={(e) => setTplText(e.target.value)}
+          className="w-full h-72 rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-slate-200 font-mono leading-relaxed focus:outline-none focus:border-amber-500"
+          spellCheck={false}
+        />
+        <div className="flex items-center gap-3 mt-3 flex-wrap">
+          <PrimaryButton onClick={saveTemplate} disabled={tplSaving || tplText === null} className="px-5">{tplSaving ? 'Saving…' : 'Save agreement text'}</PrimaryButton>
+          <button type="button" onClick={() => setTplText(DEFAULT_REVSHARE_TEXT)} className="text-xs text-slate-400 border border-slate-700 hover:bg-slate-800 px-3 py-2 rounded-lg">Reset to default</button>
+          {tplMsg && <span className="text-xs text-emerald-400">{tplMsg}</span>}
+        </div>
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold text-slate-400 mb-1">Preview (sample dispatcher)</div>
+          <AgreementText text={fillRevShareTokens(tplText || '', { company: 'Forward Motion Freight', dispatcher: 'Tanisha Nicholas', email: 'tanisha@example.com', sharePct: FMF_REVSHARE_PCT, minimum: '$' + FMF_REVSHARE_MIN, effective: '[date signed]', exGross: '$2,000', exFeePct: 8, exFee: '$160', exShare: '$32' })} />
+        </div>
       </Card>
 
       <Card className="p-6">
