@@ -71,8 +71,34 @@
     </footer>
 
     <script type="module">
-      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-      import { getFirestore, collection, addDoc, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+      /* ---------------- FIREBASE (lazy + optional) ----------------
+         The Firebase CDN modules load in the background AFTER the course engine
+         boots. If they fail (flaky network, privacy blocker, blocked gstatic),
+         the course still runs fully from localStorage — lead capture and
+         progress sync just pause. They must NEVER be load-bearing: as static
+         imports, one failed fetch killed the whole script and locked a learner
+         out at the final exam. */
+      const cfg = {
+        apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
+        authDomain: "forward-motion-freight.firebaseapp.com",
+        projectId: "forward-motion-freight",
+        storageBucket: "forward-motion-freight.firebasestorage.app",
+        messagingSenderId: "131232028664",
+        appId: "1:131232028664:web:18131f2ebf4359ecafe80d"
+      };
+      const fbReady = (async () => {
+        try {
+          const [appMod, fsMod] = await Promise.all([
+            import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+            import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'),
+          ]);
+          return {
+            db: fsMod.getFirestore(appMod.initializeApp(cfg)),
+            collection: fsMod.collection, addDoc: fsMod.addDoc,
+            doc: fsMod.doc, setDoc: fsMod.setDoc, serverTimestamp: fsMod.serverTimestamp,
+          };
+        } catch (e) { console.warn('Firebase unavailable — course running locally only.', e); return null; }
+      })();
 
       /* ---------------- COURSE CONTENT ---------------- */
       const DAYS = [
@@ -279,6 +305,10 @@
           { type: 'congrats', id: 'congrats' },
         ]);
       const threshold = (sc) => sc.type === 'final' ? 0.75 : (sc.type === 'review' || sc.type === 'review2') ? 0.70 : 0.80;
+      // A corrupt/stale saved index must never point past the screen list —
+      // clamp it so a returning learner always lands on a real screen.
+      if (!Number.isInteger(state.idx) || state.idx < 0) state.idx = 0;
+      if (state.idx >= SCREENS.length) state.idx = SCREENS.length - 1;
 
       const el = (id) => document.getElementById(id);
       const screenEl = el('screen'), bar = el('prog-bar'), pct = el('prog-pct'), label = el('prog-label');
@@ -513,10 +543,11 @@
           const email = (localStorage.getItem('fm_course_email') || '').trim();
           const gradName = (name || localStorage.getItem('fm_course_name') || '').trim();
           if (email.length <= 3 || !gradName) return;
-          await addDoc(collection(db, 'dispatcher_leads'), {
+          const f = await fbReady; if (!f) return;
+          await f.addDoc(f.collection(f.db, 'dispatcher_leads'), {
             name: gradName, email, phone: '', situation: 'Course graduate',
             message: 'Completed the 2-Week Dispatcher Crash Course.',
-            source: 'crash-course-completion', courseCompleted: true, createdAt: serverTimestamp(),
+            source: 'crash-course-completion', courseCompleted: true, createdAt: f.serverTimestamp(),
           });
           localStorage.setItem('fm_course_grad_logged', '1');
         } catch (e) { console.error('logGraduate', e); }
@@ -531,18 +562,22 @@
         try {
           const email = (localStorage.getItem('fm_course_email') || '').trim();
           if (email.length <= 3) return;
+          const f = await fbReady; if (!f) return;
           const name = localStorage.getItem('fm_course_name') || '';
           const daysPassed = DAYS.filter((d) => state.passed['d' + d.d]).length;
           const pct = Math.round((daysPassed / DAYS.length) * 100);
-          const completed = opts.completed === true;
+          // Completed if this call says so OR the final exam is already passed
+          // in saved state — so a later visit can never flip a grad back to
+          // incomplete.
+          const completed = opts.completed === true || !!state.passed['final'];
           const payload = {
             email, name, daysPassed, totalDays: DAYS.length, pct,
             furthestScreen: state.idx + 1, totalScreens: SCREENS.length,
-            completed, lastActiveAt: serverTimestamp(), source: 'crash-course',
+            completed, lastActiveAt: f.serverTimestamp(), source: 'crash-course',
           };
-          if (opts.started) payload.startedAt = serverTimestamp();
-          if (completed) payload.completedAt = serverTimestamp();
-          await setDoc(doc(db, 'course_progress', emailKey(email)), payload, { merge: true });
+          if (opts.started) payload.startedAt = f.serverTimestamp();
+          if (completed) payload.completedAt = f.serverTimestamp();
+          await f.setDoc(f.doc(f.db, 'course_progress', emailKey(email)), payload, { merge: true });
         } catch (e) { console.error('saveProgress', e); }
       }
 
@@ -551,35 +586,28 @@
       btnSkip.addEventListener('click', (e) => { e.preventDefault(); if (state.idx < SCREENS.length - 1) { state.idx++; quizMode = false; save(); render(); } });
 
       /* ---------------- EMAIL GATE ---------------- */
-      const cfg = {
-        apiKey: "AIzaSyA-nWxAYjSzGRprXZv2HSbfRr2yow83f18",
-        authDomain: "forward-motion-freight.firebaseapp.com",
-        projectId: "forward-motion-freight",
-        storageBucket: "forward-motion-freight.firebasestorage.app",
-        messagingSenderId: "131232028664",
-        appId: "1:131232028664:web:18131f2ebf4359ecafe80d"
-      };
-      const db = getFirestore(initializeApp(cfg));
+      // Signup unlocks the course IMMEDIATELY from localStorage; the lead
+      // write and progress sync happen in the background. A learner is never
+      // blocked (or booted) because Firebase couldn't be reached.
       const form = el('signup'), msg = el('cc-msg'), btn = el('cc-submit');
       const startCourse = () => { el('intro').style.display = 'none'; el('course').style.display = 'block'; render(); };
       try { if (localStorage.getItem('fm_course_unlocked') === '1') startCourse(); } catch (_) {}
 
-      form.addEventListener('submit', async (e) => {
+      form.addEventListener('submit', (e) => {
         e.preventDefault();
         const email = el('cc-email').value.trim();
         const name = [el('cc-name').value.trim(), el('cc-lastname').value.trim()].filter(Boolean).join(' ');
         if (!email) return;
         btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
-        try {
-          await addDoc(collection(db, 'course_leads'), { email, name, source: 'crash-course', createdAt: serverTimestamp() });
-          try { localStorage.setItem('fm_course_unlocked', '1'); localStorage.setItem('fm_course_name', name); localStorage.setItem('fm_course_email', email); } catch (_) {}
-          saveProgress({ started: true });
-          startCourse();
-        } catch (err) {
-          console.error(err);
-          msg.textContent = 'Something went wrong — please try again in a moment.';
-          btn.disabled = false; btn.textContent = 'Start free';
-        }
+        try { localStorage.setItem('fm_course_unlocked', '1'); localStorage.setItem('fm_course_name', name); localStorage.setItem('fm_course_email', email); } catch (_) {}
+        (async () => {
+          try {
+            const f = await fbReady; if (!f) return;
+            await f.addDoc(f.collection(f.db, 'course_leads'), { email, name, source: 'crash-course', createdAt: f.serverTimestamp() });
+          } catch (err) { console.warn('lead capture failed (course still unlocked)', err); }
+        })();
+        saveProgress({ started: true });
+        startCourse();
       });
     </script>
 </body>
