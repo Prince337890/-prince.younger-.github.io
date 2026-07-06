@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
-  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock
+  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -501,6 +501,7 @@ export default function App() {
   const [myStatus, setMyStatus] = useState('Available'); // carrier self-set availability
   const [vipRequested, setVipRequested] = useState(false); // carrier asked dispatch for VIP
   const [showTour, setShowTour] = useState(false); // first-login walkthrough
+  const [paletteOpen, setPaletteOpen] = useState(false); // command palette (Ctrl/Cmd+K)
   const [myOrgId, setMyOrgId] = useState(null); // multi-tenancy: the user's workspace
   const [myRole, setMyRole] = useState(null);   // 'admin' (dispatcher) | 'driver'
   const [myOrgType, setMyOrgType] = useState(null);       // 'fmf' | 'independent' | null
@@ -572,6 +573,81 @@ export default function App() {
   const isAdmin = isSuper || myRole === 'admin';       // dispatcher console access (role-based)
   const isFmfDispatcher = isAdmin && !isSuper && myOrgType === 'fmf'; // dispatches under FMF
   const fmfUnsigned = isFmfDispatcher && !revShareSigned;             // must sign to go live
+
+  // Command Palette (Ctrl/Cmd+K) — global shortcut, works from anywhere once
+  // signed in. The item list below mirrors the sidebar's own gating exactly
+  // so it can never open a tab the sidebar itself wouldn't show.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!user) return;
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [user]);
+
+  const paletteIsAdmin = isAdmin && !viewAs; // "view as" drops into the carrier's own tab list, same as the sidebar
+  const paletteItems = React.useMemo(() => {
+    if (paletteIsAdmin) {
+      const items = [
+        { tab: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, keywords: ['home', 'overview'] },
+      ];
+      if (isFmfDispatcher) {
+        items.push({ tab: 'fmfagreement', label: 'Dispatcher Agreement', icon: <FileText size={16} />, keywords: ['revshare', 'sign'] });
+      }
+      items.push(
+        { tab: 'calc', label: 'Rate Calculator', icon: <Wallet size={16} />, keywords: ['rpm', 'pricing', 'negotiate'] },
+        { tab: 'laneintel', label: 'Lane Intel', icon: <Map size={16} />, keywords: ['market', 'lanes'] },
+        { tab: 'trihaul', label: 'TriHaul Planner', icon: <Navigation size={16} />, keywords: ['triangle', 'route'] },
+        { tab: 'brokercheck', label: 'Broker Check', icon: <ShieldCheck size={16} />, keywords: ['credit', 'broker'] },
+        { tab: 'assign', label: 'Assign Load', icon: <Plus size={16} />, keywords: ['new load', 'dispatch'] },
+        { tab: 'allloads', label: 'All Loads', icon: <Navigation size={16} />, keywords: ['loads', 'board'] },
+        { tab: 'carriers', label: 'Carriers', icon: <Building size={16} />, keywords: ['fleet', 'owner operator'] },
+        { tab: 'crm', label: 'CRM / Network', icon: <BookOpen size={16} />, keywords: ['leads', 'brokers'] },
+        { tab: 'drivers', label: 'Logins & Access', icon: <User size={16} />, keywords: ['accounts', 'password'] },
+        { tab: 'vip', label: 'VIP Services', icon: <HeartPulse size={16} />, keywords: ['concierge'] },
+        { tab: 'expenses', label: 'Expenses', icon: <CreditCard size={16} />, keywords: ['costs'] },
+        { tab: 'invoices', label: 'Invoices', icon: <FileText size={16} />, keywords: ['billing', 'invoice'] },
+        { tab: 'fleet', label: 'Fleet (ELD)', icon: <Activity size={16} />, keywords: ['eld', 'trucks'] },
+        { tab: 'training', label: 'Training', icon: <GraduationCap size={16} />, keywords: ['course', 'quiz'] },
+      );
+      if (isSuper) {
+        items.push(
+          { tab: 'workspaces', label: 'Workspaces', icon: <Building size={16} />, keywords: ['orgs', 'provision'] },
+          { tab: 'requests', label: 'Access Requests', icon: <User size={16} />, keywords: ['leads'] },
+          { tab: 'courseprogress', label: 'Course Progress', icon: <GraduationCap size={16} />, keywords: ['training'] },
+          { tab: 'fmfrevshare', label: 'FMF Rev-Share', icon: <Wallet size={16} />, keywords: ['revenue share'] },
+        );
+      }
+      items.push({ tab: 'settings', label: 'Settings', icon: <Settings size={16} />, keywords: ['guided mode', 'account'] });
+      return items;
+    }
+    const items = [
+      { tab: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, keywords: ['home'] },
+      { tab: 'newauthority', label: 'New Authority', icon: <Navigation size={16} />, keywords: ['mc authority', 'setup'] },
+      { tab: 'profile', label: 'My Profile', icon: <User size={16} />, keywords: ['account'] },
+      { tab: 'schedule', label: 'Schedule & Calendar', icon: <Calendar size={16} />, keywords: ['calendar', 'appointments'] },
+      { tab: 'lanes', label: 'Lane Management', icon: <Map size={16} />, keywords: ['lanes', 'preferences'] },
+      { tab: 'parking', label: 'Safe Parking', icon: <MapPin size={16} />, keywords: ['parking', 'rest stop'] },
+      { tab: 'compliance', label: 'Compliance', icon: <ShieldCheck size={16} />, keywords: ['cdl', 'insurance', 'medical'] },
+      { tab: 'agreements', label: 'Agreements & W-9', icon: <FileText size={16} />, keywords: ['w9', 'sign'] },
+      { tab: 'vault', label: 'Digital Vault', icon: <FileText size={16} />, keywords: ['documents', 'files'] },
+      { tab: 'financials', label: 'Financial Routing', icon: <Wallet size={16} />, keywords: ['bank', 'factoring'] },
+      { tab: 'mycpm', label: 'My CPM & Expenses', icon: <Activity size={16} />, keywords: ['cost per mile', 'breakeven'] },
+      { tab: 'upgrades', label: 'Upgrades & Credentials', icon: <CreditCard size={16} />, keywords: ['twic', 'hazmat'] },
+    ];
+    if (vipOn) {
+      items.push(
+        { tab: 'wellness', label: 'Wellness & Diet', icon: <HeartPulse size={16} />, keywords: ['health'] },
+        { tab: 'pets', label: 'Pet Logistics', icon: <Dog size={16} />, keywords: ['pet'] },
+      );
+    }
+    items.push({ tab: 'settings', label: 'Settings', icon: <Settings size={16} />, keywords: ['account'] });
+    return items;
+  }, [paletteIsAdmin, isFmfDispatcher, isSuper, vipOn]);
 
   // Show the first-login tour once the user is fully signed in (not mid pw-change/onboarding).
   useEffect(() => {
@@ -667,7 +743,7 @@ export default function App() {
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
       case 'assign': return isAdmin ? (fmfUnsigned ? <AgreementRequired onNavigate={go} /> : <AssignLoadView />) : <DashboardView />;
-      case 'allloads': return isAdmin ? <AllLoadsView /> : <DashboardView />;
+      case 'allloads': return isAdmin ? <AllLoadsView onNavigate={go} /> : <DashboardView />;
       case 'drivers': return isAdmin ? <ManageDriversView /> : <DashboardView />;
       case 'fleet': return isAdmin ? <FleetView /> : <DashboardView />;
       case 'carriers': return isAdmin ? <CarriersView onNavigate={go} /> : <DashboardView />;
@@ -904,6 +980,14 @@ export default function App() {
               className="text-sm flex items-center gap-1.5 hover:text-white transition-colors">
               ← <span className="hidden sm:inline">Back to Website</span>
             </a>
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="hover:text-white transition-colors"
+              title="Search pages (Ctrl/Cmd+K)"
+              aria-label="Open command palette"
+            >
+              <Search size={20} />
+            </button>
             <NotificationsBell isAdmin={isAdmin && !viewAs} uid={viewUid} onNavigate={go} />
             <button onClick={() => go('settings')} className={`transition-colors ${activeTab === 'settings' ? 'text-amber-400' : 'hover:text-white'}`} title="Settings" aria-label="Settings"><Settings size={20} /></button>
           </div>
@@ -925,18 +1009,46 @@ export default function App() {
       </main>
 
       {showTour && <TourOverlay role={isAdmin ? 'admin' : 'carrier'} onClose={closeTour} />}
+      <CommandPalette open={paletteOpen} items={paletteItems} onSelect={go} onClose={() => setPaletteOpen(false)} />
+      <ToastHost />
     </div>
     </GuidedModeContext.Provider>
+  );
+}
+
+// Quiet inline SVG trend line — no chart library. Renders 8 weekly gross
+// totals (oldest → newest) as an amber line with a soft area fill and the
+// current week's point highlighted. Purely presentational, no state.
+function WeeklyGrossSparkline({ weeks }) {
+  const width = 220, height = 44, pad = 5;
+  const max = Math.max(...weeks.map((w) => w.gross), 1);
+  const stepX = (width - pad * 2) / (weeks.length - 1);
+  const pts = weeks.map((w, i) => [
+    pad + i * stepX,
+    height - pad - (w.gross / max) * (height - pad * 2),
+  ]);
+  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${height - pad} L${pts[0][0].toFixed(1)},${height - pad} Z`;
+  const [lastX, lastY] = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full h-11" aria-hidden="true">
+      <path d={area} fill="rgba(245,158,11,0.12)" stroke="none" />
+      <path d={line} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+      <circle cx={lastX} cy={lastY} r="2.75" fill="#f59e0b" />
+    </svg>
   );
 }
 
 // ---------- ADMIN: WEEKLY DISPATCH OVERVIEW ----------
 function AdminWeeklyGross() {
   const [stats, setStats] = useState({ gross: 0, fee: 0, net: 0, count: 0 });
+  const [weeks, setWeeks] = useState([]); // last 8 ISO weeks of delivered gross, oldest → newest
   const [loaded, setLoaded] = useState(false);
 
-  const startOfWeek = () => {
-    const d = new Date();
+  // Monday 00:00 of the week containing `base` (defaults to today) — the same
+  // Mon–Sun week boundary the headline stats have always used.
+  const startOfWeek = (base) => {
+    const d = base ? new Date(base) : new Date();
     const diff = d.getDay() === 0 ? 6 : d.getDay() - 1;
     d.setDate(d.getDate() - diff);
     d.setHours(0, 0, 0, 0);
@@ -950,17 +1062,34 @@ function AdminWeeklyGross() {
         const rows = snap.docs.map((d) => d.data());
         const sow = startOfWeek();
         let gross = 0, fee = 0, count = 0;
+
+        // Bucket the same delivered loads by week for a trailing 8-week trend —
+        // no extra reads, just another pass over the dataset we already have.
+        const buckets = Array.from({ length: 8 }, (_, i) => {
+          const start = new Date(sow);
+          start.setDate(start.getDate() - (7 - i) * 7);
+          return { ms: start.getTime(), gross: 0, count: 0 };
+        });
+
         rows.forEach((l) => {
           const delivered = l.status === 'Delivered' || l.status === 'Cleared';
-          const inWeek = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= sow;
-          if (delivered && inWeek) {
-            const g = Number(l.gross_pay) || 0;
+          if (!delivered || !l.delivery_date) return;
+          const dDate = new Date(l.delivery_date + 'T00:00:00');
+          const g = Number(l.gross_pay) || 0;
+
+          if (dDate >= sow) {
             gross += g;
             fee += g * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100);
             count += 1;
           }
+
+          const wkMs = startOfWeek(dDate).getTime();
+          const bucket = buckets.find((b) => b.ms === wkMs);
+          if (bucket) { bucket.gross += g; bucket.count += 1; }
         });
+
         setStats({ gross, fee, net: gross - fee, count });
+        setWeeks(buckets);
       } catch (e) {
         console.error('Error loading admin weekly gross:', e);
       } finally {
@@ -971,6 +1100,16 @@ function AdminWeeklyGross() {
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const feeUp = useCountUp(stats.fee);
+
+  // Only show the trend once there's enough history to actually read as a
+  // trend — a single data point (or none) would just look like a broken line.
+  const weeksWithData = weeks.filter((w) => w.count > 0).length;
+  const showSparkline = weeksWithData >= 2;
+  const thisWk = weeks[weeks.length - 1];
+  const lastWk = weeks[weeks.length - 2];
+  const changePct = (showSparkline && lastWk && lastWk.gross > 0)
+    ? ((thisWk.gross - lastWk.gross) / lastWk.gross) * 100
+    : null;
 
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6">
@@ -994,6 +1133,21 @@ function AdminWeeklyGross() {
         <StatTile label="Your Dispatch Fee" value={money(stats.fee)} accent="amber" />
         <StatTile label="Net to Carriers" value={money(stats.net)} accent="emerald" />
       </div>
+      {loaded && showSparkline && (
+        <div className="mt-5 pt-5 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-400">Weekly Gross · Last 8 Weeks</span>
+              {changePct !== null && (
+                <Badge tone={changePct >= 0 ? 'emerald' : 'red'} className="font-semibold">
+                  {changePct >= 0 ? '▲' : '▼'} {Math.abs(changePct).toFixed(0)}% vs last week
+                </Badge>
+              )}
+            </div>
+            <WeeklyGrossSparkline weeks={weeks} />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -3360,7 +3514,7 @@ function TripPlanPanel({ load }) {
 }
 
 // ---------- ADMIN: ALL LOADS ----------
-function AllLoadsView() {
+function AllLoadsView({ onNavigate }) {
   const [loads, setLoads] = useState([]);
   const [users, setUsers] = useState({});
   const [userList, setUserList] = useState([]);
@@ -3388,7 +3542,7 @@ function AllLoadsView() {
       setEditing((ed) => ({ ...ed, ...patch }));
     } catch (err) {
       console.error('ratecon upload failed', err);
-      alert('Upload failed: ' + (err.code === 'storage/unauthorized' ? 'check the Storage rules allow admin write to load_docs.' : (err.message || 'try again')));
+      toast('Upload failed: ' + (err.code === 'storage/unauthorized' ? 'check the Storage rules allow admin write to load_docs.' : (err.message || 'try again')), 'error');
     } finally { setRcBusy(false); }
   };
 
@@ -3461,7 +3615,7 @@ function AllLoadsView() {
       await updateDoc(doc(db, 'loads', l.id), patch);
       setLoads((prev) => prev.map((x) => (x.id === l.id ? { ...x, ...patch } : x)));
       setEditing((ed) => (ed && ed.id === l.id ? { ...ed, ...patch } : ed));
-    } catch (e) { console.error('accept on behalf failed', e); alert('Could not accept — try again.'); }
+    } catch (e) { console.error('accept on behalf failed', e); toast('Could not accept — try again.', 'error'); }
     finally { setUpdatingId(null); }
   };
   const signRateConOnBehalf = async (l) => {
@@ -3473,7 +3627,7 @@ function AllLoadsView() {
       await updateDoc(doc(db, 'loads', l.id), { rateConSigned: rec });
       setLoads((prev) => prev.map((x) => (x.id === l.id ? { ...x, rateConSigned: rec } : x)));
       setEditing((ed) => (ed && ed.id === l.id ? { ...ed, rateConSigned: rec } : ed));
-    } catch (e) { console.error('sign on behalf failed', e); alert('Could not record the signature — try again.'); }
+    } catch (e) { console.error('sign on behalf failed', e); toast('Could not record the signature — try again.', 'error'); }
   };
 
   const offerBadge = (s) => {
@@ -3526,7 +3680,7 @@ function AllLoadsView() {
       closeEdit();
     } catch (err) {
       console.error('Error saving load:', err);
-      alert('Error saving — check the console.');
+      toast('Error saving — check the console.', 'error');
     } finally {
       setSaving(false);
     }
@@ -3542,7 +3696,7 @@ function AllLoadsView() {
       closeEdit();
     } catch (err) {
       console.error('Error deleting load:', err);
-      alert('Error deleting — check the console.');
+      toast('Error deleting — check the console.', 'error');
     } finally {
       setSaving(false);
     }
@@ -3581,7 +3735,15 @@ function AllLoadsView() {
 
   const field = INPUT_CLS;
 
-  if (loading) return <div className="text-slate-400">Loading all loads…</div>;
+  if (loading) return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">All Loads</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <Card className="p-6"><SkelRows rows={5} /></Card>
+    </div>
+  );
 
   // Full-page load detail (replaces the modal). Clicking a load opens this in
   // place of the list; "← All Loads" returns. No height ceiling, natural scroll.
@@ -3755,7 +3917,14 @@ function AllLoadsView() {
           className={`${INPUT_CLS} w-full sm:w-64`} />
       </div>
 
-      {filtered.length === 0 ? (
+      {loads.length === 0 ? (
+        <Card className="p-10 text-center">
+          <div className="text-3xl mb-2">🚀</div>
+          <h3 className="font-bold text-white mb-1">Get your first load out</h3>
+          <p className="text-sm text-slate-400 max-w-sm mx-auto mb-4">Once you price and send an offer, it'll land here — every load, driver, and status in one place.</p>
+          {onNavigate && <PrimaryButton onClick={() => onNavigate('assign')} className="mx-auto">Assign a load →</PrimaryButton>}
+        </Card>
+      ) : filtered.length === 0 ? (
         <Card className="p-10 text-center text-slate-400">No loads match these filters.</Card>
       ) : (
         <>
@@ -4051,7 +4220,7 @@ function ManageDriversView() {
             <button type="button"
               onClick={() => {
                 const txt = welcomeCarrierText({ email: created.email, tempPw: created.pw, company: orgInfo.name, phone: orgInfo.dispatchPhone });
-                if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
+                if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Welcome email copied to your clipboard.', 'success')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
               📋 Copy welcome email
@@ -5211,7 +5380,7 @@ function CarriersView({ onNavigate }) {
       // Optionally create the portal login right here, then auto-link it —
       // no need to bounce over to the Logins & Access tab first.
       if (!linkedUid && form.newLoginEmail.trim() && form.newLoginPw) {
-        if (form.newLoginPw.length < 6) { alert('Temporary password must be at least 6 characters.'); setSaving(false); return; }
+        if (form.newLoginPw.length < 6) { toast('Temporary password must be at least 6 characters.', 'error'); setSaving(false); return; }
         try {
           const uid = await createDriverAccount(form.newLoginEmail.trim(), form.newLoginPw);
           await setDoc(doc(db, 'users', uid), stampOrg({
@@ -5278,7 +5447,7 @@ function CarriersView({ onNavigate }) {
       fetchCarriers();
     } catch (e) {
       console.error('Error adding carrier:', e);
-      alert('Error adding carrier — check the console.');
+      toast('Error adding carrier — check the console.', 'error');
     } finally {
       setSaving(false);
     }
@@ -5503,7 +5672,7 @@ function CarriersView({ onNavigate }) {
             <button type="button"
               onClick={() => {
                 const txt = welcomeCarrierText({ email: createdLogin.email, tempPw: createdLogin.pw, company: orgInfo.name, phone: orgInfo.dispatchPhone });
-                if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => alert('Welcome email copied to your clipboard.')).catch(() => {});
+                if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast('Welcome email copied to your clipboard.', 'success')).catch(() => {});
               }}
               className="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-3 py-2 rounded-lg">
               📋 Copy welcome email
@@ -5894,7 +6063,7 @@ function LaneIntelView() {
       fetchNotes();
     } catch (e) {
       console.error('Error saving intel:', e);
-      alert('Error saving — check the console.');
+      toast('Error saving — check the console.', 'error');
     } finally {
       setSaving(false);
     }
@@ -9161,7 +9330,9 @@ const PROFIT_GLOW_CSS = `
 .fm-skel{background:linear-gradient(90deg,rgba(148,163,184,.08) 25%,rgba(148,163,184,.18) 50%,rgba(148,163,184,.08) 75%);background-size:200% 100%;animation:fmShimmer 1.4s linear infinite;border-radius:3px}
 .fm-press{transition:transform .08s ease}
 .fm-press:active{transform:translateY(1px)}
-@media (prefers-reduced-motion: reduce){.fm-profit,.fm-view,.fm-skel{animation:none}}`;
+@keyframes fmToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.fm-toast{animation:fmToastIn .18s ease-out both}
+@media (prefers-reduced-motion: reduce){.fm-profit,.fm-view,.fm-skel,.fm-toast{animation:none}}`;
 
 // Animate a number toward its target (eased, ~0.7s). Respects reduced motion.
 // Use on headline money figures so totals "roll in" instead of popping.
@@ -9633,7 +9804,7 @@ function InvoicesView() {
   // with no backend/cost; when the Trigger Email extension is live this can be
   // swapped for a true one-click auto-send.
   const emailInvoice = (inv) => {
-    if (!inv.email) { alert(`No email on file for ${inv.name}. Add the carrier's email (Carriers tab) to send their invoice.`); return; }
+    if (!inv.email) { toast(`No email on file for ${inv.name}. Add the carrier's email (Carriers tab) to send their invoice.`, 'info'); return; }
     const lines = inv.lines.map((x) => `  • ${x.loadId}  ${x.lane}  (${x.date})  gross ${money(x.gross)} × ${x.pct}% = ${money(x.fee)}`).join('\n');
     const subject = `Forward Motion Freight — Dispatch Invoice · Week of ${weekLabel}`;
     const body =
@@ -9655,7 +9826,7 @@ Forward Motion Freight`;
   };
 
   const printInvoice = (inv) => {
-    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print the invoice.'); return; }
+    const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print the invoice.', 'info'); return; }
     const rowsHtml = inv.lines.map((x) => `<tr><td>${x.loadId}</td><td>${x.lane}</td><td>${x.date}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
     w.document.write(`<!doctype html><html><head><title>Invoice — ${inv.name}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>Forward Motion Freight</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${inv.name}${inv.mc ? ' (' + inv.mc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
     w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
@@ -9904,6 +10075,136 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
   );
 }
 
+// ============================================================================
+// ===== TOASTS — module-level, dependency-free notification system =========
+// Replaces jarring alert() confirmations/errors with slim, auto-dismissing
+// toasts in the app's own tone language (same colors as Badge). `toast()` can
+// be called from any component; <ToastHost/> (mounted once in the App shell)
+// is the only thing that actually renders — a tiny listener array stands in
+// for a context/provider so no wiring is needed at call sites.
+// ============================================================================
+let _toastListeners = [];
+let _toastSeq = 0;
+function toast(message, tone = 'info') {
+  const id = ++_toastSeq;
+  _toastListeners.forEach((fn) => fn({ id, message, tone }));
+  return id;
+}
+function ToastHost() {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    const onToast = (item) => {
+      // Cap the stack at 3 — a burst of saves shouldn't wall off the screen.
+      setItems((prev) => [...prev.slice(-2), item]);
+      setTimeout(() => setItems((prev) => prev.filter((x) => x.id !== item.id)), 3500);
+    };
+    _toastListeners.push(onToast);
+    return () => { _toastListeners = _toastListeners.filter((f) => f !== onToast); };
+  }, []);
+  if (!items.length) return null;
+  const toneCls = {
+    success: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200',
+    error: 'bg-red-500/15 border-red-500/40 text-red-200',
+    info: 'bg-slate-800/95 border-slate-700 text-slate-200',
+  };
+  return (
+    <div
+      className="fixed z-[70] bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0 flex flex-col gap-2 w-[calc(100%-2rem)] max-w-sm pointer-events-none"
+      aria-live="polite"
+    >
+      {items.map((it) => (
+        <div key={it.id} role="status" className={`fm-toast pointer-events-auto flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm shadow-lg shadow-black/30 backdrop-blur ${toneCls[it.tone] || toneCls.info}`}>
+          <span className="flex-1 leading-snug">{it.message}</span>
+          <button onClick={() => setItems((prev) => prev.filter((x) => x.id !== it.id))} aria-label="Dismiss notification" className="shrink-0 opacity-70 hover:opacity-100 transition-opacity">✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// ===== COMMAND PALETTE (Ctrl/Cmd+K) =========================================
+// A fast, keyboard-first way to jump to any tab the sidebar already exposes.
+// The item list is built in App from the same flags the sidebar nav uses, so
+// this can never surface a tab the sidebar wouldn't show. Defined at module
+// level — not nested inside App — so the search input keeps a stable
+// identity across renders instead of remounting (see the ESignBox note on
+// why that matters for a focused text input).
+// ============================================================================
+function CommandPalette({ open, items, onSelect, onClose }) {
+  const [query, setQuery] = useState('');
+  const [index, setIndex] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery('');
+    setIndex(0);
+    const t = setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 10);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = !q ? items : items.filter((it) =>
+    it.label.toLowerCase().includes(q) || (it.keywords || []).some((k) => k.toLowerCase().includes(q))
+  );
+
+  useEffect(() => { if (index >= filtered.length) setIndex(0); }, [filtered.length, index]);
+
+  if (!open) return null;
+
+  const choose = (it) => { if (!it) return; onSelect(it.tab); onClose(); };
+  const onKeyDown = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, filtered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); choose(filtered[index]); }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center pt-20 sm:pt-28 px-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 overflow-hidden fm-view"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800">
+          <Search size={16} className="text-amber-400 shrink-0" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Jump to a page…"
+            aria-label="Search pages"
+            className="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
+          />
+          <kbd className="hidden sm:inline text-[10px] text-slate-500 border border-slate-700 rounded px-1.5 py-0.5">Esc</kbd>
+        </div>
+        <div className="max-h-80 overflow-y-auto py-1.5">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-slate-500 text-center">No matches for “{query}”.</div>
+          ) : (
+            filtered.map((it, i) => (
+              <button
+                key={it.tab}
+                type="button"
+                onClick={() => choose(it)}
+                onMouseEnter={() => setIndex(i)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${i === index ? 'bg-amber-500/15 text-white' : 'text-slate-300 hover:bg-slate-800/70'}`}
+              >
+                <span className={i === index ? 'text-amber-400 shrink-0' : 'text-slate-500 shrink-0'}>{it.icon}</span>
+                <span className="truncate">{it.label}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 
