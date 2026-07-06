@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your First Load, Start to Finish | Forward Motion Freight</title>
+    <meta name="description" content="An animated, scene-by-scene walkthrough of a dispatcher's routine: find the load, vet the broker, negotiate the rate, dispatch the truck, and get everyone paid — paperwork included.">
+    <meta name="theme-color" content="#070b14">
+    <meta name="color-scheme" content="dark">
+    <style>
+    /* =========================================================
+       SELF-CONTAINED STYLES — no external fonts or CSS.
+       Matches the marketing site's dark industrial-editorial
+       language: sharp corners, hairline borders, mono kickers,
+       blue #7FB6DA accent, amber for stamps/signatures,
+       emerald for money.
+       ========================================================= */
+    :root {
+        --bg: #070b14;
+        --panel: #0a0f1a;
+        --panel2: #0c1424;
+        --line: rgba(255,255,255,0.08);
+        --line2: rgba(255,255,255,0.15);
+        --blue: #7FB6DA;
+        --blue2: #A6D2EC;
+        --amber: #fbbf24;
+        --green: #34d399;
+        --red: #f87171;
+        --ink: #e2e8f0;
+        --mut: #94a3b8;
+        --dim: #64748b;
+        --faint: #475569;
+        --sans: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { color: var(--blue2); }
+    button { font-family: inherit; }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+    ::selection { background: rgba(127,182,218,0.35); color: #fff; }
+    svg { display: block; }
+
+    .mono { font-family: var(--mono); }
+    .kicker {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--blue);
+    }
+    .kicker .dimno { color: var(--dim); }
+
+    /* ---------- Header ---------- */
+    header {
+        position: sticky; top: 0; z-index: 20;
+        border-bottom: 1px solid var(--line);
+        background: rgba(10,15,26,0.85);
+        backdrop-filter: blur(8px);
+    }
+    .hwrap {
+        max-width: 960px; margin: 0 auto;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 20px;
+    }
+    .brand { font-weight: 800; letter-spacing: -0.01em; color: #fff; font-size: 16px; }
+    .brand span { color: var(--blue); }
+    .hlinks { display: flex; gap: 18px; align-items: center; }
+    .hlinks a { font-size: 13px; color: var(--mut); }
+    .hlinks a:hover { color: #fff; }
+
+    /* ---------- Intro ---------- */
+    .intro { max-width: 960px; margin: 0 auto; padding: 52px 20px 8px; text-align: center; }
+    .intro h1 {
+        margin-top: 14px;
+        font-size: clamp(1.8rem, 5.5vw, 3rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.08;
+        color: #fff;
+    }
+    .intro h1 .ghost { color: var(--faint); }
+    .intro p.sub {
+        margin: 16px auto 0; max-width: 560px;
+        color: var(--mut); font-size: 15.5px;
+    }
+
+    /* ---------- Progress rail ---------- */
+    .railwrap { max-width: 960px; margin: 36px auto 0; padding: 0 20px; }
+    .rail { display: flex; gap: 4px; }
+    .rail button {
+        flex: 1; background: none; border: 0; cursor: pointer;
+        padding: 8px 0 4px; text-align: center; min-width: 0;
+    }
+    .rail .tick { display: block; height: 3px; background: rgba(255,255,255,0.12); transition: background .25s; }
+    .rail .num {
+        display: block; margin-top: 7px;
+        font-family: var(--mono); font-size: 10px; color: var(--faint);
+        letter-spacing: 0.08em; transition: color .25s;
+    }
+    .rail .lbl {
+        display: none; margin-top: 2px;
+        font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+        color: var(--faint); text-transform: uppercase; transition: color .25s;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    @media (min-width: 720px) { .rail .lbl { display: block; } }
+    .rail button.done .tick { background: rgba(127,182,218,0.4); }
+    .rail button.done .num { color: var(--dim); }
+    .rail button.on .tick { background: var(--blue); }
+    .rail button.on .num, .rail button.on .lbl { color: #fff; }
+    .rail button:hover .tick { background: rgba(127,182,218,0.65); }
+
+    .scenemeta {
+        max-width: 960px; margin: 18px auto 0; padding: 0 20px;
+        display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+        font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+        text-transform: uppercase; color: var(--dim);
+    }
+    .scenemeta .replay {
+        background: none; border: 0; cursor: pointer;
+        font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+        text-transform: uppercase; color: var(--dim); padding: 2px 0;
+    }
+    .scenemeta .replay:hover { color: var(--blue); }
+
+    /* ---------- Stage & scenes ---------- */
+    .stage { max-width: 960px; margin: 10px auto 0; padding: 0 20px 8px; }
+    .scene {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        padding: 28px 22px 30px;
+    }
+    @media (min-width: 640px) { .scene { padding: 40px 44px 44px; } }
+    .scene h2 {
+        margin-top: 12px;
+        font-size: clamp(1.3rem, 3.6vw, 1.85rem);
+        font-weight: 800; letter-spacing: -0.015em; line-height: 1.15; color: #fff;
+        max-width: 640px;
+    }
+    .scene .lead { margin-top: 10px; color: var(--mut); font-size: 14.5px; max-width: 620px; }
+    .visual { margin-top: 26px; }
+
+    .callout {
+        margin-top: 26px;
+        border: 1px solid var(--line);
+        border-left: 2px solid var(--blue);
+        background: var(--panel2);
+        padding: 14px 16px;
+        font-size: 13.5px; color: var(--mut);
+    }
+    .callout b { color: var(--ink); font-weight: 700; }
+    .callout .ctag {
+        display: block; margin-bottom: 6px;
+        font-family: var(--mono); font-size: 10px; font-weight: 600;
+        letter-spacing: 0.2em; text-transform: uppercase; color: var(--blue);
+    }
+
+    /* ---------- Controls ---------- */
+    .controls {
+        max-width: 960px; margin: 0 auto; padding: 16px 20px 0;
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .controls .navbtn {
+        border: 1px solid var(--line2); background: none; color: var(--ink);
+        font-size: 14px; font-weight: 600; padding: 12px 22px; cursor: pointer;
+        transition: border-color .2s, color .2s, background .2s;
+    }
+    .controls .navbtn:hover:not(:disabled) { border-color: rgba(255,255,255,0.45); }
+    .controls .navbtn.primary {
+        background: var(--blue); border-color: var(--blue); color: #06141f; font-weight: 700;
+    }
+    .controls .navbtn.primary:hover:not(:disabled) { background: var(--blue2); border-color: var(--blue2); }
+    .controls .navbtn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .keyhint {
+        font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+        color: var(--faint); text-transform: uppercase; text-align: center;
+    }
+    @media (max-width: 480px) { .keyhint { display: none; } }
+
+    footer { padding: 56px 20px 40px; text-align: center; }
+    footer .motto { font-weight: 800; letter-spacing: 0.04em; color: var(--blue); font-size: 16px; }
+    footer .fine { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+    footer .fine a { color: var(--dim); } footer .fine a:hover { color: var(--mut); }
+
+    /* =========================================================
+       SHARED VISUAL PRIMITIVES (panels, docs, chips, stamps)
+       ========================================================= */
+    .panel { border: 1px solid var(--line); background: var(--bg); }
+    .panelhead {
+        display: flex; align-items: center; gap: 10px;
+        border-bottom: 1px solid var(--line);
+        padding: 10px 14px;
+        font-family: var(--mono); font-size: 10px; font-weight: 500;
+        letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim);
+    }
+    .livedot { width: 6px; height: 6px; background: var(--blue); flex: none; animation: blink 2s steps(1) infinite; }
+    @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0.25; } }
+
+    .doc {
+        border: 1px solid var(--line2); background: #0d1526;
+        padding: 16px 16px 18px; position: relative; overflow: hidden;
+    }
+    .doc .dochead {
+        font-family: var(--mono); font-size: 10px; font-weight: 600;
+        letter-spacing: 0.18em; text-transform: uppercase; color: var(--mut);
+        border-bottom: 1px solid var(--line); padding-bottom: 9px; margin-bottom: 11px;
+    }
+    .docline {
+        display: flex; justify-content: space-between; gap: 10px;
+        font-family: var(--mono); font-size: 12px; padding: 5px 4px;
+    }
+    .docline .k { color: var(--dim); flex: none; }
+    .docline .v { color: var(--ink); text-align: right; font-weight: 600; }
+    .docline .v.money { color: var(--green); }
+
+    .chip {
+        display: inline-flex; align-items: center; gap: 7px;
+        border: 1px solid var(--line2); background: var(--panel2);
+        font-family: var(--mono); font-size: 11px; color: var(--ink);
+        padding: 7px 11px; font-weight: 500;
+    }
+    .chip .cdot { width: 5px; height: 5px; background: var(--blue); flex: none; }
+
+    .tag {
+        display: inline-block;
+        font-family: var(--mono); font-size: 9px; font-weight: 600;
+        letter-spacing: 0.16em; text-transform: uppercase;
+        border: 1px solid rgba(127,182,218,0.4); color: var(--blue);
+        padding: 2px 7px; vertical-align: middle;
+    }
+    .tag.good { border-color: rgba(52,211,153,0.4); color: var(--green); }
+    .tag.warn { border-color: rgba(251,191,36,0.45); color: var(--amber); }
+    .tag.bad { border-color: rgba(248,113,113,0.45); color: var(--red); }
+
+    .stamp {
+        display: inline-block;
+        border: 2px solid var(--amber); color: var(--amber);
+        font-family: var(--mono); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        padding: 7px 13px;
+        transform: rotate(-8deg);
+    }
+    .stamp.green { border-color: var(--green); color: var(--green); }
+
+    .bigline {
+        margin-top: 22px; border: 1px solid rgba(248,113,113,0.35);
+        background: rgba(248,113,113,0.06); padding: 16px 18px;
+        font-weight: 800; letter-spacing: 0.02em; color: #fff;
+        font-size: clamp(1rem, 3vw, 1.25rem);
+    }
+    .bigline small { display: block; margin-top: 6px; font-weight: 400; font-size: 13px; color: var(--mut); letter-spacing: 0; }
+
+    /* =========================================================
+       ANIMATION ENGINE
+       html.anim is added by JS only when motion is allowed.
+       Base styles (no .anim) = finished state, fully readable.
+       .scene.play triggers the choreography for the open scene.
+       ========================================================= */
+    .anim .scene .fx { opacity: 0; }
+    .anim .scene.play .fx {
+        animation-name: var(--fx, fadeUp);
+        animation-duration: var(--dur, .55s);
+        animation-timing-function: cubic-bezier(.2,.7,.2,1);
+        animation-fill-mode: both;
+        animation-delay: var(--d, 0s);
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideL { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
+    @keyframes slideR { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+    @keyframes popIn { 0% { opacity: 0; transform: scale(.82); } 70% { opacity: 1; transform: scale(1.03); } 100% { opacity: 1; transform: scale(1); } }
+    @keyframes stampIn {
+        0% { opacity: 0; transform: scale(1.9) rotate(-2deg); }
+        62% { opacity: 1; transform: scale(.93) rotate(-9deg); }
+        100% { opacity: 1; transform: scale(1) rotate(-8deg); }
+    }
+
+    /* field highlight sweep (RateCon review) */
+    .hl { background-image: linear-gradient(rgba(127,182,218,0.14), rgba(127,182,218,0.14)); background-repeat: no-repeat; background-size: 100% 100%; }
+    .anim .scene .hl { background-size: 0 100%; }
+    .anim .scene.play .hl { animation: hlSweep .5s ease both; animation-delay: var(--d, 0s); }
+    @keyframes hlSweep { from { background-size: 0 100%; } to { background-size: 100% 100%; } }
+
+    /* signature stroke draw */
+    .sig { stroke-dasharray: 520; stroke-dashoffset: 0; }
+    .anim .scene .sig { stroke-dashoffset: 520; }
+    .anim .scene.play .sig { animation: sigDraw 1.2s ease-out forwards; animation-delay: var(--d, 0s); }
+    @keyframes sigDraw { to { stroke-dashoffset: 0; } }
+
+    /* camera flash (POD photo) — decorative, invisible without motion */
+    .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+    .anim .scene.play .flash { animation: camFlash .55s ease both; animation-delay: var(--d, 0s); }
+    @keyframes camFlash { 0% { opacity: 0; } 25% { opacity: .8; } 100% { opacity: 0; } }
+
+    /* progress-style bars (upload, payment timelines) */
+    .bar { height: 6px; background: rgba(255,255,255,0.08); overflow: hidden; }
+    .bar > span { display: block; height: 100%; width: var(--w, 100%); background: var(--blue); }
+    .bar > span.gbar { background: var(--green); }
+    .anim .scene .bar > span { width: 0; }
+    .anim .scene.play .bar > span { animation: barFill var(--bdur, 1s) cubic-bezier(.3,.6,.3,1) forwards; animation-delay: var(--d, 0s); }
+    @keyframes barFill { to { width: var(--w, 100%); } }
+
+    /* phone buzz */
+    .anim .scene.play .phone { animation: buzz .55s linear 2; animation-delay: .35s; }
+    @keyframes buzz {
+        0%,100% { transform: none; }
+        20% { transform: translateX(-2px) rotate(-.7deg); }
+        40% { transform: translateX(2px) rotate(.7deg); }
+        60% { transform: translateX(-2px) rotate(-.5deg); }
+        80% { transform: translateX(2px) rotate(.5deg); }
+    }
+
+    /* =========================================================
+       SCENE 1 — load board
+       ========================================================= */
+    .lb-row {
+        display: grid; grid-template-columns: 1fr auto; gap: 4px 12px;
+        padding: 11px 14px; border-bottom: 1px solid var(--line);
+        font-family: var(--mono); font-size: 12px; color: var(--dim);
+    }
+    .lb-row .lane { color: var(--mut); font-weight: 600; }
+    .lb-row .rate { color: var(--dim); font-weight: 600; text-align: right; }
+    .lb-row .meta { grid-column: 1 / -1; font-size: 10.5px; color: var(--faint); letter-spacing: 0.04em; }
+    .lb-row.pick { border-left: 2px solid var(--blue); background: rgba(127,182,218,0.05); }
+    .lb-row.pick .lane { color: #fff; }
+    .lb-row.pick .rate { color: var(--green); }
+    .lb-row.pick .meta { color: var(--dim); }
+    .mathbox { margin-top: 14px; border: 1px solid var(--line); background: var(--panel2); padding: 16px; }
+    .mathline { font-family: var(--mono); font-size: 13px; color: var(--mut); padding: 4px 0; }
+    .mathline b { color: #fff; font-weight: 600; }
+    .mathline.big { font-size: clamp(1.05rem, 3.5vw, 1.4rem); color: #fff; padding-top: 8px; }
+    .mathline.big b { color: var(--blue); }
+
+    /* =========================================================
+       SCENE 2 — broker check
+       ========================================================= */
+    .checkrow {
+        display: flex; align-items: flex-start; gap: 11px;
+        padding: 10px 14px; border-bottom: 1px solid var(--line);
+        font-size: 13.5px; color: var(--ink);
+    }
+    .checkrow:last-child { border-bottom: 0; }
+    .checkrow .ck {
+        flex: none; width: 18px; height: 18px; margin-top: 2px;
+        border: 1px solid rgba(52,211,153,0.5); color: var(--green);
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .checkrow .sub { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--dim); margin-top: 2px; }
+    .redcard {
+        margin-top: 18px; border: 1px solid rgba(248,113,113,0.3);
+        border-left: 2px solid var(--red); background: rgba(248,113,113,0.05);
+        padding: 16px 18px;
+    }
+    .redcard .rtitle {
+        font-family: var(--mono); font-size: 10px; font-weight: 600;
+        letter-spacing: 0.2em; text-transform: uppercase; color: var(--red);
+    }
+    .redcard ul { margin: 10px 0 0; list-style: none; }
+    .redcard li { display: flex; gap: 9px; font-size: 13px; color: var(--mut); padding: 3px 0; }
+    .redcard li::before { content: "✕"; color: var(--red); font-family: var(--mono); font-size: 11px; margin-top: 1px; }
+    .redcard .verdict { margin-top: 10px; font-size: 13px; font-weight: 700; color: #fff; }
+
+    /* =========================================================
+       SCENE 3 — negotiation call
+       ========================================================= */
+    .call { display: flex; flex-direction: column; gap: 12px; }
+    .bubble { max-width: 88%; }
+    .bubble .who {
+        font-family: var(--mono); font-size: 9px; font-weight: 600;
+        letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); margin-bottom: 4px;
+    }
+    .bubble .say {
+        border: 1px solid var(--line2); padding: 11px 14px;
+        font-size: 14px; color: var(--ink); background: var(--panel2);
+    }
+    .bubble.you { align-self: flex-start; }
+    .bubble.you .say { border-left: 2px solid var(--blue); }
+    .bubble.them { align-self: flex-end; text-align: right; }
+    .bubble.them .say { border-right: 2px solid var(--dim); background: #0d1526; text-align: left; }
+    .bubble .tags { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .bubble.them .tags { justify-content: flex-end; }
+    .silence {
+        align-self: center; font-family: var(--mono); font-size: 11px;
+        color: var(--faint); letter-spacing: 0.24em; text-transform: uppercase; padding: 2px 0;
+    }
+    .result-strip {
+        margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+        border: 1px solid var(--line); background: var(--line);
+    }
+    .result-strip > div { background: var(--panel2); padding: 14px 16px; }
+    .result-strip .rk { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); }
+    .result-strip .rv { margin-top: 6px; font-family: var(--mono); font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 600; color: #fff; }
+    .result-strip .rv.up { color: var(--green); }
+    .result-strip .rs { font-family: var(--mono); font-size: 10.5px; color: var(--dim); margin-top: 3px; }
+
+    /* =========================================================
+       SCENE 4 — packet + ratecon
+       ========================================================= */
+    .packetrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .split { display: grid; gap: 18px; margin-top: 18px; }
+    @media (min-width: 720px) { .split { grid-template-columns: 1fr 1.15fr; align-items: start; } }
+    .stampspot { margin-top: 16px; min-height: 44px; }
+
+    /* =========================================================
+       SCENE 5 — phone + dispatch sheet
+       ========================================================= */
+    .s5wrap { display: grid; gap: 22px; }
+    @media (min-width: 720px) { .s5wrap { grid-template-columns: 260px 1fr; align-items: start; } }
+    .phone {
+        width: 240px; max-width: 100%; margin: 0 auto;
+        border: 1px solid var(--line2); border-radius: 22px;
+        background: #060a12; padding: 14px 12px 18px; position: relative;
+    }
+    .phone .notch { width: 74px; height: 5px; background: rgba(255,255,255,0.14); border-radius: 3px; margin: 0 auto 12px; }
+    .notif { border: 1px solid var(--line2); background: var(--panel2); padding: 12px; }
+    .notif .nhead { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+    .notif .nlane { margin-top: 8px; font-weight: 800; font-size: 14px; color: #fff; }
+    .notif .nsub { font-family: var(--mono); font-size: 10.5px; color: var(--mut); margin-top: 4px; line-height: 1.6; }
+    .notif .acts { display: flex; gap: 7px; margin-top: 11px; }
+    .notif .acts .a1 { flex: 1; border: 1px solid var(--line2); color: var(--dim); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; padding: 8px 4px; }
+    .notif .acts .a2 { flex: 1.4; background: var(--blue); color: #06141f; font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; padding: 8px 4px; position: relative; }
+    .accepted { margin-top: 11px; border: 1px solid rgba(52,211,153,0.4); color: var(--green); font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; padding: 9px 6px; }
+
+    /* =========================================================
+       SCENE 6 — transit track
+       ========================================================= */
+    .track { position: relative; height: 118px; margin: 30px 4px 0; }
+    .trackline { position: absolute; left: 0; right: 0; top: 40px; height: 2px; background: rgba(255,255,255,0.12); }
+    .trackfill { position: absolute; left: 0; top: 40px; height: 2px; background: var(--blue); width: 94%; }
+    .anim .scene .trackfill { width: 6%; }
+    .anim .scene.play .trackfill { animation: transitFill 7s cubic-bezier(.45,0,.25,1) forwards .3s; }
+    @keyframes transitFill {
+        0% { width: 6%; } 18% { width: 35%; } 30% { width: 35%; }
+        50% { width: 65%; } 62% { width: 65%; } 88% { width: 94%; } 100% { width: 94%; }
+    }
+    .truck { position: absolute; top: 12px; left: 94%; width: 58px; margin-left: -29px; }
+    .anim .scene .truck { left: 6%; }
+    .anim .scene.play .truck { animation: transitGo 7s cubic-bezier(.45,0,.25,1) forwards .3s; }
+    @keyframes transitGo {
+        0% { left: 6%; } 18% { left: 35%; } 30% { left: 35%; }
+        50% { left: 65%; } 62% { left: 65%; } 88% { left: 94%; } 100% { left: 94%; }
+    }
+    .stop { position: absolute; top: 36px; width: 10px; height: 10px; margin-left: -5px; background: var(--bg); border: 2px solid var(--dim); }
+    .stop.lit { border-color: var(--blue); background: var(--blue); }
+    .stoplbl {
+        position: absolute; top: 58px; width: 120px; margin-left: -60px; text-align: center;
+        font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em;
+        color: var(--mut); line-height: 1.5;
+    }
+    .stoplbl b { display: block; color: #fff; font-size: 10px; letter-spacing: 0.1em; }
+    @media (max-width: 560px) { .stoplbl { width: 78px; margin-left: -39px; } }
+    .checklog { margin-top: 26px; }
+    .checklog .cl {
+        display: flex; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line);
+        font-family: var(--mono); font-size: 12px;
+    }
+    .checklog .cl:last-child { border-bottom: 0; }
+    .checklog .t { color: var(--dim); flex: none; width: 74px; }
+    .checklog .m { color: var(--ink); }
+
+    /* =========================================================
+       SCENE 7 — POD
+       ========================================================= */
+    .podwrap { display: grid; gap: 18px; }
+    @media (min-width: 720px) { .podwrap { grid-template-columns: 1.2fr 1fr; align-items: start; } }
+    .sigline { border-top: 1px solid var(--line2); margin-top: 12px; padding-top: 6px; position: relative; }
+    .sigline .siglbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); }
+    .upload { border: 1px solid var(--line); background: var(--panel2); padding: 16px; }
+    .upload .ulbl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); }
+    .upload .ustat { margin-top: 10px; font-family: var(--mono); font-size: 12px; color: var(--green); }
+
+    /* =========================================================
+       SCENE 8 — invoice paths
+       ========================================================= */
+    .assemble { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .assemble .arrow { font-family: var(--mono); color: var(--dim); }
+    .paths { display: grid; gap: 14px; margin-top: 20px; }
+    @media (min-width: 640px) { .paths { grid-template-columns: 1fr 1fr; } }
+    .path { border: 1px solid var(--line); background: var(--panel2); padding: 18px; }
+    .path.fast { border-color: rgba(52,211,153,0.35); }
+    .path .ptitle { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mut); }
+    .path.fast .ptitle { color: var(--green); }
+    .path h3 { margin-top: 8px; font-size: 16px; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+    .path p { margin-top: 8px; font-size: 13px; color: var(--mut); }
+    .path .plbl { margin-top: 14px; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
+    .path .bar { margin-top: 6px; }
+
+    /* =========================================================
+       SCENE 9 — payout flow
+       ========================================================= */
+    .flow { max-width: 520px; margin: 0 auto; }
+    .party { border: 1px solid var(--line2); background: var(--panel2); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .party .pwho { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--mut); }
+    .party .pname { margin-top: 3px; font-weight: 800; color: #fff; font-size: 15px; }
+    .party .pamt { font-family: var(--mono); font-size: clamp(1rem, 4vw, 1.3rem); font-weight: 600; color: var(--green); white-space: nowrap; }
+    .party.hero { border-color: rgba(127,182,218,0.45); }
+    .party.hero .pamt { color: var(--blue2); }
+    .connector { position: relative; height: 52px; margin-left: 28px; }
+    .connector .cline { position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.12); }
+    .connector .clbl {
+        position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+        font-family: var(--mono); font-size: 10.5px; color: var(--mut); letter-spacing: 0.05em; line-height: 1.5;
+    }
+    .connector .clbl b { color: #fff; font-weight: 600; }
+    .connector .clbl .fee { color: var(--red); }
+    .mdot { position: absolute; left: -2px; top: -3px; width: 6px; height: 6px; background: var(--green); opacity: 0; }
+    .anim .scene.play .mdot { animation: flowY 1.7s ease-in-out infinite; animation-delay: var(--d, 0s); }
+    @keyframes flowY {
+        0% { top: -3px; opacity: 0; }
+        18% { opacity: 1; }
+        82% { opacity: 1; }
+        100% { top: 49px; opacity: 0; }
+    }
+    .totals { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; border: 1px solid var(--line); background: var(--line); }
+    .totals > div { background: var(--panel2); padding: 13px 12px; }
+    .totals .tk { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+    .totals .tv { margin-top: 6px; font-family: var(--mono); font-size: clamp(.95rem, 3.4vw, 1.25rem); font-weight: 600; color: #fff; }
+    .totals .tv.g { color: var(--green); }
+    .totals .tv.b { color: var(--blue2); }
+    .totals .ts { font-family: var(--mono); font-size: 9px; color: var(--faint); margin-top: 2px; }
+    .endcard { margin-top: 30px; border: 1px solid rgba(127,182,218,0.4); background: linear-gradient(135deg, #07101c, var(--panel)); padding: 28px 22px; text-align: center; }
+    .endcard h3 { font-size: clamp(1.25rem, 4.5vw, 1.7rem); font-weight: 800; letter-spacing: -0.015em; color: #fff; }
+    .endcard p { margin-top: 10px; color: var(--mut); font-size: 14px; max-width: 460px; margin-left: auto; margin-right: auto; }
+    .endcard .ctas { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+    @media (min-width: 560px) { .endcard .ctas { flex-direction: row; justify-content: center; } }
+    .endcard .cta {
+        display: inline-block; background: var(--blue); color: #06141f;
+        font-weight: 700; font-size: 15px; padding: 14px 26px;
+        transition: background .2s;
+    }
+    .endcard .cta:hover { background: var(--blue2); color: #06141f; }
+    .endcard .cta2 {
+        display: inline-block; border: 1px solid var(--line2); color: var(--ink);
+        font-weight: 600; font-size: 14px; padding: 13px 22px;
+    }
+    .endcard .cta2:hover { border-color: rgba(255,255,255,0.45); color: #fff; }
+
+    /* stop light-up: without motion everything is lit */
+    .anim .scene .lit-fx { border-color: var(--dim); background: var(--bg); }
+    .anim .scene.play .lit-fx { animation: stopLight .3s ease forwards; animation-delay: var(--d, 0s); }
+    @keyframes stopLight { to { border-color: var(--blue); background: var(--blue); } }
+
+    /* ---------- Reduced motion: everything instant & visible ---------- */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="hwrap">
+            <a href="index.html" class="brand">FORWARD<span>MOTION</span></a>
+            <nav class="hlinks">
+                <a href="crash-course.html">Crash Course</a>
+                <a href="index.html">← Back to site</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ============================================================ -->
+    <!-- INTRO                                                        -->
+    <!-- ============================================================ -->
+    <section class="intro">
+        <p class="kicker"><span class="dimno">Training film /</span> One load, start to finish</p>
+        <h1>Dispatch Your First Truck.<br><span class="ghost">Watch the Whole Play.</span></h1>
+        <p class="sub">Nine scenes. One real load — Dallas to Atlanta — from found-on-the-board to money in everyone's pocket. Every phone call, every document, every dollar.</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- PROGRESS RAIL                                                -->
+    <!-- ============================================================ -->
+    <div class="railwrap">
+        <div class="rail" id="rail" role="tablist" aria-label="Walkthrough scenes"></div>
+    </div>
+    <div class="scenemeta">
+        <span id="scene-counter">SCENE 01 / 09</span>
+        <button class="replay" id="btn-replay" type="button" aria-label="Replay this scene's animation">↻ Replay scene</button>
+    </div>
+    <p class="visually-hidden" id="announcer" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);"></p>
+
+    <!-- ============================================================ -->
+    <!-- STAGE                                                        -->
+    <!-- ============================================================ -->
+    <main class="stage" id="stage">
+
+        <!-- ==================== SCENE 1 — FIND THE LOAD ==================== -->
+        <section class="scene" id="sc1" data-label="Find" data-title="Find the Load">
+            <p class="kicker fx">Scene 01 · Find the Load</p>
+            <h2 class="fx" style="--d:.08s">A load is only worth what the math says it's worth.</h2>
+            <p class="lead fx" style="--d:.16s">Tuesday, 07:42. Your truck empties out in Dallas this morning. You're working the board before the driver finishes his coffee.</p>
+
+            <div class="visual">
+                <div class="panel fx" style="--d:.3s">
+                    <div class="panelhead"><span class="livedot"></span> Load board · Dallas, TX · Dry van 53′</div>
+                    <div class="lb-row fx" style="--d:.5s;--fx:fadeIn">
+                        <span class="lane">Dallas, TX → Memphis, TN</span><span class="rate">$1,150</span>
+                        <span class="meta">452 mi · posted 22 min ago</span>
+                    </div>
+                    <div class="lb-row pick fx" style="--d:.7s;--fx:slideL">
+                        <span class="lane">Dallas, TX → Atlanta, GA</span><span class="rate">$2,100</span>
+                        <span class="meta">780 mi · dry van · Apex Freight Group · posted 6 min ago</span>
+                    </div>
+                    <div class="lb-row fx" style="--d:.9s;--fx:fadeIn">
+                        <span class="lane">Dallas, TX → Oklahoma City, OK</span><span class="rate">$620</span>
+                        <span class="meta">206 mi · posted 41 min ago</span>
+                    </div>
+                </div>
+
+                <div class="mathbox">
+                    <p class="mathline fx" style="--d:1.2s">Loaded miles <b>780</b> + deadhead to the shipper <b>40</b> = <b>820 all miles</b></p>
+                    <p class="mathline big fx" style="--d:1.7s">$2,100 ÷ 820 mi = <b>$2.56 True RPM</b></p>
+                    <p class="mathline fx" style="--d:2.2s"><span class="tag warn">Below the $2.75 floor</span>&nbsp; Good lane, weak number. Worth a call — never worth the posted rate.</p>
+                </div>
+            </div>
+
+            <aside class="callout fx" style="--d:2.6s">
+                <span class="ctag">The math</span>
+                <b>True RPM = rate ÷ ALL miles</b> — deadhead included. The board shows $2,100 over 780 loaded miles and calls it $2.69. Your truck turns 820 miles to earn it. Rookies who quote off loaded miles only end up booking losers.
+            </aside>
+        </section>
+
+        <!-- ==================== SCENE 2 — VET THE BROKER ==================== -->
+        <section class="scene" id="sc2" data-label="Vet" data-title="Vet the Broker">
+            <p class="kicker fx">Scene 02 · Vet the Broker</p>
+            <h2 class="fx" style="--d:.08s">Before you dial, make sure they can pay.</h2>
+            <p class="lead fx" style="--d:.16s">Two minutes of checking beats thirty days of chasing a broker who was never going to pay. Run Apex Freight Group before the call.</p>
+
+            <div class="visual">
+                <div class="panel">
+                    <div class="panelhead"><span class="livedot"></span> Broker check · Apex Freight Group · MC-987654</div>
+                    <div class="checkrow fx" style="--d:.4s;--fx:slideL">
+                        <span class="ck" aria-hidden="true">✓</span>
+                        <span>Broker authority <b>ACTIVE</b> since 2016<span class="sub">FMCSA licensing — an MC with history, not a pop-up</span></span>
+                    </div>
+                    <div class="checkrow fx" style="--d:.75s;--fx:slideL">
+                        <span class="ck" aria-hidden="true">✓</span>
+                        <span>$75K surety bond on file<span class="sub">the FMCSA-required bond that backs your invoice if they default</span></span>
+                    </div>
+                    <div class="checkrow fx" style="--d:1.1s;--fx:slideL">
+                        <span class="ck" aria-hidden="true">✓</span>
+                        <span>Credit score 97 · pays in ~28 days<span class="sub">strong credit, predictable days-to-pay</span></span>
+                    </div>
+                    <div class="checkrow fx" style="--d:1.45s;--fx:slideL">
+                        <span class="ck" aria-hidden="true">✓</span>
+                        <span>Not on the FMCSA suspended list<span class="sub">haul for a suspended broker and you simply don't get paid</span></span>
+                    </div>
+                    <div class="checkrow fx" style="--d:1.8s;--fx:slideL">
+                        <span class="ck" aria-hidden="true">✓</span>
+                        <span>Approved by the carrier's factoring company<span class="sub">the factor has to be willing to buy this broker's invoices</span></span>
+                    </div>
+                </div>
+
+                <div class="redcard fx" style="--d:2.4s;--fx:fadeUp">
+                    <p class="rtitle">When you walk away — the counterexample</p>
+                    <ul>
+                        <li>MC authority is 60 days old with zero credit history</li>
+                        <li>Email domain doesn't match the company's website</li>
+                        <li>"Truck must move TONIGHT — we'll quick-pay off the books"</li>
+                        <li>They want your carrier to re-broker or double-broker the freight</li>
+                    </ul>
+                    <p class="verdict">Any one of these: pass. A load that never pays is worse than an empty truck.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SCENE 3 — THE NEGOTIATION CALL ==================== -->
+        <section class="scene" id="sc3" data-label="Call" data-title="The Negotiation Call">
+            <p class="kicker fx">Scene 03 · The Negotiation Call</p>
+            <h2 class="fx" style="--d:.08s">The posted rate is an opening bid, not a price.</h2>
+            <p class="lead fx" style="--d:.16s">Broker checks out. Now you call — anchored high, armed with market data, and comfortable with silence.</p>
+
+            <div class="visual">
+                <div class="call">
+                    <div class="bubble you fx" style="--d:.4s;--fx:slideL">
+                        <p class="who">You — dispatcher</p>
+                        <p class="say">"Morning — calling on your Dallas to Atlanta dry van. I can have a clean truck loaded today, but I need <b>$2,450</b> on it."</p>
+                        <div class="tags"><span class="tag">Anchor high</span></div>
+                    </div>
+                    <div class="bubble them fx" style="--d:1.1s;--fx:slideR">
+                        <p class="who">Broker — Apex</p>
+                        <p class="say">"It's posted at $2,100. Best I can do is <b>$2,200</b>."</p>
+                        <div class="tags"><span class="tag">The counter</span></div>
+                    </div>
+                    <div class="bubble you fx" style="--d:1.8s;--fx:slideL">
+                        <p class="who">You — dispatcher</p>
+                        <p class="say">"This lane's averaging $2.90 a mile this week, and my truck is 40 miles from your shipper — you can stop working this load in the next five minutes. <b>$2,350</b> and it's covered."</p>
+                        <div class="tags"><span class="tag">Justify with market rate</span><span class="tag">Sell certainty</span><span class="tag">Close</span></div>
+                    </div>
+                    <p class="silence fx" style="--d:2.6s;--fx:fadeIn">— four seconds of silence —&nbsp;&nbsp;<span class="tag">Let silence work</span></p>
+                    <div class="bubble them fx" style="--d:3.3s;--fx:slideR">
+                        <p class="who">Broker — Apex</p>
+                        <p class="say">"…Alright. <b>$2,350</b>. Send me your packet and I'll get the rate con over."</p>
+                        <div class="tags"><span class="tag good">Deal</span></div>
+                    </div>
+                </div>
+
+                <div class="result-strip">
+                    <div class="fx" style="--d:3.9s;--fx:popIn">
+                        <p class="rk">Before the call</p>
+                        <p class="rv">$2.56<span style="font-size:.6em;color:var(--dim)">/mi</span></p>
+                        <p class="rs">$2,100 posted</p>
+                    </div>
+                    <div class="fx" style="--d:4.15s;--fx:popIn">
+                        <p class="rk">After the call</p>
+                        <p class="rv up">$2.87<span style="font-size:.6em;color:var(--dim)">/mi</span></p>
+                        <p class="rs">$2,350 · +$250 in one phone call</p>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="callout fx" style="--d:4.5s">
+                <span class="ctag">The tactic</span>
+                Anchor above your target, justify with data, then <b>stop talking</b>. The first one to fill the silence usually pays for it.
+            </aside>
+        </section>
+
+        <!-- ==================== SCENE 4 — SETUP + RATE CONFIRMATION ==================== -->
+        <section class="scene" id="sc4" data-label="RateCon" data-title="Setup Packet &amp; Rate Confirmation">
+            <p class="kicker fx">Scene 04 · Setup Packet &amp; Rate Confirmation</p>
+            <h2 class="fx" style="--d:.08s">Nothing moves until the paper is signed.</h2>
+            <p class="lead fx" style="--d:.16s">New broker, so their portal needs the carrier's packet first. Your document vault turns a 30-minute setup into 3 minutes — then the RateCon lands in your inbox.</p>
+
+            <div class="visual">
+                <div class="split">
+                    <div>
+                        <div class="panel">
+                            <div class="panelhead">Carrier–broker setup · one time per broker</div>
+                            <div style="padding:14px 14px 16px">
+                                <div class="packetrow" style="margin-top:0">
+                                    <span class="chip fx" style="--d:.4s;--fx:slideL"><span class="cdot"></span>W-9</span>
+                                    <span class="chip fx" style="--d:.6s;--fx:slideL"><span class="cdot"></span>Certificate of Insurance</span>
+                                    <span class="chip fx" style="--d:.8s;--fx:slideL"><span class="cdot"></span>MC Authority letter</span>
+                                    <span class="chip fx" style="--d:1s;--fx:slideL"><span class="cdot"></span>Factoring NOA</span>
+                                </div>
+                                <p class="fx" style="--d:1.3s;margin-top:12px;font-size:12.5px;color:var(--mut)">The <b style="color:var(--ink)">NOA</b> (Notice of Assignment) tells Apex to pay the carrier's factoring company — not the carrier — when the load delivers. Speed here wins loads: the truck that's set up first gets the freight.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="doc fx" style="--d:1.6s;--fx:fadeUp">
+                            <p class="dochead">Rate Confirmation · Apex Freight Group · Load #A-58291</p>
+                            <div class="docline"><span class="k">RATE (ALL-IN)</span><span class="v money hl" style="--d:2.2s">$2,350.00</span></div>
+                            <div class="docline"><span class="k">PICKUP</span><span class="v hl" style="--d:2.5s">Dallas, TX · Tue 08:00 · PU# 44712</span></div>
+                            <div class="docline"><span class="k">DELIVERY</span><span class="v hl" style="--d:2.8s">Atlanta, GA · Wed 14:00 appt</span></div>
+                            <div class="docline"><span class="k">COMMODITY</span><span class="v">Palletized dry goods · 42,000 lbs</span></div>
+                            <div class="docline"><span class="k">TERMS</span><span class="v hl" style="--d:3.1s">Net 30 · detention $50/hr after 2 hrs</span></div>
+                            <div class="stampspot">
+                                <span class="stamp fx" style="--d:3.7s;--fx:stampIn;--dur:.5s">Signed · J.&nbsp;Carter · via LPOA</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="callout fx" style="--d:4.2s">
+                <span class="ctag">The paperwork</span>
+                The <b>RateCon is the contract</b> — audit the rate, stops, appointment times, weight, and payment terms line by line before signing. The <b>LPOA</b> (Limited Power of Attorney) in your dispatch agreement authorizes exactly one thing: signing RateCons on the carrier's behalf.
+            </aside>
+        </section>
+
+        <!-- ==================== SCENE 5 — DISPATCH THE TRUCK ==================== -->
+        <section class="scene" id="sc5" data-label="Dispatch" data-title="Dispatch the Truck">
+            <p class="kicker fx">Scene 05 · Dispatch the Truck</p>
+            <h2 class="fx" style="--d:.08s">Now the driver gets everything he needs — and nothing he doesn't.</h2>
+            <p class="lead fx" style="--d:.16s">07:56. The load offer hits Ray's phone while he's finishing his pre-trip, 40 miles from the shipper.</p>
+
+            <div class="visual">
+                <div class="s5wrap">
+                    <div class="phone fx" style="--d:.3s;--fx:fadeUp">
+                        <div class="notch"></div>
+                        <div class="notif fx" style="--d:.7s;--fx:fadeUp">
+                            <div class="nhead"><span>Forward OS</span><span>07:56</span></div>
+                            <p class="nlane">New load offer — Dallas → Atlanta</p>
+                            <p class="nsub">$2,350 · 780 mi · dry van<br>PU Tue 08:00 · DEL Wed 14:00</p>
+                            <div class="acts">
+                                <span class="a1">Decline</span>
+                                <span class="a2 fx" style="--d:1.6s;--fx:popIn">Accept</span>
+                            </div>
+                        </div>
+                        <div class="accepted fx" style="--d:2.3s;--fx:popIn">✓ Accepted · 07:58</div>
+                    </div>
+
+                    <div class="doc fx" style="--d:2.8s;--fx:fadeUp">
+                        <p class="dochead">Dispatch sheet · Load #A-58291 · R. Alvarez · Truck 402</p>
+                        <div class="docline"><span class="k">PU#</span><span class="v">44712 — give this number at check-in</span></div>
+                        <div class="docline"><span class="k">SHIPPER</span><span class="v">Lonestar Distribution, 2400 Industrial Blvd, Dallas TX</span></div>
+                        <div class="docline"><span class="k">PU APPT</span><span class="v">Tue 08:00 (arrive 07:45)</span></div>
+                        <div class="docline"><span class="k">RECEIVER</span><span class="v">Peachtree Freight Terminal, 190 Commerce Dr, Atlanta GA</span></div>
+                        <div class="docline"><span class="k">DEL APPT</span><span class="v">Wed 14:00</span></div>
+                        <div class="docline"><span class="k">NOTES</span><span class="v">Call me loaded. Photo the BOL before you roll.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="callout fx" style="--d:3.4s">
+                <span class="ctag">Why it matters</span>
+                The <b>dispatch sheet is the driver's single source of truth</b> — addresses, appointment times, the pickup number, and who to call when something changes. A driver hunting for info at a guard shack is a driver burning his clock.
+            </aside>
+        </section>
+
+        <!-- ==================== SCENE 6 — IN TRANSIT ==================== -->
+        <section class="scene" id="sc6" data-label="Transit" data-title="In Transit">
+            <p class="kicker fx">Scene 06 · In Transit</p>
+            <h2 class="fx" style="--d:.08s">The truck rolls. You keep the broker calm and the clock legal.</h2>
+            <p class="lead fx" style="--d:.16s">Check calls are the product the broker is buying from you. Every milestone gets logged and, when it matters, relayed.</p>
+
+            <div class="visual">
+                <div class="panel" style="padding-bottom:14px">
+                    <div class="panelhead"><span class="livedot"></span> Load #A-58291 · Dallas → Atlanta · 780 mi</div>
+                    <div class="track" aria-hidden="true">
+                        <div class="trackline"></div>
+                        <div class="trackfill"></div>
+                        <div class="stop lit lit-fx" style="left:6%;--d:.4s"></div>
+                        <div class="stop lit lit-fx" style="left:35%;--d:1.7s"></div>
+                        <div class="stop lit lit-fx" style="left:65%;--d:3.9s"></div>
+                        <div class="stop lit lit-fx" style="left:94%;--d:6.5s"></div>
+                        <div class="stoplbl" style="left:6%"><b>TUE 09:12</b>Loaded · BOL in hand</div>
+                        <div class="stoplbl" style="left:35%"><b>TUE 14:30</b>Rolling · I-20 E</div>
+                        <div class="stoplbl" style="left:65%"><b>WED 07:00</b>AM ETA update</div>
+                        <div class="stoplbl" style="left:94%"><b>WED 13:40</b>Arrived receiver</div>
+                        <div class="truck" aria-hidden="true">
+                            <svg viewBox="0 0 58 26" fill="none">
+                                <rect x="1" y="2" width="34" height="15" fill="#0d1526" stroke="#7FB6DA" stroke-width="1.5"/>
+                                <path d="M36 8h9l6 6v3h-15z" fill="#0d1526" stroke="#7FB6DA" stroke-width="1.5"/>
+                                <rect x="44" y="9.5" width="4.5" height="4" fill="#7FB6DA" opacity=".55"/>
+                                <line x1="1" y1="17" x2="51" y2="17" stroke="#7FB6DA" stroke-width="1.5"/>
+                                <circle cx="9" cy="20.5" r="3.4" fill="#070b14" stroke="#7FB6DA" stroke-width="1.5"/>
+                                <circle cx="17" cy="20.5" r="3.4" fill="#070b14" stroke="#7FB6DA" stroke-width="1.5"/>
+                                <circle cx="45" cy="20.5" r="3.4" fill="#070b14" stroke="#7FB6DA" stroke-width="1.5"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel checklog">
+                    <div class="panelhead">Check-call log</div>
+                    <div class="cl fx" style="--d:.6s;--fx:slideL"><span class="t">TUE 09:12</span><span class="m">Driver loaded, BOL in hand, 42,000 lbs — check call #1 to broker</span></div>
+                    <div class="cl fx" style="--d:2s;--fx:slideL"><span class="t">TUE 14:30</span><span class="m">Rolling east on I-20 — on schedule, HOS clean</span></div>
+                    <div class="cl fx" style="--d:4.2s;--fx:slideL"><span class="t">WED 07:00</span><span class="m">Morning ETA to broker: on time for the 14:00 appointment</span></div>
+                    <div class="cl fx" style="--d:6.7s;--fx:slideL"><span class="t">WED 13:40</span><span class="m">Arrived receiver — 20 minutes early, checked in at the dock</span></div>
+                </div>
+            </div>
+
+            <aside class="callout fx" style="--d:7.2s">
+                <span class="ctag">The paperwork</span>
+                The <b>BOL (Bill of Lading)</b> is the shipper's manifest of what went on the trailer. The driver signs it at pickup and carries it the whole trip — at delivery, it becomes the document everybody gets paid against.
+            </aside>
+        </section>
+
+        <!-- ==================== SCENE 7 — DELIVERY + POD ==================== -->
+        <section class="scene" id="sc7" data-label="POD" data-title="Delivery &amp; Proof of Delivery">
+            <p class="kicker fx">Scene 07 · Delivery &amp; Proof of Delivery</p>
+            <h2 class="fx" style="--d:.08s">The receiver's signature turns freight into money.</h2>
+            <p class="lead fx" style="--d:.16s">Wednesday, 14:25. Trailer's empty. The receiver signs the BOL — and that signature makes it the Proof of Delivery.</p>
+
+            <div class="visual">
+                <div class="podwrap">
+                    <div class="doc fx" style="--d:.35s;--fx:fadeUp">
+                        <div class="flash" style="--d:2.9s"></div>
+                        <p class="dochead">Bill of Lading · Load #A-58291</p>
+                        <div class="docline"><span class="k">RECEIVED</span><span class="v">26 pallets · palletized dry goods</span></div>
+                        <div class="docline"><span class="k">CONDITION</span><span class="v">No exceptions · no damage noted</span></div>
+                        <div class="docline"><span class="k">TIME IN/OUT</span><span class="v">13:40 / 14:25</span></div>
+                        <div class="sigline">
+                            <svg viewBox="0 0 300 44" width="220" height="34" aria-hidden="true">
+                                <path class="sig" style="--d:1s" d="M8 32 C 20 8, 30 8, 34 24 C 37 34, 44 32, 50 22 M 60 30 c 3 -1 4 1 2 3 M 74 30 C 80 12, 90 12, 92 26 C 94 36, 102 30, 108 24 C 114 18, 118 28, 126 26 C 134 24, 136 18, 142 22 C 148 26, 152 30, 160 24 C 166 19, 170 26, 178 25 C 188 24, 194 16, 200 24 C 205 31, 214 28, 222 24 C 232 19, 240 28, 252 22 C 262 17, 270 24, 280 20"
+                                    fill="none" stroke="#A6D2EC" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            <p class="siglbl">Receiver signature — Peachtree Freight Terminal</p>
+                        </div>
+                        <div class="stampspot">
+                            <span class="stamp green fx" style="--d:2.3s;--fx:stampIn;--dur:.5s">Delivered · Wed 14:25</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="upload fx" style="--d:3.2s;--fx:fadeUp">
+                            <p class="ulbl">📷 Driver photographs the signed BOL at the dock</p>
+                            <div class="bar" style="margin-top:12px"><span style="--w:100%;--bdur:.9s;--d:3.7s"></span></div>
+                            <p class="ustat fx" style="--d:4.7s;--fx:fadeIn">✓ POD uploaded — on file &amp; sent to the factoring company</p>
+                        </div>
+                        <div class="bigline fx" style="--d:5.2s;--fx:popIn">
+                            NO POD = NO PAYMENT.
+                            <small>The signed BOL is now the Proof of Delivery — the one document the broker, the factor, and the carrier all pay against. The driver photographs it before leaving the dock. Every load, every time.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== SCENE 8 — PAPERWORK PACKAGE & INVOICE ==================== -->
+        <section class="scene" id="sc8" data-label="Invoice" data-title="Paperwork Package &amp; Invoice">
+            <p class="kicker fx">Scene 08 · Paperwork Package &amp; Invoice</p>
+            <h2 class="fx" style="--d:.08s">Assemble the packet. Pick how fast you want the money.</h2>
+            <p class="lead fx" style="--d:.16s">Same afternoon — money doesn't move until the packet is complete and clean.</p>
+
+            <div class="visual">
+                <div class="panel" style="padding:16px">
+                    <div class="assemble">
+                        <span class="chip fx" style="--d:.4s;--fx:slideL"><span class="cdot"></span>Signed RateCon</span>
+                        <span class="chip fx" style="--d:.65s;--fx:slideL"><span class="cdot"></span>Signed POD</span>
+                        <span class="chip fx" style="--d:.9s;--fx:slideL"><span class="cdot"></span>Lumper / detention receipts</span>
+                        <span class="arrow fx" style="--d:1.2s;--fx:fadeIn">→</span>
+                        <span class="chip fx" style="--d:1.45s;--fx:popIn;border-color:rgba(127,182,218,.5);color:#fff"><span class="cdot"></span>Invoice packet · Load #A-58291 · $2,350</span>
+                    </div>
+                </div>
+
+                <div class="paths">
+                    <div class="path fx" style="--d:1.9s;--fx:fadeUp">
+                        <p class="ptitle">Path A — Invoice the broker direct</p>
+                        <h3>Keep 100%. Wait ~30 days.</h3>
+                        <p>Send Apex the invoice with the packet attached, on their Net 30 terms. No fee — but the carrier floats fuel, insurance, and payroll for a month while the check crawls.</p>
+                        <p class="plbl"><span>Invoiced</span><span>Paid · day ~30</span></p>
+                        <div class="bar"><span style="--w:100%;--bdur:3s;--d:2.6s"></span></div>
+                    </div>
+                    <div class="path fast fx" style="--d:2.2s;--fx:fadeUp">
+                        <p class="ptitle">Path B — Submit to factoring</p>
+                        <h3>Paid ~next business day. ~3% fee.</h3>
+                        <p>Submit the same packet to the factoring company. They advance the carrier the money — minus about 3% (~$70 here) — and collect from Apex themselves. Fuel doesn't wait 30 days; most owner-operators run this way.</p>
+                        <p class="plbl"><span>Submitted</span><span>Funded · next day</span></p>
+                        <div class="bar"><span class="gbar" style="--w:100%;--bdur:.7s;--d:2.6s"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="callout fx" style="--d:3.6s">
+                <span class="ctag">The paperwork</span>
+                <b>Lumper receipts</b> (paid unloading crews) and <b>detention</b> (waiting past the free 2 hours) get billed back to the broker — but only if the receipts and timestamps are in the packet. No receipt, no reimbursement.
+            </aside>
+        </section>
+
+        <!-- ==================== SCENE 9 — THE PAYOUT ==================== -->
+        <section class="scene" id="sc9" data-label="Payout" data-title="The Payout">
+            <p class="kicker fx">Scene 09 · The Payout</p>
+            <h2 class="fx" style="--d:.08s">Follow the $2,350 all the way home.</h2>
+            <p class="lead fx" style="--d:.16s">Thursday morning. The factor funded the load overnight. Here's where every dollar lands.</p>
+
+            <div class="visual">
+                <div class="flow">
+                    <div class="party fx" style="--d:.4s;--fx:fadeUp">
+                        <div><p class="pwho">The broker</p><p class="pname">Apex Freight Group</p></div>
+                        <p class="pamt">$2,350</p>
+                    </div>
+                    <div class="connector" aria-hidden="true">
+                        <div class="cline"></div><div class="mdot" style="--d:.9s"></div>
+                        <p class="clbl fx" style="--d:.9s;--fx:fadeIn">pays the invoice on Net 30 terms —<br>the NOA routes it to the factor</p>
+                    </div>
+                    <div class="party fx" style="--d:1.3s;--fx:fadeUp">
+                        <div><p class="pwho">The factoring company</p><p class="pname">Advances the carrier overnight</p></div>
+                        <p class="pamt">− $70 <span style="font-size:.65em;color:var(--dim)">(~3% fee)</span></p>
+                    </div>
+                    <div class="connector" aria-hidden="true">
+                        <div class="cline"></div><div class="mdot" style="--d:1.8s"></div>
+                        <p class="clbl fx" style="--d:1.8s;--fx:fadeIn"><b>$2,280</b> hits the carrier's account<br>Thursday morning</p>
+                    </div>
+                    <div class="party fx" style="--d:2.2s;--fx:fadeUp">
+                        <div><p class="pwho">The carrier</p><p class="pname">Alvarez Trucking LLC</p></div>
+                        <p class="pamt">$2,280</p>
+                    </div>
+                    <div class="connector" aria-hidden="true">
+                        <div class="cline"></div><div class="mdot" style="--d:2.7s"></div>
+                        <p class="clbl fx" style="--d:2.7s;--fx:fadeIn">pays your dispatch invoice —<br><b>8% of gross</b> = <span class="fee" style="color:var(--blue2)">$188</span></p>
+                    </div>
+                    <div class="party hero fx" style="--d:3.1s;--fx:fadeUp">
+                        <div><p class="pwho">The dispatcher</p><p class="pname">You</p></div>
+                        <p class="pamt">$188</p>
+                    </div>
+                </div>
+
+                <div class="totals fx" style="--d:3.7s;--fx:fadeUp">
+                    <div><p class="tk">Carrier nets</p><p class="tv g">$2,092</p><p class="ts">before fuel &amp; expenses</p></div>
+                    <div><p class="tk">Dispatcher earns</p><p class="tv b">$188</p><p class="ts">one load, ~30 min of work</p></div>
+                    <div><p class="tk">Factor keeps</p><p class="tv">$70</p><p class="ts">the price of Thursday money</p></div>
+                </div>
+
+                <div class="endcard fx" style="--d:4.3s;--fx:fadeUp">
+                    <h3>That's one load. Now do it again.</h3>
+                    <p>A dispatcher running three or four trucks books this play 12–16 times a week. The free 2-week crash course teaches you every move you just watched — then hands you the tools to run it.</p>
+                    <div class="ctas">
+                        <a class="cta" href="crash-course.html">Take the free 2-week crash course →</a>
+                        <a class="cta2" href="index.html">Back to Forward Motion Freight</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============================================================ -->
+    <!-- CONTROLS                                                     -->
+    <!-- ============================================================ -->
+    <div class="controls">
+        <button class="navbtn" id="btn-back" type="button">← Back</button>
+        <span class="keyhint" aria-hidden="true">← → arrow keys work too</span>
+        <button class="navbtn primary" id="btn-next" type="button">Next scene →</button>
+    </div>
+
+    <footer>
+        <p class="motto">Keep Moving Forward.</p>
+        <p class="fine">© Forward Motion Freight · <a href="index.html">Home</a> · <a href="crash-course.html">Free Crash Course</a></p>
+    </footer>
+
+    <script>
+    (function () {
+        'use strict';
+
+        /* Motion gate: animations only run when the visitor allows motion.
+           Without .anim (reduced motion, or JS failure before this line),
+           every scene renders in its finished, fully readable state. */
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!reduce) document.documentElement.classList.add('anim');
+
+        var scenes = Array.prototype.slice.call(document.querySelectorAll('.scene'));
+        var rail = document.getElementById('rail');
+        var counter = document.getElementById('scene-counter');
+        var announcer = document.getElementById('announcer');
+        var btnBack = document.getElementById('btn-back');
+        var btnNext = document.getElementById('btn-next');
+        var btnReplay = document.getElementById('btn-replay');
+        var current = 0;
+
+        /* Build the progress rail from the scenes themselves. */
+        scenes.forEach(function (sc, i) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.setAttribute('role', 'tab');
+            b.setAttribute('aria-label', 'Scene ' + (i + 1) + ': ' + sc.getAttribute('data-title'));
+            b.innerHTML =
+                '<span class="tick"></span>' +
+                '<span class="num">' + String(i + 1).padStart(2, '0') + '</span>' +
+                '<span class="lbl">' + sc.getAttribute('data-label') + '</span>';
+            b.addEventListener('click', function () { go(i); });
+            rail.appendChild(b);
+        });
+        var railBtns = Array.prototype.slice.call(rail.children);
+
+        function pad(n) { return String(n).padStart(2, '0'); }
+
+        function show(i, opts) {
+            opts = opts || {};
+            current = i;
+            scenes.forEach(function (sc, j) {
+                if (j === i) {
+                    sc.hidden = false;
+                    sc.classList.remove('play');
+                    /* force reflow so re-adding .play restarts every animation */
+                    void sc.offsetWidth;
+                    sc.classList.add('play');
+                } else {
+                    sc.hidden = true;
+                    sc.classList.remove('play');
+                }
+            });
+            railBtns.forEach(function (b, j) {
+                b.classList.toggle('on', j === i);
+                b.classList.toggle('done', j < i);
+                b.setAttribute('aria-selected', j === i ? 'true' : 'false');
+            });
+            counter.textContent = 'SCENE ' + pad(i + 1) + ' / ' + pad(scenes.length);
+            btnBack.disabled = i === 0;
+            btnNext.disabled = i === scenes.length - 1;
+            announcer.textContent = 'Scene ' + (i + 1) + ' of ' + scenes.length + ': ' + scenes[i].getAttribute('data-title');
+            if (!opts.noScroll) {
+                var top = rail.getBoundingClientRect().top + window.pageYOffset - 76;
+                window.scrollTo({ top: top, behavior: reduce ? 'auto' : 'smooth' });
+            }
+        }
+
+        function go(i) {
+            if (i < 0 || i >= scenes.length || i === current) return;
+            show(i);
+        }
+
+        btnBack.addEventListener('click', function () { go(current - 1); });
+        btnNext.addEventListener('click', function () { go(current + 1); });
+        btnReplay.addEventListener('click', function () { show(current, { noScroll: true }); });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
+            var t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            if (e.key === 'ArrowRight') { go(current + 1); e.preventDefault(); }
+            else if (e.key === 'ArrowLeft') { go(current - 1); e.preventDefault(); }
+        });
+
+        /* Phone-first: swipe left/right on the stage to navigate. */
+        var stage = document.getElementById('stage');
+        var touchX = null, touchY = null;
+        stage.addEventListener('touchstart', function (e) {
+            if (e.touches.length !== 1) return;
+            touchX = e.touches[0].clientX; touchY = e.touches[0].clientY;
+        }, { passive: true });
+        stage.addEventListener('touchend', function (e) {
+            if (touchX === null) return;
+            var dx = e.changedTouches[0].clientX - touchX;
+            var dy = e.changedTouches[0].clientY - touchY;
+            touchX = touchY = null;
+            if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                go(dx < 0 ? current + 1 : current - 1);
+            }
+        }, { passive: true });
+
+        show(0, { noScroll: true });
+    })();
+    </script>
+
+</body>
+</html>
