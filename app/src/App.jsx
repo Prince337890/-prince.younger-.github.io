@@ -137,8 +137,11 @@ const FM_THEME_CSS = `
   --fm-r-lg: 10px;
   --fm-r-xl: 14px;
   --fm-r-2xl: 18px;
-  --fm-shadow-1: inset 0 1px 0 rgb(255 255 255 / 0.03), 0 1px 2px rgb(0 0 0 / 0.5);
-  --fm-shadow-2: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 10px 30px rgb(0 0 0 / 0.5);
+  /* Elevation carries a faint warm-gold ambient glow (Phase 1b) — static
+     box-shadow baked into the token, so every shadow-e1 Card glows softly
+     on the dark ground at zero runtime cost. Classic stays 0 0 #0000. */
+  --fm-shadow-1: inset 0 1px 0 rgb(255 255 255 / 0.03), 0 1px 2px rgb(0 0 0 / 0.5), 0 0 24px -6px rgb(255 178 36 / 0.10);
+  --fm-shadow-2: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 10px 30px rgb(0 0 0 / 0.5), 0 0 36px -8px rgb(255 178 36 / 0.14);
 }
 /* === CLASSIC (the original look — stock Tailwind slate/amber values) === */
 :root[data-theme="classic"] {
@@ -230,6 +233,69 @@ const FM_THEME_CSS = `
 }
 @media (prefers-reduced-motion: reduce) {
   :root.fm-theme-x, :root.fm-theme-x *, :root.fm-theme-x *::before, :root.fm-theme-x *::after { transition: none !important; }
+}
+/* === NIGHT HAUL GLOW LAYER (Phase 1b) =====================================
+   "Alive at night" — every rule is scoped to :root[data-theme="nighthaul"]
+   so Classic is byte-for-byte unaffected. Three layers, in order of volume:
+   1. Ambient: gold ambience rides the elevation tokens above (static).
+   2. Breathing: a slow opacity-only pulse on pseudo-elements that carry a
+      static box-shadow — the shadow rasterizes once, the compositor fades
+      the layer. Applied to exactly two signature elements (primary CTA +
+      active nav item), so only a few nodes per screen ever animate.
+   3. Hero shimmer: a masked 1px gradient ring on ONE hero card per screen;
+      the sweep travels ~3s then rests ~9s, so most frames paint nothing.
+   Reduced motion: animations stop, the static glow stays. */
+@keyframes fmBreathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes fmHeroSweep {
+  0%   { background-position: 250% 0, 0 0; }
+  26%  { background-position: -150% 0, 0 0; }
+  100% { background-position: -150% 0, 0 0; }
+}
+:root[data-theme="nighthaul"] .fm-glow-cta,
+:root[data-theme="nighthaul"] .fm-glow-nav,
+:root[data-theme="nighthaul"] .fm-glow-hero { position: relative; }
+:root[data-theme="nighthaul"] .fm-glow-cta::after,
+:root[data-theme="nighthaul"] .fm-glow-nav::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none;
+  animation: fmBreathe 5.2s ease-in-out infinite;
+}
+:root[data-theme="nighthaul"] .fm-glow-cta::after {
+  box-shadow: 0 0 16px -2px rgb(255 178 36 / .40), 0 0 3px rgb(255 202 95 / .30);
+}
+:root[data-theme="nighthaul"] .fm-glow-cta:disabled::after { display: none; }
+:root[data-theme="nighthaul"] .fm-glow-nav::after {
+  box-shadow: inset 2px 0 10px -4px rgb(255 202 95 / .55), 0 0 12px -2px rgb(255 178 36 / .22);
+}
+/* Hero ring: a faint gilded 1px border (static) + a slow traveling shimmer.
+   The two-gradient mask keeps paint confined to the 1px ring. */
+:root[data-theme="nighthaul"] .fm-glow-hero::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  padding: 1px; pointer-events: none;
+  background:
+    linear-gradient(100deg, transparent 30%, rgb(255 202 95 / .75) 47%, rgb(255 227 160 / .9) 50%, rgb(255 202 95 / .75) 53%, transparent 70%) no-repeat,
+    linear-gradient(180deg, rgb(255 178 36 / .30), rgb(255 178 36 / .07));
+  background-size: 300% 100%, 100% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: fmHeroSweep 12s ease-in-out infinite;
+}
+/* Gold focus treatment (NH only) — a halo on focused fields via filter (no
+   box-shadow conflicts with Tailwind ring utilities) and a visible gold
+   outline for keyboard users. */
+:root[data-theme="nighthaul"] :is(input, select, textarea):focus {
+  filter: drop-shadow(0 0 6px rgb(255 178 36 / .28));
+}
+:root[data-theme="nighthaul"] :is(button, a, [role="button"]):focus-visible {
+  outline: 2px solid rgb(255 178 36 / .60);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="nighthaul"] .fm-glow-cta::after,
+  :root[data-theme="nighthaul"] .fm-glow-nav::after { animation: none; opacity: .7; }
+  :root[data-theme="nighthaul"] .fm-glow-hero::before { animation: none; background-position: -150% 0, 0 0; }
 }`;
 
 const THEME_KEY = 'fm_theme';
@@ -1406,7 +1472,7 @@ function AdminWeeklyGross() {
     : null;
 
   return (
-    <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6">
+    <Card className="fm-glow-hero bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -1671,7 +1737,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
       {isAdmin && <MarketPulse />}
 
       {!isAdmin && (
-        <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <Card className="fm-glow-hero bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1">{myStatus === 'Off Duty' ? `Rest up, ${name}.` : myStatus === 'On Break' ? `Enjoy the break, ${name}.` : `Safe travels, ${name}.`}</h2>
             <p className="text-slate-400">{statusLine}</p>
@@ -4315,7 +4381,7 @@ function LoginView({ accessDenied }) {
   return (
     <div className="relative flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans p-4 overflow-hidden">
       <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-amber-500/10 blur-[120px]" />
-      <div className="relative w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
+      <div className="fm-glow-hero relative w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
         <div className="flex justify-center mb-2"><BrandLockup size={42} stack /></div>
         <p className="text-center text-amber-400/90 font-semibold tracking-wide text-sm mb-8">Keep Moving Forward.</p>
 
@@ -9733,7 +9799,7 @@ function NavItem({ icon, label, isActive, onClick }) {
       onClick={onClick}
       className={`group w-full flex items-center gap-3 mx-3 my-0.5 px-3 py-2.5 rounded-md transition-all duration-150 ${
         isActive
-          ? 'bg-amber-500/10 text-white ring-1 ring-amber-500/30'
+          ? 'fm-glow-nav bg-amber-500/10 text-white ring-1 ring-amber-500/30'
           : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100'
       }`}
       style={{ width: 'calc(100% - 1.5rem)' }}
@@ -9882,7 +9948,8 @@ function Field({ label, hint, children, className = '' }) {
 
 // Buttons — consistent primary / ghost treatments.
 function PrimaryButton({ children, className = '', ...rest }) {
-  return <button className={`fm-press inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
+  // `fm-glow-cta`: breathing gold halo in Night Haul only (inert in Classic).
+  return <button className={`fm-press fm-glow-cta inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
 }
 function GhostButton({ children, className = '', ...rest }) {
   return <button className={`fm-press inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded transition-colors disabled:opacity-50 ${className}`} {...rest}>{children}</button>;
