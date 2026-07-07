@@ -67,6 +67,13 @@ service cloud.firestore {
                         && !request.resource.data.diff(resource.data).affectedKeys()
                               .hasAny(['role', 'orgId', 'approved', 'revShareAgreement']));
       allow delete: if ownDoc(resource);
+
+      // Truly-private per-user space (My Corner notes/goals). Owner-only —
+      // not even the workspace dispatcher or super-admin can read it from
+      // the client, so the "just for you" promise in the UI is real.
+      match /private/{docId} {
+        allow read, write: if request.auth.uid == uid;
+      }
     }
 
     // ---- loads (driver owns by uid; dispatcher owns by orgId) ----
