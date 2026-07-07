@@ -9,7 +9,7 @@ import {
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
   getFirestore, doc, getDoc, getDocs, collection, setDoc, addDoc,
-  query, where, serverTimestamp, updateDoc, deleteDoc, onSnapshot
+  query, where, serverTimestamp, updateDoc, deleteDoc, onSnapshot, deleteField
 } from 'firebase/firestore';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
@@ -679,6 +679,20 @@ const DEFAULT_FEE_PCT = 10;
 const feePctOf = (v) => {
   const n = Number(v);
   return Number.isFinite(n) && v !== '' && v !== null && v !== undefined ? n : DEFAULT_FEE_PCT;
+};
+// A load's own fee % if it was actually set (0 counts as set), else the
+// linked carrier's fee %, else the default. Every fee computation site
+// (dashboard, expenses, invoices, FMF rev-share) resolves a load's fee this
+// same way, so a load booked before feePct was stamped still counts right.
+const loadFeePctOf = (l, carrier) => {
+  const set = l && l.feePct !== '' && l.feePct !== null && l.feePct !== undefined && Number.isFinite(Number(l.feePct));
+  return set ? feePctOf(l.feePct) : feePctOf(carrier && carrier.feePct);
+};
+// Turns a workspace name into a safe filename fragment (falls back to the
+// unbranded default name when there's no workspace name to slugify).
+const slugifyOrgName = (name) => {
+  const s = String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return s || 'forward-motion';
 };
 
 // ============================================================================
@@ -1447,8 +1461,13 @@ function AdminWeeklyGross() {
   useEffect(() => {
     (async () => {
       try {
-        const snap = await getDocs(orgScoped('loads'));
+        // Carriers alongside loads (one extra org-scoped read) so a load
+        // booked without its own feePct still resolves to the carrier's
+        // actual fee instead of silently falling to the 10% default.
+        const [snap, cSnap] = await Promise.all([getDocs(orgScoped('loads')), getDocs(orgScoped('carriers'))]);
         const rows = snap.docs.map((d) => d.data());
+        const carrierByUid = {};
+        cSnap.docs.forEach((d) => { const c = d.data(); if (c.linkedDriverUid) carrierByUid[c.linkedDriverUid] = c; });
         const sow = startOfWeek();
         let gross = 0, fee = 0, count = 0;
 
@@ -1468,7 +1487,7 @@ function AdminWeeklyGross() {
 
           if (dDate >= sow) {
             gross += g;
-            fee += g * (feePctOf(l.feePct) / 100);
+            fee += g * (loadFeePctOf(l, carrierByUid[l.uid]) / 100);
             count += 1;
           }
 
@@ -1787,7 +1806,13 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
           getDocs(query(collection(db, 'vault_docs'), where('uid', '==', targetUid))),
         ]);
         const d = uSnap.exists() ? uSnap.data() : {};
-        const hos = d.carrierProfile && (d.carrierProfile.driveAvail !== undefined && d.carrierProfile.driveAvail !== '');
+        // Profile actually saves hours to hosSelf.driveAvail — carrierProfile
+        // is a legacy/alternate source, so accept either or the checklist
+        // item can never complete even after a driver fills in their hours.
+        const driveAvailVal = d.hosSelf && d.hosSelf.driveAvail !== undefined && d.hosSelf.driveAvail !== ''
+          ? d.hosSelf.driveAvail
+          : (d.carrierProfile && d.carrierProfile.driveAvail);
+        const hos = driveAvailVal !== undefined && driveAvailVal !== null && driveAvailVal !== '';
         setSetup({
           w9: !!(d.w9 && d.w9.legalName),
           agreements: !!d.dispatchAgreement && !!d.lpoa && !(d.resignRequest && (d.resignRequest.dispatchAgreement || d.resignRequest.lpoa)),
@@ -2044,9 +2069,12 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 // Deliberately quiet and personal — not a work widget. Always keyed off the
 // ACTUAL signed-in user (auth.currentUser), never a `uid` prop, so it can
 // never be pulled up under an admin's "View As" impersonation of a carrier.
-// Self-write only, to the caller's own users/{uid} doc, and the payload is
-// scoped to exactly one field (`myCorner`) — role/orgId/approved are never
-// touched by this component.
+// Storage lives at users/{uid}/private/mycorner — an owner-only subcollection
+// (enforced by rules) so "just for you" is a real guarantee, not just a UI
+// promise. Legacy data may still be sitting on the old users/{uid}.myCorner
+// field from before that rule existed; on load, if the new location is
+// empty, fall back to reading the legacy field once, and best-effort clear
+// it after the next successful save to the new location.
 function MyCornerStrip() {
   const u = auth.currentUser;
   const uid = u && u.uid;
@@ -2058,13 +2086,23 @@ function MyCornerStrip() {
   const [goal, setGoal] = useState('');
   const [goalDone, setGoalDone] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [legacyToClear, setLegacyToClear] = useState(false); // true once we've read from the old field and should sweep it up on next save
 
   useEffect(() => {
     if (!uid) return;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'users', uid));
-        const mc = snap.exists() ? snap.data().myCorner : null;
+        const privSnap = await getDoc(doc(db, 'users', uid, 'private', 'mycorner'));
+        let mc = privSnap.exists() ? privSnap.data() : null;
+        if (!mc) {
+          // One-time migration read: nothing at the new location yet — check
+          // the pre-rule legacy field on the user doc itself.
+          try {
+            const uSnap = await getDoc(doc(db, 'users', uid));
+            const legacy = uSnap.exists() ? uSnap.data().myCorner : null;
+            if (legacy) { mc = legacy; setLegacyToClear(true); }
+          } catch (_) { /* legacy read is best-effort */ }
+        }
         if (mc) {
           setNotes(mc.notes || '');
           setGoal(mc.goal || '');
@@ -2086,8 +2124,13 @@ function MyCornerStrip() {
     if (!uid || saving) return;
     setSaving(true);
     try {
-      // Self-write, own doc, exactly one field — never role/orgId/approved.
-      await setDoc(doc(db, 'users', uid), { myCorner: { notes, goal, goalDone, updatedAt: serverTimestamp() } }, { merge: true });
+      // Owner-only subcollection — never the users/{uid} doc itself, so this
+      // write can never touch role/orgId/approved even by accident.
+      await setDoc(doc(db, 'users', uid, 'private', 'mycorner'), { notes, goal, goalDone, updatedAt: serverTimestamp() }, { merge: true });
+      if (legacyToClear) {
+        try { await setDoc(doc(db, 'users', uid), { myCorner: deleteField() }, { merge: true }); setLegacyToClear(false); }
+        catch (_) { /* best-effort cleanup — fine to retry on a later save */ }
+      }
       toast('Saved ✓', 'success');
     } catch (e) {
       console.error('My Corner save failed', e);
@@ -2105,13 +2148,13 @@ function MyCornerStrip() {
         <div className="flex items-center gap-2.5 min-w-0">
           <NotebookPen size={16} className="text-slate-500 shrink-0" />
           <span className="text-sm font-semibold text-slate-300">My Corner</span>
-          <span className="text-[11px] text-slate-600 hidden sm:inline truncate">Just for you — not visible to your team</span>
+          <span className="text-xs text-slate-400 hidden sm:inline truncate">Just for you — not visible to your team</span>
         </div>
         <ChevronDown size={16} className={`text-slate-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="px-5 pb-5 pt-1 border-t border-slate-800/70">
-          <p className="text-[11px] text-slate-600 mb-3 sm:hidden">Just for you — not visible to your team.</p>
+          <p className="text-xs text-slate-400 mb-3 sm:hidden">Just for you — not visible to your team.</p>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Private notes">
               <textarea
@@ -2270,6 +2313,12 @@ function PendingOfferScreen({ offer, onResolved }) {
   const totalMi = loadedMi + deadMi;
   const gross = Number(offer.gross_pay) || 0;
   const rpm = totalMi > 0 ? gross / totalMi : (loadedMi > 0 ? gross / loadedMi : 0);
+  // Offers reach this screen exclusively via "Send as Offer" in the Rate
+  // Calculator, which always stamps feePct from the selected carrier — so
+  // feePctOf's built-in default fallback is the same fallback Invoices
+  // would land on for an (unlikely) legacy offer with no feePct at all.
+  const offerFeePct = feePctOf(offer.feePct);
+  const offerNet = gross * (1 - offerFeePct / 100);
   const REASONS = ['Rate too low', 'Bad location', 'Weight too high'];
 
   const accept = async () => {
@@ -2279,7 +2328,7 @@ function PendingOfferScreen({ offer, onResolved }) {
         offerStatus: 'accepted', status: 'Dispatched', offerRespondedAt: serverTimestamp(),
       });
       onResolved && onResolved();
-    } catch (e) { console.error('Accept failed:', e); alert('Could not accept — please try again.'); setBusy(false); }
+    } catch (e) { console.error('Accept failed:', e); toast('Could not accept — please try again.', 'error'); setBusy(false); }
   };
   const decline = async (reason) => {
     setBusy(true);
@@ -2288,7 +2337,7 @@ function PendingOfferScreen({ offer, onResolved }) {
         offerStatus: 'declined', status: 'Declined', declineReason: reason, offerRespondedAt: serverTimestamp(),
       });
       onResolved && onResolved();
-    } catch (e) { console.error('Decline failed:', e); alert('Could not decline — please try again.'); setBusy(false); }
+    } catch (e) { console.error('Decline failed:', e); toast('Could not decline — please try again.', 'error'); setBusy(false); }
   };
 
   // Hours-of-Service fit: pull the carrier's own self-reported drive hours and
@@ -2336,6 +2385,11 @@ function PendingOfferScreen({ offer, onResolved }) {
           <div className="text-right">
             <div className="text-xs text-slate-500">Gross Rate</div>
             <div className="text-xl font-bold text-emerald-400 fm-profit">{money(gross)}</div>
+            <div className="text-[11px] text-slate-400 mt-0.5">
+              {offerFeePct > 0
+                ? `Your net after the ${offerFeePct}% dispatch fee: ${money(offerNet)}`
+                : `No dispatch fee on this load — full ${money(gross)} is yours.`}
+            </div>
           </div>
         </div>
         <div className="p-6 space-y-4">
@@ -2350,14 +2404,14 @@ function PendingOfferScreen({ offer, onResolved }) {
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div><div className="text-[10px] text-slate-500">LOADED</div><div className="font-bold text-white text-sm">{loadedMi ? loadedMi.toLocaleString() + ' mi' : '—'}</div></div>
-            <div><div className="text-[10px] text-slate-500">DEADHEAD</div><div className="font-bold text-white text-sm">{deadMi ? deadMi.toLocaleString() + ' mi' : '—'}</div></div>
-            <div><div className="text-[10px] text-slate-500">RPM</div><div className="font-bold text-amber-400 text-sm">{rpm > 0 ? '$' + rpm.toFixed(2) : '—'}</div></div>
-            <div><div className="text-[10px] text-slate-500">WEIGHT</div><div className="font-bold text-white text-sm">{offer.weight || '—'}</div></div>
+            <div><div className="text-[11px] text-slate-400">LOADED</div><div className="font-bold text-white text-sm">{loadedMi ? loadedMi.toLocaleString() + ' mi' : '—'}</div></div>
+            <div><div className="text-[11px] text-slate-400">DEADHEAD</div><div className="font-bold text-white text-sm">{deadMi ? deadMi.toLocaleString() + ' mi' : '—'}</div></div>
+            <div><div className="text-[11px] text-slate-400">RPM</div><div className="font-bold text-amber-400 text-sm">{rpm > 0 ? '$' + rpm.toFixed(2) : '—'}</div></div>
+            <div><div className="text-[11px] text-slate-400">WEIGHT</div><div className="font-bold text-white text-sm">{offer.weight || '—'}</div></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><div className="text-[10px] text-slate-500">COMMODITY</div><div className="text-sm text-slate-200">{offer.commodity || '—'}</div></div>
-            <div><div className="text-[10px] text-slate-500">DELIVERY</div><div className="text-sm text-slate-200">{offer.delivery_date || offer.delivery_time || '—'}</div></div>
+            <div><div className="text-[11px] text-slate-400">COMMODITY</div><div className="text-sm text-slate-200">{offer.commodity || '—'}</div></div>
+            <div><div className="text-[11px] text-slate-400">DELIVERY</div><div className="text-sm text-slate-200">{offer.delivery_date || offer.delivery_time || '—'}</div></div>
           </div>
         </div>
         {hos && (
@@ -2369,12 +2423,13 @@ function PendingOfferScreen({ offer, onResolved }) {
           <PrimaryButton onClick={accept} disabled={busy} className="w-full py-3">
             {busy ? 'Working…' : '✓ Accept Offer'}
           </PrimaryButton>
-          <div className="grid grid-cols-2 gap-2">
+          <div className={callPhone ? 'grid grid-cols-2 gap-2' : ''}>
             <GhostButton onClick={() => setShowDecline(true)} disabled={busy} className="py-2.5">Decline</GhostButton>
-            <a href={callPhone ? `tel:${callPhone}` : undefined}
-              className={`text-center border border-slate-700 text-slate-300 font-semibold py-2.5 rounded-lg transition-colors ${callPhone ? 'hover:bg-slate-800' : 'opacity-50 pointer-events-none'}`}>
-              Call Dispatcher
-            </a>
+            {callPhone && (
+              <a href={`tel:${callPhone}`} className="text-center border border-slate-700 text-slate-300 font-semibold py-2.5 rounded-lg transition-colors hover:bg-slate-800">
+                Call Dispatcher
+              </a>
+            )}
           </div>
         </div>
       </Card>
@@ -2837,7 +2892,7 @@ function DeliveryDebriefModal({ load, onClose }) {
 
         <div className="space-y-2">
           <PrimaryButton onClick={() => submit(false)} disabled={busy} className="w-full py-3">{busy ? 'Sending…' : 'Send to Dispatcher'}</PrimaryButton>
-          <p className="text-[11px] text-amber-400/90 text-center">A signed POD is what gets this load invoiced — skipping it can delay your pay.</p>
+          <p className="text-sm text-amber-400/90 text-center">A signed POD is what gets this load invoiced — skipping it can delay your pay.</p>
           <button onClick={() => submit(true)} disabled={busy} className="w-full text-slate-400 hover:text-white text-sm py-1">Skip for now</button>
         </div>
       </Card>
@@ -2859,7 +2914,7 @@ function RateConCard({ load, onSigned }) {
     try {
       await updateDoc(doc(db, 'loads', load.id), { rateConSigned: { name: name.trim(), at: serverTimestamp() } });
       if (onSigned) await onSigned();
-    } catch (e) { console.error('ratecon sign failed', e); alert('Could not save your signature — try again.'); }
+    } catch (e) { console.error('ratecon sign failed', e); toast('Could not save your signature — try again.', 'error'); }
     finally { setBusy(false); }
   };
 
@@ -3125,7 +3180,11 @@ function LaneManagementView({ uid }) {
     return () => unsub();
   }, [targetUid]);
 
-  const pending = loads.filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared');
+  // A delivered/cleared load normally drops off this screen — but if it's
+  // missing a delivery date it's also invisible on every invoice and
+  // monthly statement, so keep it surfaced as "active" until that's fixed
+  // (see the persistent banner below) instead of letting it quietly vanish.
+  const pending = loads.filter((l) => (l.status !== 'Delivered' && l.status !== 'Cleared') || !l.delivery_date);
   const active = pending[0] || null;
   const upcoming = pending.slice(1);
 
@@ -3177,6 +3236,13 @@ function LaneManagementView({ uid }) {
         <p className="text-slate-400">Everything you need to execute your current load.</p>
         <div className="mt-3"><GuidedHint>The carrier’s execution screen for the active load — status updates, route, the paperwork checklist, and VIP stops. Walk a new driver through advancing the status as the load moves.</GuidedHint></div>
       </div>
+
+      {(active.status === 'Delivered' || active.status === 'Cleared') && !active.delivery_date && (
+        <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-200 flex items-start gap-2.5">
+          <span className="shrink-0">⚠️</span>
+          <span>This load has no delivery date — tell your dispatcher so it lands on the invoice.</span>
+        </div>
+      )}
 
       <Card className="p-6 space-y-6">
         <div className="flex items-center justify-between">
@@ -3476,7 +3542,14 @@ function SafeParkingView() {
           {admin ? (
             <button onClick={() => remove(spot.id)} className="text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-2 rounded-lg shrink-0">Remove</button>
           ) : (
-            <button className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-lg shrink-0">Reserve Spot</button>
+            <button
+              disabled
+              aria-disabled="true"
+              title="Reservations aren't live yet — call ahead to confirm a spot."
+              className="bg-slate-800 text-slate-500 font-semibold px-4 py-2 rounded-lg shrink-0 cursor-default"
+            >
+              Reservations coming soon
+            </button>
           )}
         </Card>
       ))}
@@ -3819,7 +3892,7 @@ function FinancialsView({ uid }) {
           <div className="p-3 rounded-xl bg-amber-500/15 text-amber-500 shrink-0"><Building size={24} /></div>
           <div>
             <h3 className="text-xl font-bold mb-1">How you get paid</h3>
-            <p className="text-sm text-slate-400">You get paid through your factoring company. We submit your signed BOL with a Notice of Assignment, your factor funds you (often next business day), and your dispatch fee is settled out of that payment. <span className="text-slate-300">We never touch your bank account</span> — your exact split on every load is in the ledger below.</p>
+            <p className="text-sm text-slate-400">You get paid through your factoring company. Your dispatcher submits your signed BOL with a Notice of Assignment, and your factor funds you the full amount (often next business day). Per your signed agreement, your dispatch fee is due within 24 hours of you receiving that payment — it's not deducted before it reaches you. <span className="text-slate-300">We never touch your bank account</span> — your exact split on every load is in the ledger below.</p>
           </div>
         </div>
       </Card>
@@ -3945,6 +4018,7 @@ function PetLogisticsView() {
 // ---------- ADMIN: ASSIGN LOAD ----------
 function AssignLoadView() {
   const [drivers, setDrivers] = useState([]);
+  const [carriers, setCarriers] = useState([]); // for feePct lookup by linked driver — keeps fee math aligned with the calculator's assign flow
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState('');
@@ -3961,8 +4035,9 @@ function AssignLoadView() {
   useEffect(() => {
     const loadDrivers = async () => {
       try {
-        const snap = await getDocs(orgScoped('users'));
-        setDrivers(snap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+        const [uSnap, cSnap] = await Promise.all([getDocs(orgScoped('users')), getDocs(orgScoped('carriers'))]);
+        setDrivers(uSnap.docs.map((d) => ({ uid: d.id, ...d.data() })));
+        setCarriers(cSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (e) {
         console.error('Error loading drivers:', e);
       } finally {
@@ -3986,11 +4061,16 @@ function AssignLoadView() {
       try {
         if (!loadId || !(await getDocs(query(orgScoped('loads'), where('loadId', '==', loadId)))).empty) loadId = await genLoadId();
       } catch (_) { if (!loadId) loadId = await genLoadId(); }
+      // Stamp the carrier's own fee % onto the load — mirrors the Rate
+      // Calculator's assignLoad() — so this load counts correctly (not at
+      // the 10% default) everywhere fee math is computed from it.
+      const carrier = carriers.find((c) => c.linkedDriverUid === form.driverUid);
       await addDoc(collection(db, 'loads'), stampOrg({
         ...form,
         loadId,
         uid: form.driverUid,
         gross_pay: Number(form.gross_pay) || 0,
+        feePct: feePctOf(carrier && carrier.feePct),
         status: 'Dispatched',
         createdAt: serverTimestamp(),
       }));
@@ -8082,7 +8162,7 @@ function CarrierAgreementsView({ uid, isAdmin }) {
       setAgreement(rec); setResign((r) => ({ ...r, dispatchAgreement: false }));
       setHistory((h) => [{ ...rec, uid: targetUid, type: 'dispatchAgreement' }, ...h]);
     }
-    catch (e) { console.error('agreement sign failed', e); alert('Could not record signature.'); }
+    catch (e) { console.error('agreement sign failed', e); toast('Could not record signature.', 'error'); }
   };
   const signLpoa = async () => {
     if (!sigP.trim() || !agreeP) return;
@@ -8093,7 +8173,7 @@ function CarrierAgreementsView({ uid, isAdmin }) {
       setLpoa(rec); setResign((r) => ({ ...r, lpoa: false }));
       setHistory((h) => [{ ...rec, uid: targetUid, type: 'lpoa' }, ...h]);
     }
-    catch (e) { console.error('lpoa sign failed', e); alert('Could not record signature.'); }
+    catch (e) { console.error('lpoa sign failed', e); toast('Could not record signature.', 'error'); }
   };
 
   // Dispatcher (view-as): terms changed after this carrier signed — ask them
@@ -8404,6 +8484,7 @@ function ExpensesView() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [orgInfo, setOrgInfo] = useState({ name: '' });
   const today = new Date().toISOString().slice(0, 10);
   const blank = { category: 'Fuel', amount: '', date: today, note: '' };
   const [form, setForm] = useState(blank);
@@ -8412,23 +8493,34 @@ function ExpensesView() {
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const startOfMonth = () => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; };
 
+  useEffect(() => { (async () => {
+    if (!ACTIVE_ORG) return;
+    try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setOrgInfo({ name: o.data().name || '' }); } catch (_) {}
+  })(); }, []);
+
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [eSnap, lSnap] = await Promise.all([
+      // Carriers alongside loads (one extra org-scoped read) so a load
+      // booked without its own feePct still resolves to the carrier's
+      // actual fee instead of the 10% default — matches Invoices' fallback.
+      const [eSnap, lSnap, cSnap] = await Promise.all([
         getDocs(orgScoped('expenses')),
         getDocs(orgScoped('loads')),
+        getDocs(orgScoped('carriers')),
       ]);
       const rows = eSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       setExpenses(rows);
+      const carrierByUid = {};
+      cSnap.docs.forEach((d) => { const c = d.data(); if (c.linkedDriverUid) carrierByUid[c.linkedDriverUid] = c; });
       const som = startOfMonth();
       let fees = 0;
       lSnap.docs.forEach((d) => {
         const l = d.data();
         const delivered = l.status === 'Delivered' || l.status === 'Cleared';
         const inMonth = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= som;
-        if (delivered && inMonth) fees += (Number(l.gross_pay) || 0) * (feePctOf(l.feePct) / 100);
+        if (delivered && inMonth) fees += (Number(l.gross_pay) || 0) * (loadFeePctOf(l, carrierByUid[l.uid]) / 100);
       });
       setFeesThisMonth(fees);
     } catch (e) { console.error('Error loading expenses:', e); }
@@ -8470,7 +8562,7 @@ function ExpensesView() {
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'forward-motion-expenses.csv';
+    a.download = `${slugifyOrgName(orgInfo.name)}-expenses.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -11759,6 +11851,8 @@ function InvoicesView() {
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [open, setOpen] = useState(null); // expanded carrier uid
+  const [orgInfo, setOrgInfo] = useState({ name: '' });
+  const brandName = orgInfo.name || 'Forward Motion Freight';
 
   useEffect(() => {
     (async () => {
@@ -11773,6 +11867,12 @@ function InvoicesView() {
       finally { setLoading(false); }
     })();
   }, []);
+
+  // Co-brand the invoice email/print to the workspace, not a hardcoded name.
+  useEffect(() => { (async () => {
+    if (!ACTIVE_ORG) return;
+    try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setOrgInfo({ name: o.data().name || '' }); } catch (_) {}
+  })(); }, []);
 
   const weekRange = (offset) => {
     const d = new Date();
@@ -11846,7 +11946,7 @@ function InvoicesView() {
   const emailInvoice = (inv) => {
     if (!inv.email) { toast(`No email on file for ${inv.name}. Add the carrier's email (Carriers tab) to send their invoice.`, 'info'); return; }
     const lines = inv.lines.map((x) => `  • ${x.loadId}  ${x.lane}  (${x.date})  gross ${money(x.gross)} × ${x.pct}% = ${money(x.fee)}`).join('\n');
-    const subject = `Forward Motion Freight — Dispatch Invoice · Week of ${weekLabel}`;
+    const subject = `${brandName} — Dispatch Invoice · Week of ${weekLabel}`;
     const body =
 `Hi ${inv.name},
 
@@ -11861,14 +11961,14 @@ Dispatch fee due: ${money(inv.totalFee)}
 Payable per your dispatch agreement. Reply here with any questions.
 
 Thank you,
-Forward Motion Freight`;
+${brandName}`;
     window.location.href = `mailto:${encodeURIComponent(inv.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const printInvoice = (inv) => {
     const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print the invoice.', 'info'); return; }
     const rowsHtml = inv.lines.map((x) => `<tr><td>${x.loadId}</td><td>${x.lane}</td><td>${x.date}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
-    w.document.write(`<!doctype html><html><head><title>Invoice — ${inv.name}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>Forward Motion Freight</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${inv.name}${inv.mc ? ' (' + inv.mc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
+    w.document.write(`<!doctype html><html><head><title>Invoice — ${inv.name}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>${brandName}</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${inv.name}${inv.mc ? ' (' + inv.mc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
     w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
   };
 
