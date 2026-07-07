@@ -1,0 +1,40 @@
+{
+  "_comment": "Live market data for the Forward OS / Forward Motion Freight portal. Feeds the dashboard Market Pulse card and the Rate Calculator's suggested-rate button (mirrors the shape of the old hardcoded MARKET_RATES / MARKET_PULSE / MARKET_AS_OF constants in app/src/App.jsx). Maintained by Dex (market desk agent) — see _sourcing below for what's actually live vs carried-forward from the app's Q2 2026 snapshot. Deploys to forwardmotionfreight.com/market.json via GitHub Pages.",
+  "asOf": "2026-06-30",
+  "updatedBy": "dex",
+  "nationalSpot": {
+    "value": 3.83,
+    "trend": "up"
+  },
+  "diesel": 5.35,
+  "byEquipment": {
+    "dryVan": 2.47,
+    "reefer": 3.20,
+    "flatbed": 3.57
+  },
+  "commodityRates": {
+    "General Dry Freight": 2.47,
+    "Frozen Seafood/Poultry": 3.20,
+    "Fresh Produce": 3.20,
+    "Coiled Steel": 3.57,
+    "High-Value Electronics": 2.60
+  },
+  "hotLanes": [
+    { "lane": "Atlanta, GA → Miami, FL", "rate": "$2.50–$2.90" },
+    { "lane": "Memphis, TN → Atlanta, GA", "rate": "$2.40–$2.75" },
+    { "lane": "Yakima, WA → Northeast (reefer)", "rate": "$8.7k–$10.6k / load" }
+  ],
+  "blurb": "Market's still supply-constrained and rates favor carriers — don't take the first offer, especially on reefer and flatbed. That said, this read hasn't been re-verified today (see _sourcing), so treat it as last quarter's number, not this morning's.",
+  "_sourcing": {
+    "status": "carried-forward — nothing below is fresh. See refreshBlockers.",
+    "nationalSpot": "carried-forward from app/src/App.jsx MARKET_PULSE (Q2 2026 snapshot). Not verified today.",
+    "diesel": "carried-forward from MARKET_PULSE. WebSearch surfaced a specific-looking $4.668/gal figure for the week ending 2026-06-22, but it could not be checked against the primary EIA table (WebFetch blocked all hosts this session), so it was NOT used.",
+    "byEquipment": "carried-forward from MARKET_PULSE modality ranges (low/representative end of each range). Not verified today.",
+    "commodityRates": "carried-forward from MARKET_RATES, unchanged. Not verified today.",
+    "hotLanes": "carried-forward from MARKET_PULSE.lanes, unchanged. Not verified today.",
+    "blurb": "carried-forward tone/read from the existing MARKET_PULSE.headline, rewritten in founder voice — not a fresh market call.",
+    "directionalCaveatUnverified": "Multiple trade-press headlines returned by WebSearch (titles only — Overdrive, FleetOwner, TheTrucker, DAT blog) consistently suggest dry van and reefer spot rates may be softening/stabilizing while flatbed keeps climbing on industrial/infra backlogs, and diesel may be pulling back toward/under $5. This is a real signal worth chasing but is NOT verified against a primary source and is deliberately excluded from the numeric fields above — flagging it so the next refresh prioritizes checking it."
+  },
+  "refreshAttempted": "2026-07-07",
+  "refreshBlockers": "WebFetch returned HTTP 403 for every external host tried this session — eia.gov (3 different URLs), dat.com/trendlines, fleetowner.com, truckingdive.com, thetrucker.com, macrotrends.net, and even en.wikipedia.org as a control. Confirmed via curl $HTTPS_PROXY/__agentproxy/status and /root/.ccr/README.md that this is an org egress-policy block ('destination host not allowed... do not retry or route around it'), not a site-specific or auth issue — so WebFetch is fully unusable for sourcing this session. WebSearch (hosted) did return results, but its synthesized numbers were internally inconsistent for the same metric across repeated queries in the same run (e.g. national dry van spot rate came back as $3.06/mi, $2.06/mi, and $3.02/mi in three separate searches for essentially the same week) — that inconsistency means none of those figures were trustworthy enough to publish as live data on a platform used for real rate negotiation. Nothing numeric was promoted from WebSearch this cycle; see directionalCaveatUnverified for the one qualitative signal worth chasing next time."
+}
