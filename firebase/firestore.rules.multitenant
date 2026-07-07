@@ -184,11 +184,20 @@ service cloud.firestore {
     // and the dispatcher reviews each one before importing. Reads are scoped to
     // the owning workspace.
     match /carrier_packets/{id} {
+      // Public intake stays open (carriers without accounts must submit),
+      // but reject anything that smells like markup — these fields flow
+      // into dispatcher screens and carrier-facing emails downstream, so
+      // rules-layer rejection is the defense-in-depth behind the client's
+      // HTML escaping (Locke sweep finding).
       allow create: if request.resource.data.orgId is string
                     && request.resource.data.orgId.size() > 0
                     && request.resource.data.name is string
                     && request.resource.data.name.size() > 0
-                    && request.resource.data.name.size() < 200;
+                    && request.resource.data.name.size() < 200
+                    && !request.resource.data.name.matches('.*[<>].*')
+                    && (!('driverName' in request.resource.data)
+                        || (request.resource.data.driverName is string
+                            && !request.resource.data.driverName.matches('.*[<>].*')));
       allow read:           if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
       allow update, delete: if isSuper() || (isDispatcher() && resource.data.orgId == myOrg());
     }
