@@ -4,7 +4,8 @@ import {
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
   MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search, Moon,
   Gamepad2, Trophy, Pause, Play, RotateCcw, Fuel, Target, Flame, Share2, Delete,
-  NotebookPen, ChevronDown
+  NotebookPen, ChevronDown, Coffee, BedDouble, Radio, X, ChevronLeft, ChevronRight,
+  Award, StickyNote, Users
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -1237,6 +1238,7 @@ export default function App() {
   return (
     <GuidedModeContext.Provider value={isAdmin && guidedMode}>
     <style>{PROFIT_GLOW_CSS}</style>
+    <style>{HAULBUDDY_CSS}</style>
     <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
@@ -1938,6 +1940,11 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
 
   return (
     <div className="space-y-6">
+      {/* The one sanctioned Haul Buddy appearance outside the Break Room —
+          see HaulBuddyDashboardPeek for the mood/frequency gating. Never
+          rendered during an admin's "View As" session: displayName is only
+          ever passed in that case (see the comment on MyCornerStrip below). */}
+      {!displayName && <HaulBuddyDashboardPeek onNavigate={onNavigate} />}
       {isAdmin && showAgreementGate && (
         <Card className="p-4 border-amber-500/40 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
@@ -9979,10 +9986,984 @@ function FreightFiveGame() {
   );
 }
 
+// ============================================================================
+// ===== BREAK ROOM: "HAUL BUDDY" (v1 — a tiny trucker who lives on this
+// device, no Firestore, no rules) ============================================
+// A pocket-sized care-and-personality toy. He has three needs (Coffee / Rest
+// / Company), a mood driven purely by real elapsed time since he was last
+// cared for, and a mouth on him. Contained ENTIRELY inside the Break Room —
+// the only other place he's allowed to show his face is the one sanctioned
+// "peek" on the dashboard (HaulBuddyDashboardPeek, below), which only ever
+// appears in a good mood. Nothing here ever badges the nav, toasts outside
+// this tab, or otherwise nags — that's the deal that makes the rest of the
+// Break Room work, and this game has to honor it too.
+//
+// Storage: fm_haulbuddy_state (the current trucker), fm_haulbuddy_wall (past
+// truckers), fm_haulbuddy_dashpeek_pref / _stamp (the peek's on/off + daily
+// gate). All localStorage, all namespaced, nothing here ever touches
+// Firestore, org data, or the multi-tenant helpers.
+// ============================================================================
+
+const HB_STATE_KEY = 'fm_haulbuddy_state';
+const HB_WALL_KEY = 'fm_haulbuddy_wall';
+const HB_PEEK_PREF_KEY = 'fm_haulbuddy_dashpeek_pref'; // 'on' | 'off' — default on
+const HB_PEEK_STAMP_KEY = 'fm_haulbuddy_dashpeek_stamp'; // { date, shown } — the peek's once-a-day gate
+const HB_DEEPLINK_KEY = 'fm_hb_deeplink'; // sessionStorage — "open his page" flag set by the dashboard peek
+
+// ---- decay tuning — the whole game lives in four numbers. A need's bar
+// drains 100 -> 0 over HB_NEED_DECAY_HOURS (cosmetic — just the meter math).
+// Mood is driven by real elapsed hours since the LEAST-recently-cared-for
+// of the three needs (i.e. however long it's genuinely been since you last
+// did anything for him):
+//   0–24h   -> Thriving / Content — a daily check-in comfortably lives here.
+//   24–72h  -> Grumpy   — the "gone all weekend" case (~34h) lands here,
+//                          fully recoverable in one visit, zero punishment.
+//   72–144h -> Fed Up   — still one visit from fine, but he has Opinions.
+//   >144h   -> Gone     — six full days of nothing. Genuine neglect only.
+// ----
+const HB_NEED_DECAY_HOURS = 48;
+const HB_GRUMPY_AFTER_H = 24;
+const HB_FEDUP_AFTER_H = 72;
+const HB_GONE_AFTER_H = 144;
+
+const HB_FIRST_NAMES = ['Dale', 'Ray', 'Earl', 'Vernon', 'Wade', 'Hoyt', 'Merle', 'Gus', 'Roy', 'Duane', 'Cletus', 'Boone', 'Otis', 'Walt', 'Lonnie', 'Hank', 'Fritz', 'Dutch', 'Norm', 'Stan', 'Doyle', 'Ruby', 'Wanda', 'Fern', 'Peggy', 'Dot', 'Odessa', 'Mabel', 'Gary', 'Chuck'];
+const HB_HANDLES = ['Thermos', 'Slow Lane', 'Two Napkins', "Momma's Boy", 'Lucky Strike', 'Ten-Four', 'Sundown', 'Gravy', 'Big Sky', 'Cricket', 'Doodle', 'Rooster', 'Snapback', 'Pothole', 'Whistler', 'Biscuit', 'Cornbread', 'Lonestar', 'Highbeam', 'Tumbleweed', 'Radio Silence', 'Doubleclutch', 'Shortstack', 'Nightowl', 'Gumdrop', 'Sasquatch'];
+const HB_SURNAMES = ['McGraw', 'Delgado', 'Vance', 'Whitfield', 'Boyle', 'Kowalski', 'Fenwick', 'Okafor', 'Marsh', 'Tran', 'Dunmore', 'Ortega', 'Sturgess', 'Callahan', 'Brandt', 'Nakamura', 'Silva', 'Reyes', 'Halloran', 'Petrova', 'Odom', 'Doss', 'Ferris', 'Gutierrez'];
+
+const HB_SKIN_TONES = ['#E8B48C', '#C98A56', '#8D5A3B', '#F1C9A0', '#A9744F'];
+const HB_SHIRT_COLORS = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444', '#6366F1', '#64748B'];
+
+// Eight quirks — flavors roughly a third of his lines (HB_QUIRK_LINES below).
+// The coffee-machine feud is canon: it's the same coffee machine referenced
+// in the quit note, whether or not this particular trucker has the quirk.
+const HB_QUIRKS = {
+  ohio: 'Has an unexplained grudge against the entire state of Ohio.',
+  weigh: 'Convinced every weigh station is part of a bigger conspiracy.',
+  haunted: 'Fully convinced his rig is haunted. Friendly ghost, he insists.',
+  amarillo: 'Will not stop talking about a diner in Amarillo.',
+  sunset: 'Rates every sunset out of ten. Very few tens.',
+  coffeefeud: 'In a long, bitter feud with the break room coffee machine.',
+  nap: 'Believes he is one good nap away from a world record.',
+  weather: 'Self-appointed meteorologist. Consistently, confidently wrong.',
+};
+const HB_QUIRK_IDS = Object.keys(HB_QUIRKS);
+
+// ---- the dialogue bank — ~134 lines across mood + quirk + action pools.
+// Deadpan CB-radio delivery, warm underneath, never needy. Picked at random
+// per moment so nothing repeats predictably. ----
+const HB_LINES = {
+  thriving: [
+    "Sunset tonight was a 9.4. I don't hand those out.",
+    'I have never felt more alive. Or more caffeinated. Possibly the same thing.',
+    "Told the GPS 'recalculating' back today. It did not appreciate that.",
+    'Best. Day. Of my career. Second best, technically. First was a Tuesday in March.',
+    'I did a little dance at the fuel pump. No, I will not do it again on request.',
+    'The open road and I are, once again, on speaking terms.',
+    "I've decided today is a Hallmark-movie kind of day. No notes.",
+    'Somebody give this man a parade. That somebody is me. I am the somebody.',
+    'Cruise control, clear skies, and a full thermos. I am basically a king.',
+    'I waved at a trucker going the other way and they waved BACK. Made my whole week.',
+    'The mirrors are clean, the coffee is hot, and my heart is FULL.',
+    'Living my best life at sixty-two miles an hour, thank you for asking.',
+    'I passed a hundred billboards today and every single one felt like a compliment.',
+    "Today I'm unbothered, un-caffeinated-anxious, and unashamed of my snack choices.",
+    'The audacity of this beautiful morning. I love it here.',
+    'I gave a truck stop biscuit a standing ovation. It deserved it.',
+    'Somebody roll out the red carpet — I parked PERFECTLY on the first try.',
+    "I am thriving. Emotionally. Financially, we don't ask. But emotionally? Thriving.",
+  ],
+  content: [
+    "Hit traffic on I-40. Don't wanna talk about it.",
+    "Ate a gas station burrito. It was fine. We don't need to make it a whole thing.",
+    "CB's been quiet today. Kind of nice, kind of eerie.",
+    'Logged some miles, saw a hawk, called it even.',
+    "Nothing dramatic to report. I know, I'm as surprised as you.",
+    'Rolled through three states before lunch. Very normal Tuesday behavior.',
+    "The weigh station waved me through. We're not friends, but we're cordial.",
+    "Coffee's decent today. The machine and I have a truce. For now.",
+    'Saw a deer. It saw me. We had a moment. Then it left.',
+    "Doing fine. Not thriving, not dying. Just... trucking along. Ha. Get it.",
+    "Radio's playing something I've heard four hundred times. It still slaps.",
+    'Parked, stretched, cracked my back in at least two new places. Fine.',
+    'Somebody let their dog out the window at a rest stop. Best five minutes of my day.',
+    "Got a decent lane, a full tank, and zero complaints. Suspicious, honestly.",
+    'Ordinary day. Wheels turned, bills got paid, nobody yelled at me. A win.',
+    'I let a merge happen without honking. Growth.',
+    'Cruised past mile marker two hundred and felt a small, private accomplishment.',
+    'Not much to report. The road was road-shaped and I drove on it.',
+  ],
+  grumpy: [
+    'Oh, NOW you show up. ...Fine. Pour the coffee.',
+    "I've been sitting here composing a strongly worded letter to nobody in particular.",
+    "This is not a tear. It's diesel fumes. I don't even know why I'm defending myself to you.",
+    "You know what would've been nice? A visit yesterday. Just saying.",
+    'I ate a gas station egg salad. By CHOICE. Think about what that says about my state of mind.',
+    "The coffee machine and I are fighting again. It started it. It's always the machine.",
+    'I have SO many notes for you. So. Many. Notes.',
+    "Don't 'hey buddy' me. I've been here. Alone. With my thoughts.",
+    "I rehearsed being mad at you and now you're here and I've forgotten all of it. Infuriating.",
+    'Somebody left me on read. The somebody was you. The read was several days long.',
+    "I'm not sulking, I'm 'reflecting.' There's a difference. Barely.",
+    'The bunk and I have gotten VERY well acquainted lately. Too well acquainted.',
+    "I've started narrating my own life out loud. It's not going great, narratively.",
+    'Nothing personal. Everything personal, actually. But go on, act surprised.',
+    'This diesel-fume situation on my face has been happening a lot this week.',
+    'You missed the sunset. It was a 9.2. I forgive you. Mostly.',
+  ],
+  fedup: [
+    'The AUDACITY. I have been here. Alone. With a cold thermos and my regrets.',
+    'I ate a gas-station egg salad AGAIN. This is a cry for help and also lunch.',
+    "The coffee machine won. I'm saying it out loud. It finally won.",
+    "I've composed, in my head, a full one-act play about being ignored. Reviews are strong.",
+    "I'd like to file a formal complaint. With whom, I don't know. Just, generally.",
+    "I've named the dashboard ornament my new best friend. He listens. Unlike SOME people.",
+    "Don't touch the thermos. It's cold. It's been cold. It's basically a metaphor now.",
+    "I'm not mad. I'm past mad. I've built a small emotional truck stop out here.",
+    'Three days. THREE. I counted. I had time to count.',
+    'The ghost in my cab is more present in my life right now than you are. No offense to the ghost.',
+    'I rated a sunset a two out of ten yesterday. TWO. That is how bad it has gotten.',
+    "I've started talking to the steering wheel. It has better listening skills, frankly.",
+    "This isn't a tear, it's diesel fumes, and also I'm reconsidering my options.",
+    "I wrote your name on a sticky note. It just says 'WHERE.' That's the whole note.",
+    "The bunk has never seen so much of me. We're basically roommates now.",
+    'I am one bad Tuesday away from a very dramatic exit. Just so you know.',
+  ],
+  action: {
+    coffee: [
+      'Ahhh. Yes. THAT is the stuff.',
+      'Be honest — did you warm it up just right? Because it is perfect.',
+      "This is, and I don't say this lightly, a truly excellent cup of coffee.",
+      'I felt that in my SOUL.',
+      "Okay. Okay okay okay. I'm back. I'm a person again.",
+      'The coffee machine is going to hear about how good THIS was.',
+    ],
+    rest: [
+      'Finally. My back has been asking about you.',
+      '*dramatic sigh* ...Wake me when it is Tuesday. Or do not. I am flexible.',
+      'This bunk understands me on a spiritual level.',
+      'Five minutes. Ten, tops. ...Okay, maybe longer.',
+      'I was NOT tired. I am, however, extremely comfortable now.',
+      "Do not tell the coffee machine I napped. It'll never let me hear the end of it.",
+    ],
+    cb: [
+      "Breaker breaker, it's you! I was starting to think you forgot the frequency.",
+      'Ten-four, good buddy. Still the best sentence in the English language.',
+      'You caught me mid-thought. Doesn’t matter. I’ll say it anyway.',
+      "The CB's been quiet all week. This is the highlight of my week. Don't tell anyone.",
+      'Copy that. Also — how ARE you? Genuinely. I have missed the chatter.',
+      'Static is bad today but I heard every word. Every single one.',
+    ],
+  },
+};
+
+// Quirk lines — six per quirk, mixed in with the mood pool on ambient
+// chatter and portrait taps so each trucker develops his own running bit.
+const HB_QUIRK_LINES = {
+  ohio: [
+    'Drove past a WELCOME TO OHIO sign and did not wave back.',
+    "I don't have a reason. I just know in my bones. Ohio knows what it did.",
+    "Someone said 'Ohio's actually nice' and I had to leave the room. Metaphorically. I was already driving.",
+    'Every rest stop in Ohio has personally wronged me. Every single one.',
+    "I've never been able to explain the Ohio thing. I've stopped trying.",
+    "If the load's going through Ohio, I need a moment first. Just a moment.",
+  ],
+  weigh: [
+    'That weigh station has a LOOK in its eye. You don’t see it. I see it.',
+    "I believe, deeply, that the scales are in on something. I won't elaborate.",
+    'Passed a scale house today. It was closed. SUSPICIOUS. Very suspicious.',
+    "I keep a mental file on every weigh station I've ever met. It's a thick file.",
+    "They said 'it's just a scale.' That is exactly what they WANT you to think.",
+    'I nodded politely at the inspector and made a note of everything. Everything.',
+  ],
+  haunted: [
+    "The dome light flickered again. My guy's just saying hi. Friendly ghost. Chill vibes.",
+    'Something moved the air freshener overnight. Rude, but not malicious. I respect the hustle.',
+    "I've named him Gary. Gary the ghost. We're on good terms, mostly.",
+    'Gary knocked twice on the door panel this morning. That means good weather, probably.',
+    "People say it's 'just the truck settling.' People have clearly never met Gary.",
+    'Gary does not love it when I play country music. Gary has taste, actually.',
+  ],
+  amarillo: [
+    "There's a diner in Amarillo. I'm not going to describe the pie again. I am absolutely going to describe the pie.",
+    'I measure all diners against The Diner in Amarillo. None of them measure up. None.',
+    'I had a dream about the Amarillo pie last night. I woke up disappointed it was not real.',
+    'If the route ever runs through Amarillo again, I am not saying I will cry, but I am not NOT saying that.',
+    "The waitress in Amarillo remembers my order. That is basically a relationship at this point.",
+    'I brought up the Amarillo diner unprompted again today. I have no plans to stop.',
+  ],
+  sunset: [
+    "Tonight's sunset: 7.8. Strong color work, weak follow-through on the clouds.",
+    "That was a career-best sunset. I'm calling my mother about it. I don't call my mother about much.",
+    'Rated a sunset a three today. It phoned it in. We all know it phoned it in.',
+    'I keep a running list of top-ten sunsets. This one did not make the cut. Brutal, but fair.',
+    'Gave last night’s sunset a perfect ten. I do not do that lightly. Ask anyone. There is no one to ask.',
+    'The sunset owes me an apology. It knows what it did with that gray patch on the left.',
+  ],
+  coffeefeud: [
+    'The coffee machine spat lukewarm water at me again. This is personal now.',
+    "I've stopped speaking to the coffee machine directly. We communicate through the thermos.",
+    "It's not about the coffee anymore. It's about respect. The machine has none.",
+    "I caught the coffee machine 'malfunctioning' right as I walked up. Sure. Coincidence.",
+    'One day that machine and I are going to have it out. Today is not that day. But one day.',
+    'The coffee machine and I called a temporary truce for the holidays. It will not last.',
+  ],
+  nap: [
+    'I clocked eleven straight minutes in the bunk today. Personal best. Somebody alert someone.',
+    'I believe, in my heart, that there is a nap record out there with my name on it.',
+    'Woke up mid-nap convinced I had broken the record. I had not. Devastating.',
+    'The bunk and I are training. This is training. This is very serious training.',
+    'If napping were an Olympic sport I would already have a garage full of medals.',
+    'I closed my eyes for what I believe was a world-class nap. No judges were present. Tragic oversight.',
+  ],
+  weather: [
+    'My professional forecast: partly cloudy, chance of me being completely wrong.',
+    'I predicted sun. It is currently sleeting. My credentials remain, somehow, unquestioned.',
+    'As your unofficial meteorologist, I am calling for clear skies. Please do not hold me to this.',
+    'I felt a change in the wind and declared a storm. There was no storm. I stand by the feeling.',
+    'My forecast accuracy is roughly the same as a coin flip, and I am proud of that number.',
+    'Radar shows nothing. My knee shows everything. I trust the knee.',
+  ],
+};
+
+// Flavor text — separate from the main dialogue bank above.
+const HB_QUIT_NOTES = [
+  "I QUIT. Keys under the mat. Tell the coffee machine I said things I can't take back. — {name}",
+  "Gone. Took the good thermos. Don't look for me in Ohio. — {name}",
+  'This isn’t goodbye, it’s "see you at the next terminal." Mostly it’s goodbye. — {name}',
+  'I left. The bunk and I needed space from you specifically. — {name}',
+  'Quitting to pursue my nap career full time. No hard feelings. Some hard feelings. — {name}',
+];
+const HB_DEPARTURE_REASONS = [
+  'Left to pursue competitive cornhole.',
+  'Now a podcast guy.',
+  'Went to find that diner in Amarillo. Godspeed.',
+  'Retired undefeated in a feud with a coffee machine.',
+  'Took a job as a professional napper. Reportedly thriving.',
+  'Moved to Ohio, of all places, out of pure spite.',
+  'Became a full-time weigh-station conspiracy blogger.',
+  'Last seen rating a sunset a perfect ten and walking into it.',
+  'Opened a diner. Rumor has it the pie is "fine."',
+  'Took the ghost with him. Good for the ghost.',
+  'Started a country music cover band called The Static.',
+  'Now does weather for a local station. Accuracy unconfirmed.',
+  'Left a single sticky note and several unresolved feelings.',
+  'Currently attempting the world nap record. Unofficially. Personally.',
+  'Simply vanished. The bunk was still warm.',
+];
+const HB_HIRE_INTROS = [
+  'New guy reporting for duty. Try not to lose me.',
+  "Heard the last guy had... a lot to say. I'm chill. Probably.",
+  'First day nerves? Me? Never. (Yes.)',
+  "Let's get one thing straight: I already have opinions about sunsets.",
+  'Fresh face, same thermos energy. Let’s ride.',
+  'New driver, new rig energy, unresolved feelings about Ohio pending.',
+];
+
+const HB_PATCHES = [
+  { id: 'first-haul', miles: 1000, label: 'First Long Haul' },
+  { id: 'road-regular', miles: 5000, label: 'Road Regular' },
+  { id: 'gold-steer', miles: 10000, label: 'Gold Steer' },
+  { id: 'million-cup', miles: 25000, label: 'Million-Cup Club' },
+];
+
+const HB_MOOD_META = {
+  thriving: { label: 'Thriving', tone: 'emerald' },
+  content: { label: 'Content', tone: 'blue' },
+  grumpy: { label: 'Grumpy', tone: 'warn' },
+  fedup: { label: 'Fed Up', tone: 'red' },
+  gone: { label: 'Gone', tone: 'slate' },
+};
+
+function hbRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function generateTrucker(now = Date.now()) {
+  return {
+    v: 1,
+    first: hbRandom(HB_FIRST_NAMES),
+    handle: hbRandom(HB_HANDLES),
+    last: hbRandom(HB_SURNAMES),
+    quirk: hbRandom(HB_QUIRK_IDS),
+    look: {
+      skin: hbRandom(HB_SKIN_TONES),
+      headwear: hbRandom(['none', 'cap', 'beanie']),
+      beard: hbRandom(['none', 'stubble', 'full']),
+      shirt: hbRandom(HB_SHIRT_COLORS),
+    },
+    hiredAt: now,
+    needs: { coffee: now, rest: now, company: now },
+    miles: 0,
+    patches: [],
+    lastMilesDate: null,
+    archived: false,
+  };
+}
+
+// Auto-hires on first-ever visit (nothing to show otherwise) — mirrors the
+// rest of the Break Room's local-first load pattern (loadNightRunScores,
+// loadFFState, etc).
+function loadHBState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HB_STATE_KEY) || 'null');
+    if (raw && raw.needs && raw.first) return raw;
+  } catch (_) { /* fall through to a fresh hire */ }
+  const fresh = generateTrucker();
+  try { localStorage.setItem(HB_STATE_KEY, JSON.stringify(fresh)); } catch (_) {}
+  return fresh;
+}
+function saveHBState(state) {
+  try { localStorage.setItem(HB_STATE_KEY, JSON.stringify(state)); } catch (_) {}
+}
+function loadHBWall() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(HB_WALL_KEY) || '[]');
+    if (Array.isArray(raw)) return raw;
+  } catch (_) {}
+  return [];
+}
+function saveHBWall(list) {
+  try { localStorage.setItem(HB_WALL_KEY, JSON.stringify(list.slice(0, 30))); } catch (_) {}
+}
+
+// Clock-safe elapsed hours: a missing/garbage timestamp reads as "just
+// cared for" (never insta-quits anyone), and a clock running backwards
+// clamps to 0 instead of going negative.
+function hbHoursSince(ts, now) {
+  if (!ts || !Number.isFinite(ts)) return 0;
+  const diff = now - ts;
+  return diff > 0 ? diff / 3600000 : 0;
+}
+function hbNeedLevel(ts, now) {
+  const h = hbHoursSince(ts, now);
+  return Math.max(0, Math.min(100, 100 - (h / HB_NEED_DECAY_HOURS) * 100));
+}
+
+// The whole game's rules in one pure function — fed a state object + "now",
+// returns need levels and the mood bucket. Shared by the page, the hub
+// teaser, and the dashboard peek so mood logic can never drift between the
+// three places that read it.
+function computeHBDerived(state, now = Date.now()) {
+  const n = state.needs || {};
+  const levels = {
+    coffee: hbNeedLevel(n.coffee, now),
+    rest: hbNeedLevel(n.rest, now),
+    company: hbNeedLevel(n.company, now),
+  };
+  const oldest = Math.min(n.coffee || now, n.rest || now, n.company || now);
+  const hoursSinceCare = hbHoursSince(oldest, now);
+  const avgLevel = (levels.coffee + levels.rest + levels.company) / 3;
+  let mood;
+  if (hoursSinceCare > HB_GONE_AFTER_H) mood = 'gone';
+  else if (hoursSinceCare > HB_FEDUP_AFTER_H) mood = 'fedup';
+  else if (hoursSinceCare > HB_GRUMPY_AFTER_H) mood = 'grumpy';
+  else mood = avgLevel >= 65 ? 'thriving' : 'content';
+  return { levels, avgLevel, hoursSinceCare, mood };
+}
+
+function useHBReducedMotion() {
+  const [reduce, setReduce] = useState(() => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; }
+  });
+  useEffect(() => {
+    let mq;
+    try { mq = window.matchMedia('(prefers-reduced-motion: reduce)'); } catch (_) { return; }
+    const onChange = () => setReduce(mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', onChange); else mq.addListener(onChange);
+    return () => { if (mq.removeEventListener) mq.removeEventListener('change', onChange); else mq.removeListener(onChange); };
+  }, []);
+  return reduce;
+}
+
+// Extra keyframes for Haul Buddy's micro-animations — a second small style
+// tag, injected alongside PROFIT_GLOW_CSS (see the App() render). Kept
+// separate so this whole feature stays easy to find/lift as one block.
+const HAULBUDDY_CSS = `
+@keyframes fmHbGasp{0%{transform:scale(1)}30%{transform:scale(1.12)}100%{transform:scale(1)}}
+.fm-hb-gasp{animation:fmHbGasp .35s ease-out}
+@keyframes fmHbTear{0%{opacity:0;transform:translateY(0)}15%{opacity:.9}100%{opacity:0;transform:translateY(14px)}}
+.fm-hb-tear{animation:fmHbTear 2.6s ease-in infinite}
+@keyframes fmHbSteam{0%{opacity:0;transform:translateY(0)}30%{opacity:.8}100%{opacity:0;transform:translateY(-10px)}}
+.fm-hb-steam{animation:fmHbSteam 1.8s ease-out infinite}
+@keyframes fmHbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.fm-hb-bob{animation:fmHbBob 3.4s ease-in-out infinite}
+@keyframes fmHbWobble{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+.fm-hb-wobble{animation:fmHbWobble 2.8s ease-in-out infinite;transform-origin:top center}
+@media (prefers-reduced-motion: reduce){.fm-hb-gasp,.fm-hb-tear,.fm-hb-steam,.fm-hb-bob,.fm-hb-wobble{animation:none}}`;
+
+// A small, parameterized, expressive trucker — pure SVG primitives (circles,
+// rects, path arcs), no image assets. Reused at three sizes: the big cab
+// hero, the hub teaser card, and the hiring-board preview.
+function TruckerSVG({ look, mood, pose = 'idle', size = 150, className = '' }) {
+  const reduce = useHBReducedMotion();
+  const face = pose === 'gasp' ? 'gasp' : mood;
+  const cx = 80, cy = 74;
+
+  const eyes = (() => {
+    if (face === 'gasp') return (
+      <React.Fragment>
+        <circle cx={cx - 15} cy={cy - 4} r="7.5" fill="#1c1917" />
+        <circle cx={cx + 15} cy={cy - 4} r="7.5" fill="#1c1917" />
+        <circle cx={cx - 17} cy={cy - 7} r="2" fill="#fff" />
+        <circle cx={cx + 13} cy={cy - 7} r="2" fill="#fff" />
+      </React.Fragment>
+    );
+    if (face === 'thriving') return (
+      <React.Fragment>
+        <path d={`M ${cx - 21} ${cy - 4} Q ${cx - 15} ${cy - 12} ${cx - 9} ${cy - 4}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <path d={`M ${cx + 9} ${cy - 4} Q ${cx + 15} ${cy - 12} ${cx + 21} ${cy - 4}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />
+      </React.Fragment>
+    );
+    if (face === 'grumpy') return (
+      <React.Fragment>
+        <line x1={cx - 20} y1={cy - 8} x2={cx - 9} y2={cy - 2} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" />
+        <line x1={cx + 20} y1={cy - 8} x2={cx + 9} y2={cy - 2} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" />
+      </React.Fragment>
+    );
+    if (face === 'fedup') return (
+      <React.Fragment>
+        <path d={`M ${cx - 20} ${cy - 3} Q ${cx - 15} ${cy - 8} ${cx - 9} ${cy - 3}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <path d={`M ${cx + 9} ${cy - 3} Q ${cx + 15} ${cy - 8} ${cx + 21} ${cy - 3}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />
+      </React.Fragment>
+    );
+    return (
+      <React.Fragment>
+        <circle cx={cx - 15} cy={cy - 4} r="3.4" fill="#1c1917" />
+        <circle cx={cx + 15} cy={cy - 4} r="3.4" fill="#1c1917" />
+      </React.Fragment>
+    );
+  })();
+
+  const mouth = (() => {
+    if (face === 'gasp') return <ellipse cx={cx} cy={cy + 20} rx="6" ry="8" fill="#7c2d12" />;
+    if (face === 'thriving') return <path d={`M ${cx - 16} ${cy + 15} Q ${cx} ${cy + 30} ${cx + 16} ${cy + 15} Q ${cx} ${cy + 24} ${cx - 16} ${cy + 15} Z`} fill="#7c2d12" />;
+    if (face === 'grumpy') return <path d={`M ${cx - 12} ${cy + 22} Q ${cx} ${cy + 16} ${cx + 12} ${cy + 22}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />;
+    if (face === 'fedup') return <path d={`M ${cx - 13} ${cy + 24} Q ${cx} ${cy + 14} ${cx + 13} ${cy + 24}`} stroke="#1c1917" strokeWidth="3.4" strokeLinecap="round" fill="none" />;
+    return <path d={`M ${cx - 11} ${cy + 17} Q ${cx} ${cy + 23} ${cx + 11} ${cy + 17}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />;
+  })();
+
+  const brows = (mood === 'grumpy' || mood === 'fedup') ? (
+    <React.Fragment>
+      <line x1={cx - 23} y1={cy - 16} x2={cx - 8} y2={cy - 11} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" />
+      <line x1={cx + 23} y1={cy - 16} x2={cx + 8} y2={cy - 11} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" />
+    </React.Fragment>
+  ) : null;
+
+  const armT = (side) => {
+    if (pose === 'swoon' && side === 'r') return { transform: 'rotate(-165deg)', transformOrigin: '112px 122px' };
+    if (pose === 'gasp') return { transform: side === 'r' ? 'rotate(-55deg)' : 'rotate(55deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
+    return { transform: 'rotate(4deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
+  };
+  const armStyle = (side) => ({ ...armT(side), transition: reduce ? 'none' : 'transform .45s cubic-bezier(.34,1.56,.64,1)' });
+  const headTilt = pose === 'swoon'
+    ? { transform: 'rotate(-9deg) translate(-3px,2px)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .45s ease-out' }
+    : { transform: 'rotate(0deg)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .3s ease-out' };
+
+  return (
+    <svg viewBox="0 0 160 210" width={size} height={Math.round(size * 210 / 160)} className={className} role="img" aria-label={`${mood} trucker`}>
+      <rect x="46" y="112" width="68" height="72" rx="20" fill={look.shirt} />
+      <rect x="32" y="118" width="18" height="56" rx="9" fill={look.skin} style={armStyle('l')} />
+      <rect x="110" y="118" width="18" height="56" rx="9" fill={look.skin} style={armStyle('r')} />
+      <g style={headTilt} className={pose === 'gasp' && !reduce ? 'fm-hb-gasp' : ''}>
+        <circle cx={cx - 36} cy={cy + 2} r="7" fill={look.skin} />
+        <circle cx={cx + 36} cy={cy + 2} r="7" fill={look.skin} />
+        <circle cx={cx} cy={cy} r="38" fill={look.skin} />
+        {look.beard === 'full' && <path d={`M ${cx - 26} ${cy + 10} Q ${cx} ${cy + 42} ${cx + 26} ${cy + 10} L ${cx + 22} ${cy + 2} Q ${cx} ${cy + 18} ${cx - 22} ${cy + 2} Z`} fill="#5b4636" />}
+        {look.beard === 'stubble' && <ellipse cx={cx} cy={cy + 22} rx="22" ry="12" fill="#3f2f22" opacity="0.22" />}
+        {brows}
+        {eyes}
+        {mouth}
+        {mood === 'grumpy' && (
+          <ellipse cx={cx + 19} cy={cy + 2} rx="2.6" ry="4.6" fill="#5aa2ff" opacity="0.85" className={reduce ? '' : 'fm-hb-tear'} />
+        )}
+        {mood === 'fedup' && !reduce && (
+          <React.Fragment>
+            <path d={`M ${cx - 30} ${cy - 34} q 5 -8 0 -16`} stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" fill="none" className="fm-hb-steam" style={{ animationDelay: '0s' }} />
+            <path d={`M ${cx + 30} ${cy - 34} q -5 -8 0 -16`} stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" fill="none" className="fm-hb-steam" style={{ animationDelay: '.6s' }} />
+          </React.Fragment>
+        )}
+        {look.headwear === 'cap' && (
+          <React.Fragment>
+            <path d={`M ${cx - 30} ${cy - 22} A 30 30 0 0 1 ${cx + 30} ${cy - 22} L ${cx + 30} ${cy - 30} L ${cx - 30} ${cy - 30} Z`} fill={look.shirt} fillOpacity="0.9" />
+            <ellipse cx={cx + 14} cy={cy - 24} rx="16" ry="6" fill={look.shirt} fillOpacity="0.9" />
+          </React.Fragment>
+        )}
+        {look.headwear === 'beanie' && (
+          <React.Fragment>
+            <path d={`M ${cx - 32} ${cy - 14} A 32 30 0 0 1 ${cx + 32} ${cy - 14} Z`} fill={look.shirt} fillOpacity="0.9" />
+            <rect x={cx - 32} y={cy - 16} width="64" height="9" rx="4" fill={look.shirt} />
+          </React.Fragment>
+        )}
+      </g>
+    </svg>
+  );
+}
+
+function HBNeedBar({ label, icon, value }) {
+  const pct = Math.round(value);
+  const tone = pct >= 60 ? 'bg-emerald-500' : pct >= 30 ? 'bg-amber-500' : 'bg-red-500';
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-slate-500 mb-1">
+        <span className="flex items-center gap-1.5">{icon}{label}</span>
+        <span className="font-data">{pct}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+        <div className={`h-full ${tone} transition-all duration-500`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function HBPatchBoard({ patches }) {
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {HB_PATCHES.map((p) => {
+        const earned = patches.includes(p.id);
+        return (
+          <div key={p.id} title={earned ? p.label : `${p.label} — at ${p.miles.toLocaleString()} mi`}
+            className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-1 ${earned ? 'border-amber-500/40 bg-amber-500/10' : 'border-slate-800 bg-slate-900/40 opacity-50'}`}>
+            <Award size={16} className={earned ? 'text-amber-400' : 'text-slate-600'} />
+            <span className={`text-[8px] uppercase tracking-wide text-center leading-tight px-1 ${earned ? 'text-amber-300' : 'text-slate-600'}`}>{p.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Window into the cab — theme-reactive: night sky under Night Haul, a bright
+// daytime sky under Classic. Pure SVG, no assets, driven by useTheme().
+function HaulBuddyWindow({ theme }) {
+  const night = theme !== 'classic';
+  return (
+    <div className="absolute inset-x-8 top-3 h-14 sm:h-16 rounded-t-full overflow-hidden">
+      <svg viewBox="0 0 200 60" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+        <rect x="0" y="0" width="200" height="60" fill={night ? '#14110c' : '#bae6fd'} />
+        {night ? (
+          <React.Fragment>
+            <circle cx="150" cy="18" r="10" fill="#fde68a" />
+            <circle cx="30" cy="14" r="1.6" fill="#fff" opacity=".8" />
+            <circle cx="55" cy="26" r="1.2" fill="#fff" opacity=".6" />
+            <circle cx="80" cy="10" r="1.4" fill="#fff" opacity=".7" />
+            <circle cx="110" cy="30" r="1.2" fill="#fff" opacity=".5" />
+            <circle cx="20" cy="34" r="1.3" fill="#fff" opacity=".6" />
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <circle cx="40" cy="16" r="11" fill="#fde68a" />
+            <ellipse cx="130" cy="24" rx="22" ry="9" fill="#fff" opacity=".85" />
+            <ellipse cx="160" cy="16" rx="16" ry="7" fill="#fff" opacity=".7" />
+          </React.Fragment>
+        )}
+      </svg>
+    </div>
+  );
+}
+
+// The dashboard ornament — a tiny hanging air-freshener silhouette that
+// wobbles gently. One of the "own little world" details for the cab.
+function HaulBuddyOrnament() {
+  return (
+    <div className="absolute right-8 top-16 sm:top-[4.6rem] fm-hb-wobble" aria-hidden="true">
+      <svg width="14" height="26" viewBox="0 0 14 26">
+        <line x1="7" y1="0" x2="7" y2="6" stroke="#475569" strokeWidth="1" />
+        <path d="M7 6 L2 16 L12 16 Z" fill="#16a34a" />
+        <path d="M7 11 L1 20 L13 20 Z" fill="#16a34a" />
+        <rect x="5" y="20" width="4" height="4" fill="#78350f" />
+      </svg>
+    </div>
+  );
+}
+
+function HaulBuddyWall({ wall }) {
+  if (!wall.length) {
+    return <p className="text-xs text-slate-500 text-center py-3">No former drivers yet — treat this one well.</p>;
+  }
+  return (
+    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+      {wall.map((w, i) => (
+        <div key={i} className="flex items-start justify-between gap-3 rounded-md border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-200 truncate">{w.name} &quot;{w.handle}&quot; {w.last}</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">{w.tenureDays} day{w.tenureDays === 1 ? '' : 's'} on the job &middot; {(w.miles || 0).toLocaleString()} mi &middot; {w.patchCount} patch{w.patchCount === 1 ? '' : 'es'}</div>
+            <div className="text-[11px] text-slate-400 mt-1 italic">{w.reason}</div>
+          </div>
+          <StickyNote size={14} className="text-slate-600 shrink-0 mt-0.5" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The comedy beat: a sticky note on the windshield, then a hiring board to
+// pick the next guy. No dread, no "are you sure" — just a joke and a fresh
+// start one tap away.
+function HaulBuddyQuitScene({ state, onHire }) {
+  const [noteIdx, setNoteIdx] = useState(0);
+  const [showBoard, setShowBoard] = useState(false);
+  const [candidate, setCandidate] = useState(() => ({ ...generateTrucker(), intro: hbRandom(HB_HIRE_INTROS) }));
+  const note = HB_QUIT_NOTES[noteIdx % HB_QUIT_NOTES.length].replace('{name}', state.first);
+  const tenureDays = Math.max(1, Math.round((Date.now() - state.hiredAt) / 86400000));
+  const reroll = () => setCandidate({ ...generateTrucker(), intro: hbRandom(HB_HIRE_INTROS) });
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-6 sm:p-8 text-center space-y-5">
+        <div className="text-4xl select-none" aria-hidden="true">🌵</div>
+        <div className="max-w-sm mx-auto bg-amber-100 text-slate-900 rounded-sm shadow-lg px-5 py-4 -rotate-1 text-sm leading-relaxed font-medium">
+          {note}
+        </div>
+        <p className="text-xs text-slate-500">
+          {state.first} &quot;{state.handle}&quot; {state.last} — {tenureDays} day{tenureDays === 1 ? '' : 's'}, {(state.miles || 0).toLocaleString()} mi, {state.patches.length} patch{state.patches.length === 1 ? '' : 'es'}.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2 justify-center">
+          <GhostButton onClick={() => setNoteIdx((i) => i + 1)}>Read the note again</GhostButton>
+          <PrimaryButton onClick={() => setShowBoard(true)}>Check the hiring board</PrimaryButton>
+        </div>
+      </Card>
+
+      {showBoard && (
+        <Card className="p-5 sm:p-6">
+          <PanelHeader icon={<Users size={18} />} title="Hiring Board" accent="amber" />
+          <div className="mt-4 flex flex-col sm:flex-row items-center gap-4">
+            <TruckerSVG look={candidate.look} mood="content" size={100} />
+            <div className="flex-1 text-center sm:text-left min-w-0">
+              <div className="font-bold text-white">{candidate.first} &quot;{candidate.handle}&quot; {candidate.last}</div>
+              <div className="text-xs text-slate-400 mt-0.5">{HB_QUIRKS[candidate.quirk]}</div>
+              <p className="text-sm text-slate-300 italic mt-2">&quot;{candidate.intro}&quot;</p>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <GhostButton onClick={reroll} className="flex-1">Meet someone else</GhostButton>
+            <PrimaryButton onClick={() => onHire(candidate)} className="flex-1">Hire {candidate.first}</PrimaryButton>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// The dedicated full page — his whole world. Mounted by BreakRoomView when
+// its local sub-view state is 'haulbuddy'; "onBack" returns to the hub.
+function HaulBuddyPage({ onBack }) {
+  const [state, setState] = useState(() => loadHBState());
+  const [wall, setWall] = useState(() => loadHBWall());
+  const [reaction, setReaction] = useState(null);
+  const [pose, setPose] = useState('idle');
+  const [peekPref, setPeekPref] = useState(() => {
+    try { return localStorage.getItem(HB_PEEK_PREF_KEY) !== 'off'; } catch (_) { return true; }
+  });
+  const [, forceTick] = useState(0);
+  const [theme] = useTheme();
+  const reduceMotion = useHBReducedMotion();
+  const timeoutsRef = useRef([]);
+
+  useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
+
+  const derived = computeHBDerived(state);
+  const dayCount = Math.max(1, Math.floor((Date.now() - state.hiredAt) / 86400000) + 1);
+
+  // Archive to the Wall exactly once when he quits — guarded on
+  // state.archived so re-renders (or a dev-mode double-invoke) can never
+  // double-archive. Same guard pattern as Freight Five's commitStats.
+  useEffect(() => {
+    if (derived.mood !== 'gone' || state.archived) return;
+    const days = Math.max(1, Math.round((Date.now() - state.hiredAt) / 86400000));
+    const entry = { name: state.first, handle: state.handle, last: state.last, tenureDays: days, miles: state.miles, patchCount: state.patches.length, quirk: state.quirk, reason: hbRandom(HB_DEPARTURE_REASONS), endedAt: Date.now() };
+    const nextWall = [entry, ...loadHBWall()].slice(0, 30);
+    saveHBWall(nextWall);
+    setWall(nextWall);
+    const archived = { ...state, archived: true };
+    setState(archived);
+    saveHBState(archived);
+  }, [derived.mood, state]);
+
+  const showReaction = (text, poseName = 'idle', holdMs = 3400) => {
+    setPose(poseName);
+    setReaction({ text, key: Date.now() });
+    if (poseName !== 'idle') timeoutsRef.current.push(setTimeout(() => setPose('idle'), 1500));
+    timeoutsRef.current.push(setTimeout(() => setReaction(null), holdMs));
+  };
+
+  const applyAction = (needKey, poseName, lines) => {
+    const now = Date.now();
+    const needs = { ...state.needs, [needKey]: now };
+    let next = { ...state, needs };
+    const nextDerived = computeHBDerived(next, now);
+    const today = ffLocalDateStr();
+    // Miles are earned by an actual action, once per calendar day — no
+    // farming, and skipped days simply add nothing (miles never reset).
+    if ((nextDerived.mood === 'thriving' || nextDerived.mood === 'content') && state.lastMilesDate !== today) {
+      const gain = 450 + Math.floor(Math.random() * 200);
+      const miles = state.miles + gain;
+      next = { ...next, miles, patches: HB_PATCHES.filter((p) => miles >= p.miles).map((p) => p.id), lastMilesDate: today };
+    }
+    setState(next);
+    saveHBState(next);
+    showReaction(hbRandom(lines), poseName);
+  };
+
+  const onCoffee = () => applyAction('coffee', 'idle', HB_LINES.action.coffee);
+  const onRest = () => applyAction('rest', 'swoon', HB_LINES.action.rest);
+  const onCB = () => applyAction('company', 'idle', HB_LINES.action.cb);
+  const onPortraitTap = () => {
+    if (derived.mood === 'gone') return;
+    const pool = [...(HB_LINES[derived.mood] || []), ...(HB_QUIRK_LINES[state.quirk] || [])];
+    const line = hbRandom(pool);
+    showReaction(line, /AUDACITY/.test(line) || Math.random() < 0.22 ? 'gasp' : 'idle');
+  };
+
+  // Ambient world — refreshes the real-time-derived bars once a minute and
+  // occasionally lets him say something unprompted, purely for atmosphere.
+  // Contained entirely to this page. Interval is rebuilt whenever state/
+  // reaction change so it always closes over fresh values, and is cleared
+  // on every rebuild + unmount.
+  useEffect(() => {
+    const id = setInterval(() => {
+      forceTick((t) => t + 1);
+      if (reaction || derived.mood === 'gone') return;
+      if (Math.random() < 0.15) {
+        const pool = [...(HB_LINES[derived.mood] || []), ...(HB_QUIRK_LINES[state.quirk] || [])];
+        const line = hbRandom(pool);
+        showReaction(line, /AUDACITY/.test(line) || Math.random() < 0.2 ? 'gasp' : 'idle');
+      }
+    }, 60000);
+    return () => clearInterval(id);
+  }, [state, reaction, derived.mood]);
+
+  const togglePeekPref = () => {
+    const next = !peekPref;
+    setPeekPref(next);
+    try { localStorage.setItem(HB_PEEK_PREF_KEY, next ? 'on' : 'off'); } catch (_) {}
+  };
+
+  const hireNew = (candidate) => {
+    setState(candidate);
+    saveHBState(candidate);
+  };
+
+  const milesUp = useCountUp(state.miles);
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors">
+          <ChevronLeft size={16} /> Break Room
+        </button>
+        <Badge tone="amber" className="font-normal">Haul Buddy</Badge>
+      </div>
+
+      {derived.mood === 'gone' ? (
+        <HaulBuddyQuitScene state={state} onHire={hireNew} />
+      ) : (
+        <React.Fragment>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl font-bold text-white truncate">{state.first} &quot;{state.handle}&quot; {state.last}</h2>
+                <Badge tone={HB_MOOD_META[derived.mood].tone}>{HB_MOOD_META[derived.mood].label}</Badge>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">{HB_QUIRKS[state.quirk]}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="font-data text-2xl font-bold text-emerald-400">{Math.round(milesUp).toLocaleString()}<span className="text-sm text-slate-500 font-normal"> mi</span></div>
+              <div className="text-[11px] text-slate-500">Day {dayCount} with you</div>
+            </div>
+          </div>
+
+          <Card className="relative overflow-hidden p-0">
+            <div className="relative h-56 sm:h-64 bg-gradient-to-b from-slate-900 to-slate-950">
+              <HaulBuddyWindow theme={theme} />
+              <HaulBuddyOrnament />
+              {reaction && (
+                <div key={reaction.key} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 max-w-[230px] text-center bg-slate-100 text-slate-900 text-xs font-medium px-3 py-2 rounded-lg shadow-lg fm-toast">
+                  {reaction.text}
+                </div>
+              )}
+              <button type="button" onClick={onPortraitTap} aria-label={`${state.first} — tap for a word`}
+                className={`absolute left-1/2 bottom-0 -translate-x-1/2 ${pose === 'idle' && !reduceMotion ? 'fm-hb-bob' : ''}`}>
+                <TruckerSVG look={state.look} mood={derived.mood} pose={pose} size={150} />
+              </button>
+            </div>
+            <div className="p-4 sm:p-5 border-t border-slate-800/80 space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <HBNeedBar label="Coffee" icon={<Coffee size={11} />} value={derived.levels.coffee} />
+                <HBNeedBar label="Rest" icon={<BedDouble size={11} />} value={derived.levels.rest} />
+                <HBNeedBar label="Company" icon={<Radio size={11} />} value={derived.levels.company} />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button type="button" onClick={onCoffee} className="fm-press flex flex-col items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 py-3 text-[11px] sm:text-xs font-semibold text-slate-200 transition-colors">
+                  <Coffee size={20} className="text-amber-400" /> Pour Coffee
+                </button>
+                <button type="button" onClick={onRest} className="fm-press flex flex-col items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 py-3 text-[11px] sm:text-xs font-semibold text-slate-200 transition-colors">
+                  <BedDouble size={20} className="text-blue-400" /> Send to Bunk
+                </button>
+                <button type="button" onClick={onCB} className="fm-press flex flex-col items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 py-3 text-[11px] sm:text-xs font-semibold text-slate-200 transition-colors">
+                  <Radio size={20} className="text-emerald-400" /> Key the CB
+                </button>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4 sm:p-5">
+            <PanelHeader icon={<Award size={18} />} title="Patch Board" accent="amber" />
+            <div className="mt-3"><HBPatchBoard patches={state.patches} /></div>
+          </Card>
+        </React.Fragment>
+      )}
+
+      <Card className="p-4 sm:p-5">
+        <PanelHeader icon={<StickyNote size={18} />} title="Wall of Former Drivers" accent="slate" badge={wall.length ? <Badge tone="slate" className="font-normal">{wall.length}</Badge> : null} />
+        <div className="mt-3"><HaulBuddyWall wall={wall} /></div>
+      </Card>
+
+      <Card className="p-4 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-slate-200">Dashboard visits</div>
+          <p className="text-[11px] text-slate-500 mt-0.5">Let him peek in on your dashboard once in a while — only ever when he's happy. He lives on this device only; a different phone or a cleared browser means starting over with someone new.</p>
+        </div>
+        <button type="button" onClick={togglePeekPref} role="switch" aria-checked={peekPref} aria-label="Toggle dashboard visits"
+          className={`shrink-0 w-10 h-5 rounded-full relative transition-colors ${peekPref ? 'bg-amber-500' : 'bg-slate-700'}`}>
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${peekPref ? 'left-5' : 'left-0.5'}`} />
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+// The hub teaser — his face, name, and mood at a glance. Tapping it opens
+// the dedicated page. Deliberately small: a single row, not a game panel,
+// so the Break Room hub stays uncluttered.
+function HaulBuddyTeaserCard({ onOpen }) {
+  const [state] = useState(() => loadHBState());
+  const derived = computeHBDerived(state);
+  const gone = derived.mood === 'gone';
+  const meta = HB_MOOD_META[derived.mood];
+  return (
+    <button type="button" onClick={onOpen} className="w-full text-left bg-slate-900/60 border border-slate-800/80 rounded-md shadow-e1 hover:border-amber-500/40 transition-colors p-4 flex items-center gap-4">
+      <div className="shrink-0 -my-2 w-16 h-16 flex items-center justify-center">
+        {gone ? <StickyNote size={28} className="text-slate-500" /> : <TruckerSVG look={state.look} mood={derived.mood} size={64} />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-white truncate">{gone ? 'The cab is empty' : `${state.first} "${state.handle}"`}</span>
+          <Badge tone={meta.tone} className="font-normal">{meta.label}</Badge>
+        </div>
+        <p className="text-xs text-slate-500 mt-0.5">{gone ? 'He left a note. The hiring board is open.' : `${(state.miles || 0).toLocaleString()} mi logged · your Haul Buddy`}</p>
+      </div>
+      <ChevronRight size={18} className="text-slate-600 shrink-0" />
+    </button>
+  );
+}
+
+// ---- The one sanctioned appearance outside the Break Room. Mounted only
+// from DashboardView, and only when NOT viewing as a carrier (see the call
+// site). GUARANTEE, spelled out: this component only ever shows itself when
+// (a) a trucker exists, (b) his computed mood is 'thriving' or 'content'
+// (never grumpy/fedup/gone — those moods render nothing, silently), (c) the
+// dashboard-visits preference is on, (d) today hasn't already used its one
+// appearance, and (e) a fresh coin flip comes up heads. Every line it can
+// show comes from the happy mood pools only (HB_LINES[mood] where mood is
+// thriving/content) — never a need-based or action line. ----
+function HaulBuddyDashboardPeek({ onNavigate }) {
+  const [show, setShow] = useState(false);
+  const [line, setLine] = useState('');
+  const [entered, setEntered] = useState(false);
+  const reduceMotion = useHBReducedMotion();
+
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      if (localStorage.getItem(HB_PEEK_PREF_KEY) === 'off') return;
+      const state = JSON.parse(localStorage.getItem(HB_STATE_KEY) || 'null');
+      if (!state || !state.needs) return; // no trucker hired yet — nothing to peek about
+      const derived = computeHBDerived(state);
+      if (derived.mood !== 'thriving' && derived.mood !== 'content') return; // hard mood gate
+
+      const today = ffLocalDateStr();
+      const stamp = JSON.parse(localStorage.getItem(HB_PEEK_STAMP_KEY) || 'null');
+      if (stamp && stamp.date === today && stamp.shown) return; // today's one appearance is used
+
+      if (Math.random() < 0.5) return; // "not every session even then" — leave today's stamp unset so a later session can still roll
+
+      const pool = HB_LINES[derived.mood] || [];
+      if (!pool.length || cancelled) return;
+      setLine(hbRandom(pool));
+      setShow(true);
+      try { localStorage.setItem(HB_PEEK_STAMP_KEY, JSON.stringify({ date: today, shown: true })); } catch (_) {}
+    } catch (_) { /* the peek is best-effort — it must never throw into the dashboard */ }
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!show) return;
+    const t = setTimeout(() => setShow(false), 8000);
+    return () => clearTimeout(t);
+  }, [show]);
+
+  useEffect(() => {
+    if (!show) { setEntered(false); return; }
+    if (reduceMotion) { setEntered(true); return; }
+    const t = setTimeout(() => setEntered(true), 20);
+    return () => clearTimeout(t);
+  }, [show, reduceMotion]);
+
+  if (!show) return null;
+
+  const goToHim = () => {
+    try { sessionStorage.setItem(HB_DEEPLINK_KEY, '1'); } catch (_) {}
+    setShow(false);
+    onNavigate && onNavigate('breakroom');
+  };
+
+  return (
+    <div className="fixed bottom-0 left-3 sm:left-6 z-20 pointer-events-none">
+      <div
+        className="relative pointer-events-auto"
+        style={{ transform: entered ? 'translateY(14px)' : 'translateY(64px)', transition: reduceMotion ? 'none' : 'transform .5s cubic-bezier(.34,1.56,.64,1)' }}
+      >
+        <div className="absolute -top-14 left-1/2 -translate-x-1/2 w-[190px] bg-slate-100 text-slate-900 text-[11px] leading-snug font-medium px-3 py-2 rounded-lg shadow-lg text-center">
+          {line}
+        </div>
+        <button type="button" onClick={() => setShow(false)} aria-label="Dismiss"
+          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center shadow z-10">
+          <X size={11} />
+        </button>
+        <button type="button" onClick={goToHim} aria-label="Visit your Haul Buddy" className="block">
+          <svg width="76" height="60" viewBox="0 0 76 60">
+            <circle cx="38" cy="46" r="26" fill="#E8B48C" />
+            <rect x="8" y="34" width="10" height="16" rx="5" fill="#E8B48C" />
+            <rect x="58" y="34" width="10" height="16" rx="5" fill="#E8B48C" />
+            <circle cx="28" cy="40" r="3" fill="#1c1917" />
+            <circle cx="48" cy="40" r="3" fill="#1c1917" />
+            <path d="M 30 50 Q 38 56 46 50" stroke="#1c1917" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Break Room tab — visible to every signed-in user (admin or driver), no
-// role gate. Two games live here side by side; the footer note leaves room
-// for a third without promising one yet.
+// role gate. The hub shows both arcade games plus a small teaser for Haul
+// Buddy; tapping the teaser opens his own dedicated full-page view (kept
+// separate on purpose so his world doesn't clutter this grid). The page is
+// also deep-linkable from the one sanctioned dashboard peek via a one-shot
+// sessionStorage flag (HB_DEEPLINK_KEY), read once here and cleared.
 function BreakRoomView() {
+  const [view, setView] = useState(() => {
+    try {
+      if (sessionStorage.getItem(HB_DEEPLINK_KEY)) {
+        sessionStorage.removeItem(HB_DEEPLINK_KEY);
+        return 'haulbuddy';
+      }
+    } catch (_) { /* ignore — default to the hub */ }
+    return 'hub';
+  });
+
+  if (view === 'haulbuddy') {
+    return <HaulBuddyPage onBack={() => setView('hub')} />;
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       <div>
@@ -9996,7 +10977,8 @@ function BreakRoomView() {
         <NightRunGame />
         <FreightFiveGame />
       </div>
-      <p className="text-center text-[11px] text-slate-600">Two games down — a third is on the way to the Break Room.</p>
+      <HaulBuddyTeaserCard onOpen={() => setView('haulbuddy')} />
+      <p className="text-center text-[11px] text-slate-600">Three games deep — he's the one with feelings.</p>
     </div>
   );
 }
