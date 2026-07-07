@@ -10383,18 +10383,30 @@ const HAULBUDDY_CSS = `
 .fm-hb-tear{animation:fmHbTear 2.6s ease-in infinite}
 @keyframes fmHbSteam{0%{opacity:0;transform:translateY(0)}30%{opacity:.8}100%{opacity:0;transform:translateY(-10px)}}
 .fm-hb-steam{animation:fmHbSteam 1.8s ease-out infinite}
-@keyframes fmHbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes fmHbBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .fm-hb-bob{animation:fmHbBob 3.4s ease-in-out infinite}
-@keyframes fmHbWobble{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
-.fm-hb-wobble{animation:fmHbWobble 2.8s ease-in-out infinite;transform-origin:top center}
-@media (prefers-reduced-motion: reduce){.fm-hb-gasp,.fm-hb-tear,.fm-hb-steam,.fm-hb-bob,.fm-hb-wobble{animation:none}}`;
+@keyframes fmHbWalk{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-3px) rotate(-2deg)}75%{transform:translateY(-3px) rotate(2deg)}}
+.fm-hb-walk{animation:fmHbWalk .5s ease-in-out infinite}
+@keyframes fmHbWalkStrut{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-5px) rotate(-4deg)}75%{transform:translateY(-5px) rotate(4deg)}}
+.fm-hb-strut{animation:fmHbWalkStrut .4s ease-in-out infinite}
+@keyframes fmHbPace{0%,100%{transform:translateX(0)}50%{transform:translateX(7px)}}
+.fm-hb-pace{animation:fmHbPace 1.6s ease-in-out infinite}
+@keyframes fmHbMachineSteam{0%,60%,100%{opacity:0;transform:translateY(0) scale(.6)}75%{opacity:.8;transform:translateY(-6px) scale(1)}90%{opacity:0;transform:translateY(-14px) scale(1.1)}}
+.fm-hb-machine-steam{animation:fmHbMachineSteam 6s ease-in-out infinite}
+@keyframes fmHbTumbleweed{0%{left:-8%;transform:rotate(0deg)}100%{left:108%;transform:rotate(520deg)}}
+.fm-hb-tumbleweed{animation:fmHbTumbleweed 10s linear infinite}
+@keyframes fmHbZFloat{0%{opacity:0;transform:translate(0,0) scale(.7)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-16px) scale(1.1)}}
+.fm-hb-z{animation:fmHbZFloat 2.2s ease-out infinite}
+@keyframes fmHbWipe{0%,100%{transform:rotate(-58deg)}50%{transform:rotate(-84deg)}}
+.fm-hb-wipe{animation:fmHbWipe 1s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.fm-hb-gasp,.fm-hb-tear,.fm-hb-steam,.fm-hb-bob,.fm-hb-walk,.fm-hb-strut,.fm-hb-pace,.fm-hb-machine-steam,.fm-hb-tumbleweed,.fm-hb-z,.fm-hb-wipe{animation:none}}`;
 
 // A small, parameterized, expressive trucker — pure SVG primitives (circles,
-// rects, path arcs), no image assets. Reused at three sizes: the big cab
-// hero, the hub teaser card, and the hiring-board preview.
-function TruckerSVG({ look, mood, pose = 'idle', size = 150, className = '' }) {
+// rects, path arcs), no image assets. Reused at several sizes: the diorama
+// (small), the hub teaser snapshot, and the hiring-board preview.
+function TruckerSVG({ look, mood, pose = 'idle', size = 66, className = '' }) {
   const reduce = useHBReducedMotion();
-  const face = pose === 'gasp' ? 'gasp' : mood;
+  const face = pose === 'gasp' ? 'gasp' : pose === 'sleep' ? 'sleep' : mood;
   const cx = 80, cy = 74;
 
   const eyes = (() => {
@@ -10404,6 +10416,12 @@ function TruckerSVG({ look, mood, pose = 'idle', size = 150, className = '' }) {
         <circle cx={cx + 15} cy={cy - 4} r="7.5" fill="#1c1917" />
         <circle cx={cx - 17} cy={cy - 7} r="2" fill="#fff" />
         <circle cx={cx + 13} cy={cy - 7} r="2" fill="#fff" />
+      </React.Fragment>
+    );
+    if (face === 'sleep') return (
+      <React.Fragment>
+        <path d={`M ${cx - 20} ${cy - 4} Q ${cx - 15} ${cy - 1} ${cx - 10} ${cy - 4}`} stroke="#1c1917" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+        <path d={`M ${cx + 10} ${cy - 4} Q ${cx + 15} ${cy - 1} ${cx + 20} ${cy - 4}`} stroke="#1c1917" strokeWidth="2.6" strokeLinecap="round" fill="none" />
       </React.Fragment>
     );
     if (face === 'thriving') return (
@@ -10434,34 +10452,51 @@ function TruckerSVG({ look, mood, pose = 'idle', size = 150, className = '' }) {
 
   const mouth = (() => {
     if (face === 'gasp') return <ellipse cx={cx} cy={cy + 20} rx="6" ry="8" fill="#7c2d12" />;
+    if (face === 'sleep') return <path d={`M ${cx - 7} ${cy + 18} Q ${cx} ${cy + 21} ${cx + 7} ${cy + 18}`} stroke="#1c1917" strokeWidth="2.6" strokeLinecap="round" fill="none" />;
     if (face === 'thriving') return <path d={`M ${cx - 16} ${cy + 15} Q ${cx} ${cy + 30} ${cx + 16} ${cy + 15} Q ${cx} ${cy + 24} ${cx - 16} ${cy + 15} Z`} fill="#7c2d12" />;
     if (face === 'grumpy') return <path d={`M ${cx - 12} ${cy + 22} Q ${cx} ${cy + 16} ${cx + 12} ${cy + 22}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />;
     if (face === 'fedup') return <path d={`M ${cx - 13} ${cy + 24} Q ${cx} ${cy + 14} ${cx + 13} ${cy + 24}`} stroke="#1c1917" strokeWidth="3.4" strokeLinecap="round" fill="none" />;
     return <path d={`M ${cx - 11} ${cy + 17} Q ${cx} ${cy + 23} ${cx + 11} ${cy + 17}`} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" fill="none" />;
   })();
 
-  const brows = (mood === 'grumpy' || mood === 'fedup') ? (
+  const brows = (pose !== 'sleep' && pose !== 'gasp' && (mood === 'grumpy' || mood === 'fedup')) ? (
     <React.Fragment>
       <line x1={cx - 23} y1={cy - 16} x2={cx - 8} y2={cy - 11} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" />
       <line x1={cx + 23} y1={cy - 16} x2={cx + 8} y2={cy - 11} stroke="#1c1917" strokeWidth="3" strokeLinecap="round" />
     </React.Fragment>
   ) : null;
 
+  // Arm angles per pose — a small vocabulary reused across every activity:
+  // idle/gasp (existing), plus cross (grumpy, arms folded), sip (coffee),
+  // radio (CB), reach (leaning for the cones), sleep (tucked in), and wipe
+  // (thriving polishing the rig — driven entirely by the fm-hb-wipe
+  // keyframe on the right arm so the motion loops on its own).
   const armT = (side) => {
-    if (pose === 'swoon' && side === 'r') return { transform: 'rotate(-165deg)', transformOrigin: '112px 122px' };
+    if (pose === 'sleep') return { transform: side === 'r' ? 'rotate(-100deg)' : 'rotate(80deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
+    if (pose === 'cross') return { transform: side === 'r' ? 'rotate(-110deg)' : 'rotate(110deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
+    if (pose === 'sip' && side === 'r') return { transform: 'rotate(-150deg)', transformOrigin: '112px 122px' };
+    if (pose === 'radio' && side === 'r') return { transform: 'rotate(-160deg)', transformOrigin: '112px 122px' };
+    if (pose === 'reach') return { transform: side === 'r' ? 'rotate(-30deg)' : 'rotate(30deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
+    if (pose === 'wipe') return { transform: side === 'r' ? 'rotate(-70deg)' : 'rotate(4deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
     if (pose === 'gasp') return { transform: side === 'r' ? 'rotate(-55deg)' : 'rotate(55deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
     return { transform: 'rotate(4deg)', transformOrigin: side === 'r' ? '112px 122px' : '48px 122px' };
   };
-  const armStyle = (side) => ({ ...armT(side), transition: reduce ? 'none' : 'transform .45s cubic-bezier(.34,1.56,.64,1)' });
-  const headTilt = pose === 'swoon'
-    ? { transform: 'rotate(-9deg) translate(-3px,2px)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .45s ease-out' }
-    : { transform: 'rotate(0deg)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .3s ease-out' };
+  const armStyle = (side) => {
+    const wipeAnim = pose === 'wipe' && side === 'r' && !reduce;
+    if (wipeAnim) return { transformOrigin: '112px 122px' }; // transform fully owned by the fm-hb-wipe keyframe
+    return { ...armT(side), transition: reduce ? 'none' : 'transform .45s cubic-bezier(.34,1.56,.64,1)' };
+  };
+  const headTilt = (() => {
+    if (pose === 'sleep') return { transform: 'rotate(8deg) translate(2px,3px)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .4s ease-out' };
+    if (pose === 'reach') return { transform: 'rotate(14deg) translate(0,4px)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .3s ease-out' };
+    return { transform: 'rotate(0deg)', transformOrigin: `${cx}px ${cy}px`, transition: reduce ? 'none' : 'transform .3s ease-out' };
+  })();
 
   return (
     <svg viewBox="0 0 160 210" width={size} height={Math.round(size * 210 / 160)} className={className} role="img" aria-label={`${mood} trucker`}>
       <rect x="46" y="112" width="68" height="72" rx="20" fill={look.shirt} />
       <rect x="32" y="118" width="18" height="56" rx="9" fill={look.skin} style={armStyle('l')} />
-      <rect x="110" y="118" width="18" height="56" rx="9" fill={look.skin} style={armStyle('r')} />
+      <rect x="110" y="118" width="18" height="56" rx="9" fill={look.skin} style={armStyle('r')} className={pose === 'wipe' && !reduce ? 'fm-hb-wipe' : ''} />
       <g style={headTilt} className={pose === 'gasp' && !reduce ? 'fm-hb-gasp' : ''}>
         <circle cx={cx - 36} cy={cy + 2} r="7" fill={look.skin} />
         <circle cx={cx + 36} cy={cy + 2} r="7" fill={look.skin} />
@@ -10471,10 +10506,10 @@ function TruckerSVG({ look, mood, pose = 'idle', size = 150, className = '' }) {
         {brows}
         {eyes}
         {mouth}
-        {mood === 'grumpy' && (
+        {pose !== 'sleep' && mood === 'grumpy' && (
           <ellipse cx={cx + 19} cy={cy + 2} rx="2.6" ry="4.6" fill="#5aa2ff" opacity="0.85" className={reduce ? '' : 'fm-hb-tear'} />
         )}
-        {mood === 'fedup' && !reduce && (
+        {pose !== 'sleep' && mood === 'fedup' && !reduce && (
           <React.Fragment>
             <path d={`M ${cx - 30} ${cy - 34} q 5 -8 0 -16`} stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" fill="none" className="fm-hb-steam" style={{ animationDelay: '0s' }} />
             <path d={`M ${cx + 30} ${cy - 34} q -5 -8 0 -16`} stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" fill="none" className="fm-hb-steam" style={{ animationDelay: '.6s' }} />
@@ -10497,18 +10532,54 @@ function TruckerSVG({ look, mood, pose = 'idle', size = 150, className = '' }) {
   );
 }
 
-function HBNeedBar({ label, icon, value }) {
+// ---- Diorama layout — a small side-view truck-stop yard. Stations sit at
+// fixed percent-of-width positions; only the trucker moves. ----
+const HB_STATION_X = { rig: 12, coffee: 40, cb: 65, cones: 89 };
+const HB_WALK_MS = 1500;          // position transition + walk-bob duration
+const HB_ACTIVITY_MIN_MS = 4000;  // how long he idles before picking a new spot
+const HB_ACTIVITY_MAX_MS = 10000;
+const HB_BUBBLE_MIN_MS = 15000;   // ambient thought-bubble cadence
+const HB_BUBBLE_MAX_MS = 30000;
+
+const HB_CONE_LINES = [
+  'These cones were in the WRONG order. Fixed.',
+  "A little feng shui for the yard. You're welcome.",
+  'This one goes here now. Trust the process.',
+  "I've rearranged these cones eleven times today. Eleven.",
+  'Structural integrity: much improved.',
+  'Nobody asked me to do this. I did it anyway.',
+];
+
+// Weighted pick, biased toward whichever need is lowest, with a strong
+// penalty against repeating the station he's already at (so wandering
+// actually reads as wandering). Purely cosmetic — visiting a station on
+// his own never touches a need; only a tap does that (see HaulBuddyPage).
+function hbPickNextStation(derived, current) {
+  const weights = {
+    rig: 1 + (100 - derived.levels.rest) / 40,
+    coffee: 1 + (100 - derived.levels.coffee) / 40,
+    cb: 1 + (100 - derived.levels.company) / 40,
+    cones: 0.6,
+  };
+  if (current && weights[current] != null) weights[current] *= 0.35;
+  const entries = Object.entries(weights);
+  const total = entries.reduce((s, [, w]) => s + w, 0);
+  let r = Math.random() * total;
+  for (const [key, w] of entries) { r -= w; if (r <= 0) return key; }
+  return entries[entries.length - 1][0];
+}
+
+// Unobtrusive corner readout — icon + a sliver of a bar, not a dominant UI
+// element. Three of these stack in the diorama's top-left corner.
+function HBNeedChip({ icon, value }) {
   const pct = Math.round(value);
   const tone = pct >= 60 ? 'bg-emerald-500' : pct >= 30 ? 'bg-amber-500' : 'bg-red-500';
   return (
-    <div>
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-slate-500 mb-1">
-        <span className="flex items-center gap-1.5">{icon}{label}</span>
-        <span className="font-data">{pct}%</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
-        <div className={`h-full ${tone} transition-all duration-500`} style={{ width: `${pct}%` }} />
-      </div>
+    <div className="flex items-center gap-1 bg-slate-950/60 backdrop-blur-sm rounded-full pl-1.5 pr-2 py-1">
+      <span className="text-slate-400">{icon}</span>
+      <span className="w-6 h-1 rounded-full bg-slate-700 overflow-hidden inline-block">
+        <span className={`block h-full ${tone}`} style={{ width: `${pct}%` }} />
+      </span>
     </div>
   );
 }
@@ -10530,47 +10601,104 @@ function HBPatchBoard({ patches }) {
   );
 }
 
-// Window into the cab — theme-reactive: night sky under Night Haul, a bright
-// daytime sky under Classic. Pure SVG, no assets, driven by useTheme().
-function HaulBuddyWindow({ theme }) {
+// Full-bleed theme-reactive sky behind the whole yard — night stars under
+// Night Haul, a bright day under Classic. Pure SVG, no assets.
+function HaulBuddySky({ theme }) {
   const night = theme !== 'classic';
   return (
-    <div className="absolute inset-x-8 top-3 h-14 sm:h-16 rounded-t-full overflow-hidden">
-      <svg viewBox="0 0 200 60" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-        <rect x="0" y="0" width="200" height="60" fill={night ? '#14110c' : '#bae6fd'} />
-        {night ? (
-          <React.Fragment>
-            <circle cx="150" cy="18" r="10" fill="#fde68a" />
-            <circle cx="30" cy="14" r="1.6" fill="#fff" opacity=".8" />
-            <circle cx="55" cy="26" r="1.2" fill="#fff" opacity=".6" />
-            <circle cx="80" cy="10" r="1.4" fill="#fff" opacity=".7" />
-            <circle cx="110" cy="30" r="1.2" fill="#fff" opacity=".5" />
-            <circle cx="20" cy="34" r="1.3" fill="#fff" opacity=".6" />
-          </React.Fragment>
-        ) : (
-          <React.Fragment>
-            <circle cx="40" cy="16" r="11" fill="#fde68a" />
-            <ellipse cx="130" cy="24" rx="22" ry="9" fill="#fff" opacity=".85" />
-            <ellipse cx="160" cy="16" rx="16" ry="7" fill="#fff" opacity=".7" />
-          </React.Fragment>
-        )}
+    <svg viewBox="0 0 400 100" className="absolute inset-0 w-full h-full" preserveAspectRatio="none" aria-hidden="true">
+      <rect x="0" y="0" width="400" height="100" fill={night ? '#14110c' : '#bae6fd'} />
+      {night ? (
+        <React.Fragment>
+          <circle cx="335" cy="22" r="16" fill="#fde68a" />
+          <circle cx="60" cy="18" r="1.6" fill="#fff" opacity=".8" />
+          <circle cx="120" cy="34" r="1.3" fill="#fff" opacity=".6" />
+          <circle cx="180" cy="14" r="1.5" fill="#fff" opacity=".7" />
+          <circle cx="240" cy="40" r="1.3" fill="#fff" opacity=".5" />
+          <circle cx="30" cy="46" r="1.4" fill="#fff" opacity=".6" />
+          <circle cx="280" cy="16" r="1.2" fill="#fff" opacity=".55" />
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          <circle cx="60" cy="22" r="17" fill="#fde68a" />
+          <ellipse cx="260" cy="30" rx="34" ry="12" fill="#fff" opacity=".85" />
+          <ellipse cx="335" cy="20" rx="24" ry="9" fill="#fff" opacity=".7" />
+        </React.Fragment>
+      )}
+    </svg>
+  );
+}
+
+// His rig — where he sleeps. Windshield dims while he's resting; a sticky
+// note (short, symbolic — the full text lives in the Card below the scene)
+// appears in the empty-yard state.
+function HBRigStation({ sleeping, gone, noteText }) {
+  return (
+    <div className="relative" style={{ width: 74, height: 64 }}>
+      <svg viewBox="0 0 74 64" width="74" height="64">
+        <rect x="0" y="18" width="74" height="30" rx="3" fill="#334155" />
+        <rect x="4" y="4" width="30" height="44" rx="4" fill="#475569" />
+        <rect x="8" y="10" width="20" height="16" rx="2" fill={sleeping ? '#1e293b' : '#7dd3fc'} opacity={sleeping ? 0.5 : 0.85} style={{ transition: 'fill .4s ease, opacity .4s ease' }} />
+        <circle cx="16" cy="52" r="8" fill="#0f172a" stroke="#475569" strokeWidth="2" />
+        <circle cx="56" cy="52" r="8" fill="#0f172a" stroke="#475569" strokeWidth="2" />
       </svg>
+      {sleeping && !gone && (
+        <React.Fragment>
+          <span className="absolute -top-1 left-3 text-[10px] font-bold text-blue-200 fm-hb-z" aria-hidden="true">Z</span>
+          <span className="absolute -top-3 left-7 text-[12px] font-bold text-blue-200 fm-hb-z" style={{ animationDelay: '.5s' }} aria-hidden="true">Z</span>
+        </React.Fragment>
+      )}
+      {gone && noteText && (
+        <div className="absolute top-2 left-3 w-7 h-6 bg-amber-200 rotate-6 shadow flex items-center justify-center text-[5px] font-bold text-slate-800 leading-none text-center px-0.5" aria-hidden="true">
+          {noteText}
+        </div>
+      )}
     </div>
   );
 }
 
-// The dashboard ornament — a tiny hanging air-freshener silhouette that
-// wobbles gently. One of the "own little world" details for the cab.
-function HaulBuddyOrnament() {
+// His nemesis. Taunts him with an occasional puff of steam on its own —
+// a pure CSS infinite loop, no JS timer.
+function HBCoffeeStation({ reduce }) {
   return (
-    <div className="absolute right-8 top-16 sm:top-[4.6rem] fm-hb-wobble" aria-hidden="true">
-      <svg width="14" height="26" viewBox="0 0 14 26">
-        <line x1="7" y1="0" x2="7" y2="6" stroke="#475569" strokeWidth="1" />
-        <path d="M7 6 L2 16 L12 16 Z" fill="#16a34a" />
-        <path d="M7 11 L1 20 L13 20 Z" fill="#16a34a" />
-        <rect x="5" y="20" width="4" height="4" fill="#78350f" />
+    <div className="relative" style={{ width: 40, height: 54 }}>
+      <svg viewBox="0 0 40 54" width="40" height="54">
+        <rect x="2" y="20" width="36" height="30" rx="3" fill="#57534e" />
+        <rect x="8" y="8" width="24" height="16" rx="2" fill="#78716c" />
+        <rect x="14" y="2" width="4" height="8" fill="#44403c" />
+        <circle cx="20" cy="30" r="4" fill="#292524" />
       </svg>
+      {!reduce && (
+        <svg className="absolute -top-3 left-1/2 -translate-x-1/2" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 14 q-2 -5 0 -8" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" fill="none" className="fm-hb-machine-steam" />
+          <path d="M10 14 q2 -5 0 -8" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" fill="none" className="fm-hb-machine-steam" style={{ animationDelay: '2s' }} />
+        </svg>
+      )}
     </div>
+  );
+}
+
+function HBCbStation() {
+  return (
+    <svg width="30" height="58" viewBox="0 0 30 58">
+      <line x1="15" y1="10" x2="15" y2="50" stroke="#475569" strokeWidth="3" />
+      <rect x="4" y="4" width="22" height="16" rx="2" fill="#334155" stroke="#475569" strokeWidth="1.5" />
+      <line x1="26" y1="6" x2="30" y2="0" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="10" cy="12" r="2" fill="#f59e0b" />
+    </svg>
+  );
+}
+
+// The flavor station — traffic cones he "rearranges." No need attached;
+// purely for personality (see HB_CONE_LINES).
+function HBConeStation() {
+  return (
+    <svg width="46" height="30" viewBox="0 0 46 30">
+      <path d="M6 28 L12 8 L18 28 Z" fill="#f97316" />
+      <rect x="4" y="26" width="16" height="3" fill="#c2410c" />
+      <path d="M28 28 L33 12 L38 28 Z" fill="#f97316" />
+      <rect x="26" y="26" width="14" height="3" fill="#c2410c" />
+    </svg>
   );
 }
 
@@ -10594,10 +10722,99 @@ function HaulBuddyWall({ wall }) {
   );
 }
 
-// The comedy beat: a sticky note on the windshield, then a hiring board to
-// pick the next guy. No dread, no "are you sure" — just a joke and a fresh
-// start one tap away.
-function HaulBuddyQuitScene({ state, onHire }) {
+// The living diorama itself. Sky + yard + four fixed stations; the trucker
+// (or, once he's gone, a sticky note + tumbleweed) is the only thing that
+// moves, and only via CSS transitions/keyframes — this component holds no
+// timers of its own, it just renders whatever HaulBuddyPage's timers drive.
+function HaulBuddyDiorama({ theme, reduceMotion, state, derived, activity, reaction, sleeping, forcedPose, onTapRig, onTapCoffee, onTapCB, onTapCones, onTapSelf }) {
+  const gone = derived.mood === 'gone';
+
+  const bobClass = (() => {
+    if (activity.phase === 'walking') return derived.mood === 'thriving' ? 'fm-hb-strut' : 'fm-hb-walk';
+    if (activity.phase === 'idle' && derived.mood === 'fedup') return 'fm-hb-pace';
+    return reduceMotion ? '' : 'fm-hb-bob';
+  })();
+
+  const pose = forcedPose || (() => {
+    if (sleeping) return 'sleep';
+    if (activity.phase === 'walking') return 'idle';
+    switch (activity.station) {
+      case 'coffee': return 'sip';
+      case 'cb': return 'radio';
+      case 'cones': return 'reach';
+      case 'rig': return derived.mood === 'grumpy' ? 'cross' : derived.mood === 'thriving' ? 'wipe' : 'idle';
+      default: return 'idle';
+    }
+  })();
+
+  return (
+    <div className="relative h-48 sm:h-56 overflow-hidden select-none">
+      <HaulBuddySky theme={theme} />
+      <div className="absolute inset-x-0" style={{ bottom: '32%', borderTop: '1px dashed rgba(255,255,255,.14)' }} aria-hidden="true" />
+      <div className="absolute inset-x-0 bottom-0" style={{ height: '30%', background: 'linear-gradient(180deg, #2a2318, #191510)' }} aria-hidden="true" />
+
+      {!gone && (
+        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+          <HBNeedChip icon={<Coffee size={10} />} value={derived.levels.coffee} />
+          <HBNeedChip icon={<BedDouble size={10} />} value={derived.levels.rest} />
+          <HBNeedChip icon={<Radio size={10} />} value={derived.levels.company} />
+        </div>
+      )}
+
+      <button type="button" onClick={onTapRig} aria-label="His rig — tap to send him to the bunk"
+        className="absolute bottom-1 p-1.5" style={{ left: `${HB_STATION_X.rig}%`, transform: 'translateX(-50%)' }}>
+        <HBRigStation sleeping={!!sleeping} gone={gone} noteText="I QUIT" />
+      </button>
+
+      {!gone && (
+        <React.Fragment>
+          <button type="button" onClick={onTapCoffee} aria-label="Coffee counter — tap to pour him a cup"
+            className="absolute bottom-1 p-1.5" style={{ left: `${HB_STATION_X.coffee}%`, transform: 'translateX(-50%)' }}>
+            <HBCoffeeStation reduce={reduceMotion} />
+          </button>
+          <button type="button" onClick={onTapCB} aria-label="CB radio — tap to key up"
+            className="absolute bottom-1 p-1.5" style={{ left: `${HB_STATION_X.cb}%`, transform: 'translateX(-50%)' }}>
+            <HBCbStation />
+          </button>
+          <button type="button" onClick={onTapCones} aria-label="Traffic cones — tap to see what he does with them"
+            className="absolute bottom-1 p-1.5" style={{ left: `${HB_STATION_X.cones}%`, transform: 'translateX(-50%)' }}>
+            <HBConeStation />
+          </button>
+        </React.Fragment>
+      )}
+
+      {gone ? (
+        <svg width="26" height="26" viewBox="0 0 26 26" className={`absolute bottom-2 ${reduceMotion ? '' : 'fm-hb-tumbleweed'}`} style={reduceMotion ? { left: '55%' } : undefined} aria-hidden="true">
+          <circle cx="13" cy="13" r="10" fill="none" stroke="#a8763e" strokeWidth="2" />
+          <circle cx="13" cy="13" r="6" fill="none" stroke="#a8763e" strokeWidth="1.4" />
+          <path d="M13 3 L13 23 M3 13 L23 13 M6 6 L20 20 M20 6 L6 20" stroke="#a8763e" strokeWidth="1" />
+        </svg>
+      ) : (
+        <div
+          className="absolute bottom-1"
+          style={{ left: `${activity.x}%`, transform: 'translateX(-50%)', transition: reduceMotion ? 'none' : `left ${HB_WALK_MS}ms ease-in-out` }}
+        >
+          {reaction && (
+            <div key={reaction.key} className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-[190px] text-center bg-slate-100 text-slate-900 text-[11px] leading-snug font-medium px-3 py-2 rounded-lg shadow-lg fm-toast z-20">
+              {reaction.text}
+            </div>
+          )}
+          <div style={{ transform: `scaleX(${activity.facing})` }}>
+            <div className={bobClass}>
+              <button type="button" onClick={onTapSelf} aria-label={`${state.first} — tap for a word`} className="block">
+                <TruckerSVG look={state.look} mood={derived.mood} pose={pose} size={66} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The comedy beat, trimmed to fit under the (now visual) empty diorama
+// above: the readable note text + tenure summary, then the hiring board.
+function HaulBuddyQuitNote({ state, onHire }) {
   const [noteIdx, setNoteIdx] = useState(0);
   const [showBoard, setShowBoard] = useState(false);
   const [candidate, setCandidate] = useState(() => ({ ...generateTrucker(), intro: hbRandom(HB_HIRE_INTROS) }));
@@ -10607,8 +10824,7 @@ function HaulBuddyQuitScene({ state, onHire }) {
 
   return (
     <div className="space-y-5">
-      <Card className="p-6 sm:p-8 text-center space-y-5">
-        <div className="text-4xl select-none" aria-hidden="true">🌵</div>
+      <Card className="p-6 text-center space-y-4">
         <div className="max-w-sm mx-auto bg-amber-100 text-slate-900 rounded-sm shadow-lg px-5 py-4 -rotate-1 text-sm leading-relaxed font-medium">
           {note}
         </div>
@@ -10625,7 +10841,7 @@ function HaulBuddyQuitScene({ state, onHire }) {
         <Card className="p-5 sm:p-6">
           <PanelHeader icon={<Users size={18} />} title="Hiring Board" accent="amber" />
           <div className="mt-4 flex flex-col sm:flex-row items-center gap-4">
-            <TruckerSVG look={candidate.look} mood="content" size={100} />
+            <TruckerSVG look={candidate.look} mood="content" size={90} />
             <div className="flex-1 text-center sm:text-left min-w-0">
               <div className="font-bold text-white">{candidate.first} &quot;{candidate.handle}&quot; {candidate.last}</div>
               <div className="text-xs text-slate-400 mt-0.5">{HB_QUIRKS[candidate.quirk]}</div>
@@ -10644,20 +10860,47 @@ function HaulBuddyQuitScene({ state, onHire }) {
 
 // The dedicated full page — his whole world. Mounted by BreakRoomView when
 // its local sub-view state is 'haulbuddy'; "onBack" returns to the hub.
+//
+// TIMER INVENTORY (kept deliberately small, per the diorama brief):
+//   - one self-rescheduling setTimeout drives the "next activity" decision
+//     while idle (HB_ACTIVITY_MIN_MS–MAX_MS), OR
+//   - one setTimeout resolves the current walk (HB_WALK_MS) — never both
+//     at once, they're mutually exclusive by activity.phase.
+//   - one self-rescheduling setTimeout drives ambient thought bubbles
+//     (HB_BUBBLE_MIN_MS–MAX_MS).
+//   - a handful of short, one-shot setTimeouts clear transient visual state
+//     (a shown reaction, the sleeping overlay, a forced gasp pose) — all
+//     pushed into timeoutsRef and swept on unmount.
+// No setInterval, no per-frame loop — every bit of motion is a CSS
+// transition or an `animation: … infinite` keyframe (walk bob, pacing
+// wiggle, the coffee machine's taunt, the tumbleweed).
 function HaulBuddyPage({ onBack }) {
   const [state, setState] = useState(() => loadHBState());
   const [wall, setWall] = useState(() => loadHBWall());
   const [reaction, setReaction] = useState(null);
-  const [pose, setPose] = useState('idle');
+  const [sleeping, setSleeping] = useState(false);
+  const [forcedPose, setForcedPose] = useState(null);
+  const [activity, setActivity] = useState(() => ({ station: 'rig', phase: 'idle', x: HB_STATION_X.rig, facing: 1, reason: 'auto' }));
+  const [visible, setVisible] = useState(() => (typeof document === 'undefined' ? true : !document.hidden));
   const [peekPref, setPeekPref] = useState(() => {
     try { return localStorage.getItem(HB_PEEK_PREF_KEY) !== 'off'; } catch (_) { return true; }
   });
-  const [, forceTick] = useState(0);
   const [theme] = useTheme();
   const reduceMotion = useHBReducedMotion();
   const timeoutsRef = useRef([]);
 
   useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
+
+  // Tab-hidden guarantee: every scheduling effect below is gated on
+  // `visible` and lists it as a dependency, so the instant the tab is
+  // hidden both self-rescheduling chains clear their pending timer and
+  // decline to schedule a new one — and resume fresh the moment it's
+  // visible again.
+  useEffect(() => {
+    const onVis = () => setVisible(!document.hidden);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   const derived = computeHBDerived(state);
   const dayCount = Math.max(1, Math.floor((Date.now() - state.hiredAt) / 86400000) + 1);
@@ -10677,14 +10920,22 @@ function HaulBuddyPage({ onBack }) {
     saveHBState(archived);
   }, [derived.mood, state]);
 
-  const showReaction = (text, poseName = 'idle', holdMs = 3400) => {
-    setPose(poseName);
+  const showReaction = (text, holdMs = 3400) => {
     setReaction({ text, key: Date.now() });
-    if (poseName !== 'idle') timeoutsRef.current.push(setTimeout(() => setPose('idle'), 1500));
     timeoutsRef.current.push(setTimeout(() => setReaction(null), holdMs));
   };
 
-  const applyAction = (needKey, poseName, lines) => {
+  // A dramatic line gets the theatrical gasp pose for a beat, then settles
+  // back to whatever his activity pose would normally be.
+  const sayLine = (line) => {
+    if (/AUDACITY/.test(line) || Math.random() < 0.2) {
+      setForcedPose('gasp');
+      timeoutsRef.current.push(setTimeout(() => setForcedPose(null), 900));
+    }
+    showReaction(line);
+  };
+
+  const applyAction = (needKey, lines) => {
     const now = Date.now();
     const needs = { ...state.needs, [needKey]: now };
     let next = { ...state, needs };
@@ -10699,36 +10950,106 @@ function HaulBuddyPage({ onBack }) {
     }
     setState(next);
     saveHBState(next);
-    showReaction(hbRandom(lines), poseName);
+    showReaction(hbRandom(lines));
   };
 
-  const onCoffee = () => applyAction('coffee', 'idle', HB_LINES.action.coffee);
-  const onRest = () => applyAction('rest', 'swoon', HB_LINES.action.rest);
-  const onCB = () => applyAction('company', 'idle', HB_LINES.action.cb);
-  const onPortraitTap = () => {
+  // Sends him toward a station. `reason: 'tap'` means the action fires the
+  // instant he arrives (see the arrival effect below); autonomous
+  // wandering (`reason: 'auto'`) is purely cosmetic and never touches a
+  // need — only an explicit tap ever changes Coffee/Rest/Company.
+  const goToStation = (key, reason) => {
+    setActivity((a) => {
+      if (a.phase === 'walking') return a;
+      const targetX = HB_STATION_X[key];
+      const facing = targetX >= a.x ? 1 : -1;
+      return { station: key, phase: 'walking', x: targetX, facing, reason };
+    });
+  };
+
+  // The only timer alive while he's mid-walk — flips 'walking' to 'idle'
+  // once the CSS position transition has had time to finish.
+  useEffect(() => {
+    if (activity.phase !== 'walking') return;
+    const t = setTimeout(() => {
+      setActivity((a) => (a.phase === 'walking' ? { ...a, phase: 'idle' } : a));
+    }, HB_WALK_MS);
+    return () => clearTimeout(t);
+  }, [activity]);
+
+  // Runs the underlying care action exactly once when a TAPPED walk
+  // arrives — autonomous arrivals (reason 'auto') do only the cosmetic
+  // idle animation (driven by HaulBuddyDiorama's pose logic), never this.
+  useEffect(() => {
+    if (activity.phase !== 'idle' || activity.reason !== 'tap') return;
+    if (activity.station === 'coffee') applyAction('coffee', HB_LINES.action.coffee);
+    else if (activity.station === 'cb') applyAction('company', HB_LINES.action.cb);
+    else if (activity.station === 'cones') showReaction(hbRandom(HB_CONE_LINES));
+    else if (activity.station === 'rig') {
+      applyAction('rest', HB_LINES.action.rest);
+      setSleeping(true);
+      timeoutsRef.current.push(setTimeout(() => setSleeping(false), 2600));
+    }
+    setActivity((a) => (a.reason === 'tap' ? { ...a, reason: 'auto' } : a));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity.phase, activity.reason, activity.station]);
+
+  // Autonomous wandering — picks a new station every ~4–10s, weighted
+  // toward whichever need is lowest. One pending setTimeout at a time;
+  // rebuilt whenever activity/state change (so it always has fresh mood
+  // data), and — the hard requirement — never scheduled at all while the
+  // tab is hidden, reduced motion is on, or he's already gone.
+  useEffect(() => {
+    if (!visible || reduceMotion || derived.mood === 'gone' || activity.phase === 'walking') return;
+    const delay = HB_ACTIVITY_MIN_MS + Math.random() * (HB_ACTIVITY_MAX_MS - HB_ACTIVITY_MIN_MS);
+    const t = setTimeout(() => {
+      goToStation(hbPickNextStation(derived, activity.station), 'auto');
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, reduceMotion, derived.mood, activity, state]);
+
+  // Ambient chatter — one pending setTimeout at a time, same tab-hidden
+  // guarantee as above. Sparser than the wander loop by design (~15–30s)
+  // so it never reads as a strobe of bubbles.
+  useEffect(() => {
+    if (!visible || derived.mood === 'gone' || reaction) return;
+    const delay = HB_BUBBLE_MIN_MS + Math.random() * (HB_BUBBLE_MAX_MS - HB_BUBBLE_MIN_MS);
+    const t = setTimeout(() => {
+      const pool = [...(HB_LINES[derived.mood] || []), ...(HB_QUIRK_LINES[state.quirk] || [])];
+      sayLine(hbRandom(pool));
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, derived.mood, state, reaction]);
+
+  // Station taps. Under reduced motion he never moves — see the diorama's
+  // note above; the action still fires immediately in place.
+  const onTapStation = (key) => {
+    if (derived.mood === 'gone') return;
+    if (reduceMotion) {
+      if (key === 'coffee') applyAction('coffee', HB_LINES.action.coffee);
+      else if (key === 'cb') applyAction('company', HB_LINES.action.cb);
+      else if (key === 'cones') showReaction(hbRandom(HB_CONE_LINES));
+      else if (key === 'rig') {
+        applyAction('rest', HB_LINES.action.rest);
+        setSleeping(true);
+        timeoutsRef.current.push(setTimeout(() => setSleeping(false), 2600));
+      }
+      return;
+    }
+    if (activity.phase === 'walking') return; // ignore taps mid-walk — simplest, avoids a race
+    if (activity.station === key) { setActivity((a) => ({ ...a, reason: 'tap' })); return; } // already there — repeat the action, no walk needed
+    goToStation(key, 'tap');
+  };
+  const onTapRig = () => onTapStation('rig');
+  const onTapCoffee = () => onTapStation('coffee');
+  const onTapCB = () => onTapStation('cb');
+  const onTapCones = () => onTapStation('cones');
+  const onTapSelf = () => {
     if (derived.mood === 'gone') return;
     const pool = [...(HB_LINES[derived.mood] || []), ...(HB_QUIRK_LINES[state.quirk] || [])];
-    const line = hbRandom(pool);
-    showReaction(line, /AUDACITY/.test(line) || Math.random() < 0.22 ? 'gasp' : 'idle');
+    sayLine(hbRandom(pool));
   };
-
-  // Ambient world — refreshes the real-time-derived bars once a minute and
-  // occasionally lets him say something unprompted, purely for atmosphere.
-  // Contained entirely to this page. Interval is rebuilt whenever state/
-  // reaction change so it always closes over fresh values, and is cleared
-  // on every rebuild + unmount.
-  useEffect(() => {
-    const id = setInterval(() => {
-      forceTick((t) => t + 1);
-      if (reaction || derived.mood === 'gone') return;
-      if (Math.random() < 0.15) {
-        const pool = [...(HB_LINES[derived.mood] || []), ...(HB_QUIRK_LINES[state.quirk] || [])];
-        const line = hbRandom(pool);
-        showReaction(line, /AUDACITY/.test(line) || Math.random() < 0.2 ? 'gasp' : 'idle');
-      }
-    }, 60000);
-    return () => clearInterval(id);
-  }, [state, reaction, derived.mood]);
 
   const togglePeekPref = () => {
     const next = !peekPref;
@@ -10739,6 +11060,10 @@ function HaulBuddyPage({ onBack }) {
   const hireNew = (candidate) => {
     setState(candidate);
     saveHBState(candidate);
+    setActivity({ station: 'rig', phase: 'idle', x: HB_STATION_X.rig, facing: 1, reason: 'auto' });
+    setSleeping(false);
+    setForcedPose(null);
+    setReaction(null);
   };
 
   const milesUp = useCountUp(state.miles);
@@ -10752,63 +11077,45 @@ function HaulBuddyPage({ onBack }) {
         <Badge tone="amber" className="font-normal">Haul Buddy</Badge>
       </div>
 
-      {derived.mood === 'gone' ? (
-        <HaulBuddyQuitScene state={state} onHire={hireNew} />
-      ) : (
-        <React.Fragment>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-bold text-white truncate">{state.first} &quot;{state.handle}&quot; {state.last}</h2>
-                <Badge tone={HB_MOOD_META[derived.mood].tone}>{HB_MOOD_META[derived.mood].label}</Badge>
-              </div>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm">{HB_QUIRKS[state.quirk]}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <div className="font-data text-2xl font-bold text-emerald-400">{Math.round(milesUp).toLocaleString()}<span className="text-sm text-slate-500 font-normal"> mi</span></div>
-              <div className="text-[11px] text-slate-500">Day {dayCount} with you</div>
-            </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-bold text-white truncate">{state.first} &quot;{state.handle}&quot; {state.last}</h2>
+            <Badge tone={HB_MOOD_META[derived.mood].tone}>{HB_MOOD_META[derived.mood].label}</Badge>
           </div>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm">{derived.mood === 'gone' ? 'The cab is empty.' : HB_QUIRKS[state.quirk]}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="font-data text-2xl font-bold text-emerald-400">{Math.round(milesUp).toLocaleString()}<span className="text-sm text-slate-500 font-normal"> mi</span></div>
+          <div className="text-[11px] text-slate-500">Day {dayCount} with you</div>
+        </div>
+      </div>
 
-          <Card className="relative overflow-hidden p-0">
-            <div className="relative h-56 sm:h-64 bg-gradient-to-b from-slate-900 to-slate-950">
-              <HaulBuddyWindow theme={theme} />
-              <HaulBuddyOrnament />
-              {reaction && (
-                <div key={reaction.key} className="absolute left-1/2 -translate-x-1/2 top-3 z-10 max-w-[230px] text-center bg-slate-100 text-slate-900 text-xs font-medium px-3 py-2 rounded-lg shadow-lg fm-toast">
-                  {reaction.text}
-                </div>
-              )}
-              <button type="button" onClick={onPortraitTap} aria-label={`${state.first} — tap for a word`}
-                className={`absolute left-1/2 bottom-0 -translate-x-1/2 ${pose === 'idle' && !reduceMotion ? 'fm-hb-bob' : ''}`}>
-                <TruckerSVG look={state.look} mood={derived.mood} pose={pose} size={150} />
-              </button>
-            </div>
-            <div className="p-4 sm:p-5 border-t border-slate-800/80 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <HBNeedBar label="Coffee" icon={<Coffee size={11} />} value={derived.levels.coffee} />
-                <HBNeedBar label="Rest" icon={<BedDouble size={11} />} value={derived.levels.rest} />
-                <HBNeedBar label="Company" icon={<Radio size={11} />} value={derived.levels.company} />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <button type="button" onClick={onCoffee} className="fm-press flex flex-col items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 py-3 text-[11px] sm:text-xs font-semibold text-slate-200 transition-colors">
-                  <Coffee size={20} className="text-amber-400" /> Pour Coffee
-                </button>
-                <button type="button" onClick={onRest} className="fm-press flex flex-col items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 py-3 text-[11px] sm:text-xs font-semibold text-slate-200 transition-colors">
-                  <BedDouble size={20} className="text-blue-400" /> Send to Bunk
-                </button>
-                <button type="button" onClick={onCB} className="fm-press flex flex-col items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 py-3 text-[11px] sm:text-xs font-semibold text-slate-200 transition-colors">
-                  <Radio size={20} className="text-emerald-400" /> Key the CB
-                </button>
-              </div>
-            </div>
-          </Card>
+      <Card className="overflow-hidden p-0">
+        <HaulBuddyDiorama
+          theme={theme}
+          reduceMotion={reduceMotion}
+          state={state}
+          derived={derived}
+          activity={activity}
+          reaction={reaction}
+          sleeping={sleeping}
+          forcedPose={forcedPose}
+          onTapRig={onTapRig}
+          onTapCoffee={onTapCoffee}
+          onTapCB={onTapCB}
+          onTapCones={onTapCones}
+          onTapSelf={onTapSelf}
+        />
+      </Card>
 
-          <Card className="p-4 sm:p-5">
-            <PanelHeader icon={<Award size={18} />} title="Patch Board" accent="amber" />
-            <div className="mt-3"><HBPatchBoard patches={state.patches} /></div>
-          </Card>
-        </React.Fragment>
+      {derived.mood === 'gone' && <HaulBuddyQuitNote state={state} onHire={hireNew} />}
+
+      {derived.mood !== 'gone' && (
+        <Card className="p-4 sm:p-5">
+          <PanelHeader icon={<Award size={18} />} title="Patch Board" accent="amber" />
+          <div className="mt-3"><HBPatchBoard patches={state.patches} /></div>
+        </Card>
       )}
 
       <Card className="p-4 sm:p-5">
@@ -10830,25 +11137,32 @@ function HaulBuddyPage({ onBack }) {
   );
 }
 
-// The hub teaser — his face, name, and mood at a glance. Tapping it opens
-// the dedicated page. Deliberately small: a single row, not a game panel,
-// so the Break Room hub stays uncluttered.
+// The hub teaser — a static snapshot (name + mood + a hint of the yard),
+// deliberately NOT a live glimpse: he already gets a full living diorama
+// one tap away, and running that behavior loop before anyone has even
+// opened his page would mean a background timer chain ticking every time
+// someone's just bouncing between Night Run and Freight Five. Small, cheap,
+// still charming.
 function HaulBuddyTeaserCard({ onOpen }) {
   const [state] = useState(() => loadHBState());
+  const [theme] = useTheme();
   const derived = computeHBDerived(state);
   const gone = derived.mood === 'gone';
   const meta = HB_MOOD_META[derived.mood];
+  const night = theme !== 'classic';
   return (
     <button type="button" onClick={onOpen} className="w-full text-left bg-slate-900/60 border border-slate-800/80 rounded-md shadow-e1 hover:border-amber-500/40 transition-colors p-4 flex items-center gap-4">
-      <div className="shrink-0 -my-2 w-16 h-16 flex items-center justify-center">
-        {gone ? <StickyNote size={28} className="text-slate-500" /> : <TruckerSVG look={state.look} mood={derived.mood} size={64} />}
+      <div className="shrink-0 w-16 h-16 rounded-md overflow-hidden relative" style={{ background: night ? 'linear-gradient(180deg,#14110c 55%,#211a12 100%)' : 'linear-gradient(180deg,#bae6fd 55%,#c9a876 100%)' }}>
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-center pb-0.5">
+          {gone ? <StickyNote size={22} className="text-slate-400" /> : <TruckerSVG look={state.look} mood={derived.mood} size={54} />}
+        </div>
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-white truncate">{gone ? 'The cab is empty' : `${state.first} "${state.handle}"`}</span>
+          <span className="font-bold text-white truncate">{gone ? 'The yard is quiet' : `${state.first} "${state.handle}"`}</span>
           <Badge tone={meta.tone} className="font-normal">{meta.label}</Badge>
         </div>
-        <p className="text-xs text-slate-500 mt-0.5">{gone ? 'He left a note. The hiring board is open.' : `${(state.miles || 0).toLocaleString()} mi logged · your Haul Buddy`}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{gone ? 'He left a note. The hiring board is open.' : `${(state.miles || 0).toLocaleString()} mi logged · watch him live in his yard`}</p>
       </div>
       <ChevronRight size={18} className="text-slate-600 shrink-0" />
     </button>
