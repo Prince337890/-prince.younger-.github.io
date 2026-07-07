@@ -3,7 +3,8 @@ import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
   MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search, Moon,
-  Gamepad2, Trophy, Pause, Play, RotateCcw, Fuel
+  Gamepad2, Trophy, Pause, Play, RotateCcw, Fuel, Target, Flame, Share2, Delete,
+  NotebookPen, ChevronDown
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -1740,6 +1741,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
           <p className="text-slate-400 text-sm mt-0.5">Here’s your deal desk. Let’s move some freight.</p>
         </div>
       )}
+      {isAdmin && <MyCornerStrip />}
       {isAdmin && <AdminGettingStarted onNavigate={onNavigate} />}
       {isAdmin && <AdminWeeklyGross />}
       {isAdmin && <MarketPulse />}
@@ -1797,6 +1799,11 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
           <span className="text-xs text-slate-500">Your dispatcher sees this when matching you to loads.</span>
         </Card>
       )}
+
+      {/* Skipped during an admin's "View As" session (displayName is only
+          passed in that case) — this is the signed-in person's own private
+          corner, never the carrier being viewed. */}
+      {!isAdmin && !displayName && <MyCornerStrip />}
 
       <QuoteOfTheDay forDispatcher={isAdmin} />
 
@@ -1872,6 +1879,115 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
         </div>
       )}
     </div>
+  );
+}
+
+// ---------- DASHBOARD: "MY CORNER" (private notepad + weekly goal) ----------
+// Deliberately quiet and personal — not a work widget. Always keyed off the
+// ACTUAL signed-in user (auth.currentUser), never a `uid` prop, so it can
+// never be pulled up under an admin's "View As" impersonation of a carrier.
+// Self-write only, to the caller's own users/{uid} doc, and the payload is
+// scoped to exactly one field (`myCorner`) — role/orgId/approved are never
+// touched by this component.
+function MyCornerStrip() {
+  const u = auth.currentUser;
+  const uid = u && u.uid;
+
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem('fm_mycorner_collapsed') !== '1'; } catch (_) { return true; }
+  });
+  const [notes, setNotes] = useState('');
+  const [goal, setGoal] = useState('');
+  const [goalDone, setGoalDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!uid) return;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        const mc = snap.exists() ? snap.data().myCorner : null;
+        if (mc) {
+          setNotes(mc.notes || '');
+          setGoal(mc.goal || '');
+          setGoalDone(!!mc.goalDone);
+        }
+      } catch (e) { console.error('My Corner load failed', e); }
+    })();
+  }, [uid]);
+
+  const toggleOpen = () => {
+    setOpen((o) => {
+      const next = !o;
+      try { localStorage.setItem('fm_mycorner_collapsed', next ? '0' : '1'); } catch (_) {}
+      return next;
+    });
+  };
+
+  const save = async () => {
+    if (!uid || saving) return;
+    setSaving(true);
+    try {
+      // Self-write, own doc, exactly one field — never role/orgId/approved.
+      await setDoc(doc(db, 'users', uid), { myCorner: { notes, goal, goalDone, updatedAt: serverTimestamp() } }, { merge: true });
+      toast('Saved ✓', 'success');
+    } catch (e) {
+      console.error('My Corner save failed', e);
+      toast('Could not save — try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!uid) return null;
+
+  return (
+    <Card className="p-0 overflow-hidden border-slate-800/70">
+      <button type="button" onClick={toggleOpen} className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <NotebookPen size={16} className="text-slate-500 shrink-0" />
+          <span className="text-sm font-semibold text-slate-300">My Corner</span>
+          <span className="text-[11px] text-slate-600 hidden sm:inline truncate">Just for you — not visible to your team</span>
+        </div>
+        <ChevronDown size={16} className={`text-slate-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-5 pb-5 pt-1 border-t border-slate-800/70">
+          <p className="text-[11px] text-slate-600 mb-3 sm:hidden">Just for you — not visible to your team.</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="Private notes">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Anything worth remembering — a reminder, a thought, a number to check later…"
+                className={`${INPUT_CLS} resize-none`}
+              />
+            </Field>
+            <Field label="This week's goal">
+              <input
+                type="text"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                placeholder="e.g. Hit 2,500 miles, or just get home rested."
+                className={INPUT_CLS}
+              />
+              <button
+                type="button"
+                onClick={() => setGoalDone((d) => !d)}
+                className={`mt-2 inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${goalDone ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'}`}
+              >
+                <CheckCircle2 size={13} />
+                {goalDone ? 'Marked done' : 'Mark done'}
+              </button>
+            </Field>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <PrimaryButton onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</PrimaryButton>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -8424,6 +8540,7 @@ function WalkthroughView() {
 // paste cleanly. Visible to every signed-in user, both roles.
 
 const NIGHTRUN_SCORES_KEY = 'fm_nightrun_scores';
+const NIGHTRUN_INITIALS_KEY = 'fm_nightrun_initials';
 const NIGHTRUN_MAX_SCORES = 10;
 
 function loadNightRunScores() {
@@ -8499,8 +8616,13 @@ function NightRunGame() {
   const [finalScore, setFinalScore] = useState(0);
   const [best, setBest] = useState(0);
   const [scores, setScores] = useState(() => loadNightRunScores());
-  const [initials, setInitials] = useState('');
+  const [initials, setInitials] = useState(() => {
+    try { return (localStorage.getItem(NIGHTRUN_INITIALS_KEY) || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); }
+    catch (_) { return ''; }
+  });
   const [justRank, setJustRank] = useState(null);
+  const [qualifies, setQualifies] = useState(false); // does this run's score even crack the local top 10?
+  const [skipped, setSkipped] = useState(false);      // player chose not to save a qualifying score
 
   // ---- simulation state (refs — no re-render on write) ----
   const sizeRef = useRef({ w: 360, h: 480 });
@@ -8597,7 +8719,10 @@ function NightRunGame() {
     scoreTickRef.current = 0;
     setDisplayScore(0);
     setJustRank(null);
-    setInitials('');
+    setQualifies(false);
+    setSkipped(false);
+    // initials field intentionally NOT reset — it stays prefilled with the
+    // last-used (or last-typed) value across runs in the same session.
     setGameState('playing');
   };
 
@@ -8610,6 +8735,9 @@ function NightRunGame() {
   const finalizeGameOver = () => {
     const s = Math.floor(scoreRef.current);
     setFinalScore(s);
+    // Only worth an initials prompt if it actually cracks the local top 10.
+    const worst = scores.length >= NIGHTRUN_MAX_SCORES ? scores[NIGHTRUN_MAX_SCORES - 1].score : -1;
+    setQualifies(s > 0 && (scores.length < NIGHTRUN_MAX_SCORES || s > worst));
     setGameState('gameover');
   };
 
@@ -8915,9 +9043,18 @@ function NightRunGame() {
   const submitScore = (e) => {
     e.preventDefault();
     const chars = (initials || 'YOU').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'YOU';
+    try { localStorage.setItem(NIGHTRUN_INITIALS_KEY, chars); } catch (_) {}
     const { list, rank } = saveNightRunScore(chars, finalScore);
     setScores(list);
     setJustRank(rank);
+  };
+
+  const skipScore = () => setSkipped(true);
+
+  const resetScores = () => {
+    if (!window.confirm('Clear all Night Run high scores on this device?')) return;
+    try { localStorage.removeItem(NIGHTRUN_SCORES_KEY); } catch (_) {}
+    setScores([]);
   };
 
   const playAgain = () => startGame();
@@ -8979,8 +9116,19 @@ function NightRunGame() {
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-slate-950/88 backdrop-blur-sm text-center px-6">
               <Badge tone="red" className="font-bold tracking-widest">RUN OVER</Badge>
               <div className="font-data text-2xl font-bold text-white">{finalScore.toLocaleString()}</div>
-              {justRank === null ? (
+              {!qualifies ? (
+                <>
+                  <p className="text-xs text-slate-500">{finalScore > 0 ? "Didn't crack the local top 10 this time." : 'No score this run.'}</p>
+                  <GhostButton onClick={playAgain} className="mt-1"><RotateCcw size={14} /> Run Again</GhostButton>
+                </>
+              ) : skipped ? (
+                <>
+                  <p className="text-xs text-slate-500">Score not saved.</p>
+                  <GhostButton onClick={playAgain} className="mt-1"><RotateCcw size={14} /> Run Again</GhostButton>
+                </>
+              ) : justRank === null ? (
                 <form onSubmit={submitScore} className="flex flex-col items-center gap-2 mt-1">
+                  <p className="text-[11px] text-amber-400 font-semibold">Top 10 on this device — nice run.</p>
                   <label className="text-[11px] text-slate-400">Enter your initials</label>
                   <input
                     autoFocus
@@ -8990,7 +9138,10 @@ function NightRunGame() {
                     placeholder="YOU"
                     className={`${INPUT_CLS} w-24 text-center text-lg font-data font-bold tracking-[0.3em] uppercase py-2`}
                   />
-                  <PrimaryButton type="submit" className="mt-1">Save Score</PrimaryButton>
+                  <div className="flex items-center gap-2 mt-1">
+                    <PrimaryButton type="submit">Save Score</PrimaryButton>
+                    <GhostButton type="button" onClick={skipScore}>Skip</GhostButton>
+                  </div>
                 </form>
               ) : (
                 <>
@@ -9009,7 +9160,14 @@ function NightRunGame() {
       </div>
 
       <Card className="p-5">
-        <PanelHeader icon={<Trophy size={18} />} title="Local High Scores" accent="amber" />
+        <PanelHeader
+          icon={<Trophy size={18} />}
+          title="Local High Scores"
+          accent="amber"
+          action={scores.length > 0 ? (
+            <button onClick={resetScores} className="text-[11px] text-slate-600 hover:text-red-400 transition-colors">Reset scores</button>
+          ) : null}
+        />
         {scores.length === 0 ? (
           <p className="text-sm text-slate-500 mt-3">No runs yet — be the first name on the board.</p>
         ) : (
@@ -9034,12 +9192,478 @@ function NightRunGame() {
   );
 }
 
+// ---------- BREAK ROOM: "FREIGHT FIVE" (daily word puzzle, v1 — no Firestore) ----------
+// Same local-first design as Night Run: today's puzzle, guesses, and stats
+// all live in localStorage — zero new Firestore collections or rules. One
+// curated freight/trucking/logistics word a day, with a one-line "why it
+// matters in dispatch" note that unlocks once the puzzle ends — the
+// educational payoff behind the game.
+
+const FF_STATE_KEY = 'fm_freightfive';
+const FF_STATS_KEY = 'fm_freightfive_stats';
+const FF_MAX_GUESSES = 6;
+const FF_WORD_LEN = 5;
+
+// Curated word bank — every entry is a real, dictionary-valid, exactly-5-letter
+// freight/trucking/logistics term (verified with a node one-liner, not just by
+// eye — see the Phase 2 handoff notes). [WORD, "why it matters in dispatch"].
+const FREIGHT_FIVE_WORDS = [
+  ['CARGO', "The freight itself — what you're actually getting paid to move."],
+  ['LADEN', 'A laden truck is loaded and running heavy, not deadheading empty.'],
+  ['ROUTE', 'The path from pickup to delivery — plan it before you roll.'],
+  ['MILES', "Rate per mile (RPM) is the number every driver does math on."],
+  ['TRUCK', 'The whole business runs on wheels — no truck, no freight.'],
+  ['CRATE', 'Sturdy freight packaging — count the crates before you sign.'],
+  ['FLEET', 'Every truck under one operation, big or small.'],
+  ['AUDIT', 'A freight bill audit catches shortpays before they cost you.'],
+  ['BULKY', 'Oversized, awkward freight that needs extra care to load.'],
+  ['AXLES', 'More axles, more weight allowed — know your configuration.'],
+  ['BRAKE', 'Air brakes get a hard look at every pre-trip inspection.'],
+  ['CABIN', "Where the driver lives on the road — keep it road-ready."],
+  ['CHAIN', 'Tire chains in winter, or the supply chain you\'re a link in.'],
+  ['CLAIM', 'File it fast when freight arrives damaged — paper trail matters.'],
+  ['DEPOT', 'A hub where freight or equipment gets staged.'],
+  ['DELAY', 'Weather, traffic, or a late dock — the enemy of on-time delivery.'],
+  ['DECAL', 'DOT numbers go on the door — required, not optional.'],
+  ['DOLLY', 'Converts a set of doubles — or just rolls freight across a dock.'],
+  ['DOCKS', 'Where the trailer backs in and the real work begins.'],
+  ['DRAYS', 'Short drayage hauls, usually port-to-warehouse.'],
+  ['DRIVE', "Hours of service caps how long you can legally drive."],
+  ['EMPTY', 'Running empty (deadhead) earns nothing — avoid it when you can.'],
+  ['FLOOR', "Your rate floor is the lowest number you'll say yes to."],
+  ['FUELS', 'Diesel prices move the whole cost equation.'],
+  ['GAUGE', 'Watch the fuel gauge — running dry on the interstate is a bad day.'],
+  ['GRADE', 'A steep mountain grade demands a downshift, not the brakes alone.'],
+  ['GROSS', 'Gross pay before the dispatch fee and expenses come out.'],
+  ['HAULS', 'What a carrier does for a living — hauls freight, plain and simple.'],
+  ['HITCH', 'The connection point between tractor and trailer — inspect it.'],
+  ['IDLES', 'An idling engine burns fuel for nothing — shut it down when you can.'],
+  ['LANES', 'Your preferred lanes are the freight you actually want.'],
+  ['LEASE', 'Owner-operators often lease their truck instead of buying outright.'],
+  ['LOADS', 'The whole job in one word — book them, haul them, get paid.'],
+  ['MOTOR', "The engine — keep it maintained or it keeps you parked."],
+  ['ORDER', 'A purchase order backs up the rate you agreed to.'],
+  ['PIECE', 'Piece count on the BOL should match what\'s actually on the truck.'],
+  ['QUOTA', 'A weekly load quota keeps revenue predictable.'],
+  ['STACK', "Stack it right or it shifts — and shifted freight is a safety risk."],
+  ['STORE', 'Freight sits in storage before it ever sees a truck.'],
+  ['TRACK', 'GPS tracking tells the broker exactly where the load is.'],
+  ['TRADE', 'A trade lane you run often builds relationships on both ends.'],
+  ['TREND', 'Watch the rate trend before you commit to a long lane.'],
+  ['VALUE', 'Declared cargo value determines how much insurance actually covers.'],
+  ['YIELD', 'Yield the right of way — and think about yield per mile too.'],
+  ['AGENT', "A broker's agent is who you actually negotiate with."],
+  ['CLERK', 'The dock clerk signs off on what came off your trailer.'],
+  ['OWNER', 'An owner-operator owns the truck and runs the business.'],
+  ['STAFF', 'Dispatch staff keep the whole operation moving.'],
+  ['BILLS', 'The bill of lading is the single most important paper on the truck.'],
+  ['DRAFT', "A fuel advance draft gets wired before you've even delivered."],
+  ['FUNDS', "Factoring turns an invoice into funds in your account today."],
+  ['LEGAL', 'Legal weight limits vary by state — know before you cross the line.'],
+  ['NOTES', 'Dispatch notes on a load can save you from a bad surprise at the dock.'],
+  ['QUOTE', 'A rate quote is the opening move in every negotiation.'],
+  ['RATES', 'What the market will pay, lane by lane, day by day.'],
+  ['SPLIT', 'Team drivers split the miles — and the paycheck.'],
+  ['TERMS', 'Net 30 payment terms mean you wait a month unless you factor.'],
+  ['TOTAL', 'The total on the rate confirmation better match what you agreed to.'],
+  ['WAIVE', 'Some brokers waive the quick-pay fee for good carriers.'],
+  ['PRICE', 'The price of a load moves with fuel, weather, and demand.'],
+  ['FORKS', 'Forklift forks load and unload pallets at the dock.'],
+  ['HOSES', "Air hoses connect the tractor's brakes to the trailer's."],
+  ['PLATE', 'Your license plate is checked at every weigh station.'],
+  ['RADIO', 'CB radio still warns you about traffic and scales up ahead.'],
+  ['SPARE', 'A spare tire (and knowing how to change it) saves a roadside call.'],
+  ['TANKS', 'Fuel tanks on a Class 8 truck can hold well over 100 gallons each.'],
+  ['TIRES', 'Tire pressure and tread depth are checked at every DOT inspection.'],
+  ['TREAD', 'Bald tread on a steer tire is an out-of-service violation.'],
+  ['WHEEL', 'Behind the wheel is where the job actually happens.'],
+  ['WIPER', "A working wiper blade matters more than you'd think in a storm."],
+  ['VALVE', 'A stuck relief valve can shut your brakes down fast.'],
+  ['GEARS', 'Ten, thirteen, eighteen — knowing your gears matters on a grade.'],
+  ['ROADS', 'Not every road is legal for an oversized load — check first.'],
+  ['SCALE', "A CAT scale confirms you're legal before the state does it for you."],
+  ['SHOPS', 'A good repair shop on your route can save a whole day.'],
+  ['SPOTS', "Safe parking spots are scarce — plan your stop, don't just find one."],
+  ['STATE', 'Cross a state line and the permit rules can change completely.'],
+  ['YARDS', 'A truck yard is where equipment sits between loads.'],
+  ['ZONES', 'Delivery time zones matter more than you\'d think on a coast run.'],
+  ['CURVE', 'A sharp curve at highway speed is where rollovers happen.'],
+  ['NORTH', "Northbound freight doesn't always pay the same as southbound."],
+  ['SOUTH', 'Southbound lanes often soften in the off-season — know the pattern.'],
+  ['COAST', 'East Coast to West Coast is one of the longest hauls in the business.'],
+  ['STORM', 'A storm system can shut down an entire interstate corridor.'],
+  ['WINDS', 'High wind advisories are serious business for a high-profile trailer.'],
+  ['FROST', "Black ice from an overnight frost is invisible until it isn't."],
+  ['SLEET', 'Sleet turns a normal stop into a slow, careful one.'],
+  ['SMOKE', 'Wildfire smoke can close a route almost as fast as a flood.'],
+  ['FLOOD', 'A flooded route means a detour — and a later delivery.'],
+  ['BELTS', "Seatbelts aren't optional — DOT and common sense agree."],
+  ['ALARM', "A backup alarm warns everyone on the dock you're reversing."],
+  ['ALERT', 'A safety alert from your carrier can change your whole route.'],
+  ['CHECK', 'A thorough pre-trip check catches problems before the highway does.'],
+  ['GUARD', 'A cargo guard keeps a shifted load from flying into the cab.'],
+  ['LIMIT', 'Weight limits, speed limits — the two numbers that follow you all day.'],
+  ['RESET', 'A 34-hour restart resets your weekly drive-time clock.'],
+  ['SLEEP', 'The sleeper berth is where the hours-of-service clock lets you rest.'],
+  ['SPEED', 'Speed limits for trucks are sometimes lower than for cars.'],
+  ['STOPS', 'Planned stops beat scrambling for parking at 11pm.'],
+  ['TIRED', 'A tired driver is the single biggest risk on the road — pull over.'],
+  ['WEIGH', 'Every truck rolls through a weigh station sooner or later.'],
+  ['FLARE', 'A road flare kit is part of every roadside emergency setup.'],
+  ['CONES', 'Safety cones around a breakdown buy you time and visibility.'],
+  ['CLOCK', 'Hours of service runs on a strict clock — know where you stand.'],
+  ['PANEL', "The dash panel's warning lights are trying to tell you something."],
+  ['PHONE', 'Half of dispatch happens over the phone before it ever hits an app.'],
+  ['PRINT', 'Print the BOL before you leave the shipper, just in case.'],
+  ['RADAR', "What a trooper points at your bumper — know your limit."],
+  ['SCANS', 'A quick scan of the signed POD gets you paid faster.'],
+  ['SETUP', 'A carrier setup packet is the paperwork every new broker wants first.'],
+  ['TOLLS', 'Toll roads cut time but cut into the margin too.'],
+  ['RANGE', 'Fuel range planning keeps you from coasting in on fumes.'],
+  ['BOXES', 'Palletized boxes move faster through a dock than loose freight.'],
+  ['DRUMS', 'Hazmat drums need the right placards and the right paperwork.'],
+  ['SKIDS', "Skids is just trucker-speak for pallets."],
+  ['HOIST', "A hoist does the heavy lifting a person's back shouldn't."],
+  ['RAMPS', 'Loading ramps let a forklift roll straight into the trailer.'],
+  ['BERTH', 'A dock berth is the exact bay your trailer backs into.'],
+  ['QUEUE', 'A long dock queue can eat your whole appointment window.'],
+  ['SLOTS', 'Delivery slots at a big-box DC book up fast — don\'t be late.'],
+  ['BONDS', "A surety bond protects shippers if a broker doesn't pay out."],
+  ['TARPS', "Flatbed freight isn't legal to run without the right tarps."],
+  ['STRAP', "A tie-down strap failing mid-highway is every flatbed driver's nightmare."],
+  ['UNITS', 'More units in the fleet means more freight the dispatcher can move.'],
+  ['SEMIS', "Semis, tractors, rigs — same truck, different name."],
+  ['DECKS', 'A step-deck lowers the deck height for taller freight.'],
+  ['SEALS', 'A broken security seal on arrival is a claim waiting to happen.'],
+  ['LOCKS', 'A cargo lock is cheap insurance against a break-in at a truck stop.'],
+  ['SHIFT', 'A night shift driver keeps freight moving while the world sleeps.'],
+  ['BREAK', 'Mark yourself On Break and dispatch knows not to call — yet.'],
+  ['HOURS', "Hours of service is the rulebook every driver's day runs on."],
+  ['POUND', 'Weight limits are measured right down to the pound at some scales.'],
+  ['TONNE', 'Cross-border freight often gets weighed out in tonnes, not pounds.'],
+  ['CUBIC', 'Cubic capacity matters as much as weight for a bulky, light load.'],
+  ['METER', "The odometer's not just for mileage pay — it's proof of the route."],
+  ['RURAL', 'Rural delivery routes trade traffic for tighter roads.'],
+  ['URBAN', 'Urban deliveries mean tight docks, tow zones, and patience.'],
+  ['METRO', 'A metro-area run is short miles but long minutes in traffic.'],
+  ['FINES', 'DOT fines for a blown inspection add up fast — keep the truck clean.'],
+  ['SCORE', "Your carrier's CSA score follows you into every broker's decision."],
+  ['CROSS', 'Cross-docking moves freight from inbound to outbound without a shelf.'],
+  ['TRAIL', 'A paper trail on every load protects you if a payment dispute comes up.'],
+  ['SHEET', 'A rate sheet gives you a starting point before you pick up the phone.'],
+  ['TIMES', "Appointment times at a DC are rarely flexible — plan your ETA."],
+  ['WATCH', 'Keep a watch on the weather radar before you commit to a route.'],
+  ['NIGHT', 'Night runs mean lighter traffic — and headlights doing all the work.'],
+  ['LIGHT', 'A lighter load still needs to be secured just as tight as a heavy one.'],
+  ['TRACE', "A trace number ties a factored invoice back to the exact wire it produced."],
+  ['STAGE', "Staged freight is ready and waiting the moment your trailer backs in."],
+  ['FIRST', "First come, first served is how a lot of live-load docks actually work."],
+  ['FINAL', 'The final mile is often the slowest, most expensive part of the trip.'],
+  ['WORTH', "Know what your lane is worth before a broker tells you what it's worth."],
+  ['EARLY', 'Some docks charge you for showing up ahead of your appointment.'],
+  ['LATER', 'A later pickup can still make an on-time delivery if the math works.'],
+  ['FAULT', 'Figuring out fault on a damaged shipment is half of every freight claim.'],
+];
+
+// Deterministic "today" bits — local calendar date, computed from Y/M/D
+// components (not raw epoch ms) so a DST transition never causes an
+// off-by-one day. NEVER uses Math.random for puzzle selection.
+function ffLocalDateStr(d = new Date()) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function ffDayNumber(d = new Date()) {
+  const start = new Date(2026, 0, 1); // local Jan 1, 2026 = Puzzle #1
+  const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const b = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  return Math.max(1, Math.round((a - b) / 86400000) + 1);
+}
+function ffYesterday(dateStr) {
+  const [y, m, day] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, day);
+  dt.setDate(dt.getDate() - 1);
+  return ffLocalDateStr(dt);
+}
+
+function loadFFState() {
+  const today = ffLocalDateStr();
+  try {
+    const raw = JSON.parse(localStorage.getItem(FF_STATE_KEY) || 'null');
+    if (raw && raw.date === today && Array.isArray(raw.guesses)) return raw;
+  } catch (_) { /* fall through to a fresh board */ }
+  return { date: today, guesses: [], done: false, won: false };
+}
+function saveFFState(state) {
+  try { localStorage.setItem(FF_STATE_KEY, JSON.stringify(state)); } catch (_) {}
+}
+function loadFFStats() {
+  const fallback = { played: 0, won: 0, currentStreak: 0, maxStreak: 0, lastPlayedDate: null };
+  try {
+    const raw = JSON.parse(localStorage.getItem(FF_STATS_KEY) || 'null');
+    if (raw && typeof raw === 'object') return { ...fallback, ...raw };
+  } catch (_) {}
+  return fallback;
+}
+function saveFFStats(stats) {
+  try { localStorage.setItem(FF_STATS_KEY, JSON.stringify(stats)); } catch (_) {}
+}
+
+// Standard Wordle-style scoring with correct duplicate-letter handling:
+// exact-position matches are claimed first, then leftover letters are
+// matched against whatever target letters aren't already claimed.
+function evaluateGuess(guess, target) {
+  const res = new Array(FF_WORD_LEN).fill('absent');
+  const t = target.split('');
+  const g = guess.split('');
+  const used = new Array(FF_WORD_LEN).fill(false);
+  for (let i = 0; i < FF_WORD_LEN; i++) {
+    if (g[i] === t[i]) { res[i] = 'correct'; used[i] = true; }
+  }
+  for (let i = 0; i < FF_WORD_LEN; i++) {
+    if (res[i] === 'correct') continue;
+    const idx = t.findIndex((ch, j) => ch === g[i] && !used[j]);
+    if (idx !== -1) { res[i] = 'present'; used[idx] = true; }
+  }
+  return res;
+}
+// Best-status-per-letter across every guess so far, for the on-screen keyboard.
+function ffKeyboardStatuses(guesses, target) {
+  const rank = { absent: 0, present: 1, correct: 2 };
+  const map = {};
+  guesses.forEach((g) => {
+    const res = evaluateGuess(g, target);
+    g.split('').forEach((ch, i) => {
+      if (!map[ch] || rank[res[i]] > rank[map[ch]]) map[ch] = res[i];
+    });
+  });
+  return map;
+}
+
+const FF_KEY_ROWS = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+  ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACK'],
+];
+
+function FreightFiveGame() {
+  // The day number (and therefore the target word) is fixed for the life of
+  // this mount — a fresh mount past midnight naturally picks up the new day.
+  const dayNum = React.useMemo(() => ffDayNumber(), []);
+  const puzzle = FREIGHT_FIVE_WORDS[(dayNum - 1) % FREIGHT_FIVE_WORDS.length];
+  const target = puzzle[0];
+  const clue = puzzle[1];
+
+  const [state, setState] = useState(() => loadFFState());
+  const [stats, setStats] = useState(() => loadFFStats());
+  const [current, setCurrent] = useState('');
+  const [shakeRow, setShakeRow] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+  useEffect(() => { saveFFState(state); }, [state]);
+
+  const timeoutsRef = useRef([]);
+  useEffect(() => () => { timeoutsRef.current.forEach(clearTimeout); }, []);
+
+  const done = state.done;
+
+  const flashMessage = (msg) => {
+    setMessage(msg);
+    setShakeRow(true);
+    timeoutsRef.current.push(setTimeout(() => setShakeRow(false), 350));
+    timeoutsRef.current.push(setTimeout(() => setMessage(''), 1400));
+  };
+
+  // Records today's result exactly once, even if this component remounts —
+  // guarded on stats.lastPlayedDate rather than any in-memory flag.
+  const commitStats = (won) => {
+    setStats((prev) => {
+      const today = ffLocalDateStr();
+      if (prev.lastPlayedDate === today) return prev;
+      const yest = ffYesterday(today);
+      const nextStreak = won ? (prev.lastPlayedDate === yest ? prev.currentStreak + 1 : 1) : 0;
+      const next = {
+        played: prev.played + 1,
+        won: prev.won + (won ? 1 : 0),
+        currentStreak: nextStreak,
+        maxStreak: Math.max(prev.maxStreak, nextStreak),
+        lastPlayedDate: today,
+      };
+      saveFFStats(next);
+      return next;
+    });
+  };
+
+  const applyGuess = (guess) => {
+    const s = stateRef.current;
+    if (s.done) return;
+    const guesses = [...s.guesses, guess];
+    const won = guess === target;
+    const nextDone = won || guesses.length >= FF_MAX_GUESSES;
+    setState({ ...s, guesses, done: nextDone, won });
+    if (nextDone) commitStats(won);
+  };
+
+  // ---- input: on-screen keys call this directly; the physical listener
+  // (below) routes through it too, so there's exactly one code path. ----
+  const onKey = (key) => {
+    if (stateRef.current.done) return;
+    if (key === 'BACK') { setCurrent((c) => c.slice(0, -1)); return; }
+    if (key === 'ENTER') {
+      setCurrent((c) => {
+        if (c.length !== FF_WORD_LEN) { flashMessage(`Need ${FF_WORD_LEN} letters`); return c; }
+        applyGuess(c.toUpperCase());
+        return '';
+      });
+      return;
+    }
+    if (/^[A-Z]$/.test(key)) setCurrent((c) => (c.length < FF_WORD_LEN ? c + key : c));
+  };
+
+  // ---- keyboard: gated exactly like Night Run — only attached while this
+  // puzzle isn't finished, always ignoring a focused real form field, and
+  // never touching a modifier combo (so Ctrl/Cmd+K reaches the command
+  // palette untouched). Removed the instant the puzzle is done or unmounts. ----
+  useEffect(() => {
+    if (done) return;
+    const onKeyDown = (e) => {
+      const ae = document.activeElement;
+      if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Enter') { e.preventDefault(); onKey('ENTER'); return; }
+      if (e.key === 'Backspace') { e.preventDefault(); onKey('BACK'); return; }
+      if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); onKey(e.key.toUpperCase()); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [done]);
+
+  const keyStatuses = React.useMemo(() => ffKeyboardStatuses(state.guesses, target), [state.guesses, target]);
+
+  const shareText = React.useMemo(() => {
+    const rows = state.guesses.map((g) => evaluateGuess(g, target).map((r) => (r === 'correct' ? '🟩' : r === 'present' ? '🟨' : '⬛')).join(''));
+    const tries = state.won ? state.guesses.length : 'X';
+    return `Freight Five #${dayNum} ${tries}/${FF_MAX_GUESSES}\n\n${rows.join('\n')}`;
+  }, [state.guesses, state.won, target, dayNum]);
+
+  const copyResult = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      toast('Result copied to clipboard', 'success');
+    } catch (_) {
+      toast('Could not copy — select and copy manually.', 'error');
+    }
+  };
+
+  const tileCls = (status) => {
+    if (status === 'correct') return 'bg-emerald-600 border-emerald-500 text-white';
+    if (status === 'present') return 'bg-amber-500 border-amber-400 text-slate-950';
+    if (status === 'absent') return 'bg-slate-700/70 border-slate-600 text-slate-300';
+    return 'border-slate-700 text-slate-100';
+  };
+  const keyCls = (status) => {
+    if (status === 'correct') return 'bg-emerald-600 text-white';
+    if (status === 'present') return 'bg-amber-500 text-slate-950';
+    if (status === 'absent') return 'bg-slate-800/70 text-slate-500';
+    return 'bg-slate-700 text-slate-100 hover:bg-slate-600';
+  };
+
+  const rows = Array.from({ length: FF_MAX_GUESSES }, (_, i) => {
+    if (i < state.guesses.length) return { letters: state.guesses[i].split(''), statuses: evaluateGuess(state.guesses[i], target) };
+    if (i === state.guesses.length) return { letters: current.split(''), statuses: null, active: true };
+    return { letters: [], statuses: null };
+  });
+
+  const winPct = stats.played > 0 ? Math.round((stats.won / stats.played) * 100) : 0;
+
+  return (
+    <Card className="p-5">
+      <PanelHeader
+        icon={<Target size={18} />}
+        title="Freight Five"
+        accent="emerald"
+        badge={<Badge tone="slate" className="font-normal">#{dayNum}</Badge>}
+        action={stats.currentStreak > 0 ? (
+          <span className="flex items-center gap-1 text-xs font-semibold text-amber-400"><Flame size={14} /> {stats.currentStreak}</span>
+        ) : null}
+      />
+      <p className="text-xs text-slate-400 -mt-2 mb-4">One freight word a day, six guesses. New word at midnight.</p>
+
+      <div className="relative">
+        {message && (
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-10 bg-slate-100 text-slate-900 text-xs font-semibold px-3 py-1.5 rounded shadow-lg whitespace-nowrap">
+            {message}
+          </div>
+        )}
+        <div className={`grid grid-rows-6 gap-1.5 max-w-[280px] mx-auto ${shakeRow ? 'fm-ff-shake' : ''}`}>
+          {rows.map((row, ri) => (
+            <div key={ri} className="grid grid-cols-5 gap-1.5">
+              {Array.from({ length: FF_WORD_LEN }, (_, ci) => {
+                const letter = row.letters[ci] || '';
+                const status = row.statuses ? row.statuses[ci] : null;
+                return (
+                  <div
+                    key={ci}
+                    className={`aspect-square rounded-sm border-2 flex items-center justify-center font-data font-bold text-lg uppercase select-none transition-colors ${tileCls(status)} ${row.active && letter ? 'border-slate-400' : ''}`}
+                  >
+                    {letter}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {!done ? (
+        <div className="mt-5 space-y-1.5" aria-hidden={false}>
+          {FF_KEY_ROWS.map((row, ri) => (
+            <div key={ri} className="flex justify-center gap-1">
+              {row.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => onKey(k)}
+                  aria-label={k === 'BACK' ? 'Backspace' : k === 'ENTER' ? 'Enter guess' : `Letter ${k}`}
+                  className={`${k === 'ENTER' || k === 'BACK' ? 'flex-[1.6] text-[10px] font-bold' : 'flex-1 text-xs font-bold'} h-11 rounded-md uppercase transition-colors ${keyCls(keyStatuses[k])}`}
+                >
+                  {k === 'BACK' ? <Delete size={15} className="mx-auto" /> : k === 'ENTER' ? 'ENTER' : k}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <div className={`text-center rounded-lg border p-4 ${state.won ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-slate-800/50 border-slate-700'}`}>
+            <div className={`text-sm font-bold ${state.won ? 'text-emerald-400' : 'text-slate-300'}`}>
+              {state.won ? `Solved in ${state.guesses.length}/${FF_MAX_GUESSES}` : `The word was ${target}`}
+            </div>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">{clue}</p>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div><div className="font-data text-lg font-bold text-white">{stats.played}</div><div className="text-[10px] text-slate-500 uppercase tracking-wide">Played</div></div>
+            <div><div className="font-data text-lg font-bold text-white">{winPct}%</div><div className="text-[10px] text-slate-500 uppercase tracking-wide">Win Rate</div></div>
+            <div><div className="font-data text-lg font-bold text-amber-400">{stats.currentStreak}</div><div className="text-[10px] text-slate-500 uppercase tracking-wide">Streak</div></div>
+            <div><div className="font-data text-lg font-bold text-white">{stats.maxStreak}</div><div className="text-[10px] text-slate-500 uppercase tracking-wide">Max Streak</div></div>
+          </div>
+
+          <GhostButton onClick={copyResult} className="w-full"><Share2 size={14} /> Copy Result</GhostButton>
+          <p className="text-[11px] text-slate-600 text-center">Come back after midnight for the next word.</p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // Break Room tab — visible to every signed-in user (admin or driver), no
-// role gate. v1 is one game (Night Run); the empty-state note below leaves
-// room for a rotating daily puzzle later without promising one yet.
+// role gate. Two games live here side by side; the footer note leaves room
+// for a third without promising one yet.
 function BreakRoomView() {
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="max-w-6xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">Break Room</h2>
@@ -9047,8 +9671,11 @@ function BreakRoomView() {
         </div>
         <p className="text-slate-400 text-sm mt-1">Off the clock. High scores are forever.</p>
       </div>
-      <NightRunGame />
-      <p className="text-center text-[11px] text-slate-600">More games are coming to the Break Room — a daily puzzle is next up.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <NightRunGame />
+        <FreightFiveGame />
+      </div>
+      <p className="text-center text-[11px] text-slate-600">Two games down — a third is on the way to the Break Room.</p>
     </div>
   );
 }
@@ -10525,7 +11152,9 @@ const PROFIT_GLOW_CSS = `
 .fm-press:active{transform:translateY(1px)}
 @keyframes fmToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .fm-toast{animation:fmToastIn .18s ease-out both}
-@media (prefers-reduced-motion: reduce){.fm-profit,.fm-view,.fm-skel,.fm-toast{animation:none}}`;
+@keyframes fmFFShake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
+.fm-ff-shake{animation:fmFFShake .35s linear}
+@media (prefers-reduced-motion: reduce){.fm-profit,.fm-view,.fm-skel,.fm-toast,.fm-ff-shake{animation:none}}`;
 
 // Animate a number toward its target (eased, ~0.7s). Respects reduced motion.
 // Use on headline money figures so totals "roll in" instead of popping.
