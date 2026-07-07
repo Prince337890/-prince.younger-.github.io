@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Night Haul theme layer — Tailwind v4 edition (replaces tailwind.config.js).
+
+   Every color resolves to a CSS custom property holding a raw RGB channel
+   triplet (e.g. --tw-slate-800: 30 25 18), defined per-theme in App.jsx
+   (FM_THEME_CSS) on :root[data-theme="nighthaul"|"classic"]. That lets the
+   ~1,700 existing slate-* and amber-* class usages flip skins with no JSX changes.
+   Opacity modifiers (bg-slate-800/40) work via color-mix in v4.
+   --------------------------------------------------------------------------- */
+
+@theme inline {
+  /* Type pairing: Inter Tight for UI, IBM Plex Mono for data (Night Haul);
+     Classic keeps the system stacks via the per-theme variables. */
+  --font-sans: var(--fm-font-sans, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji");
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: var(--fm-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  --font-data: var(--fm-font-data, inherit);
+
+  /* Radius system: Night Haul slightly softer, Classic pins stock values. */
+  --radius-sm: var(--fm-r-sm, 0.125rem);
+  --radius-md: var(--fm-r-md, 0.375rem);
+  --radius-lg: var(--fm-r-lg, 0.5rem);
+  --radius-xl: var(--fm-r-xl, 0.75rem);
+  --radius-2xl: var(--fm-r-2xl, 1rem);
+
+  /* Elevation shadows: glow-tinted in Night Haul, disabled in Classic. */
+  --shadow-e1: var(--fm-shadow-1, 0 0 #0000);
+  --shadow-e2: var(--fm-shadow-2, 0 0 #0000);
+
+  /* Full color scales so no existing shade drops out of the build. */
+  --color-white: rgb(var(--tw-white));
+  --color-slate-50: rgb(var(--tw-slate-50));
+  --color-slate-100: rgb(var(--tw-slate-100));
+  --color-slate-200: rgb(var(--tw-slate-200));
+  --color-slate-300: rgb(var(--tw-slate-300));
+  --color-slate-400: rgb(var(--tw-slate-400));
+  --color-slate-500: rgb(var(--tw-slate-500));
+  --color-slate-600: rgb(var(--tw-slate-600));
+  --color-slate-700: rgb(var(--tw-slate-700));
+  --color-slate-800: rgb(var(--tw-slate-800));
+  --color-slate-900: rgb(var(--tw-slate-900));
+  --color-slate-950: rgb(var(--tw-slate-950));
+  --color-amber-50: rgb(var(--tw-amber-50));
+  --color-amber-100: rgb(var(--tw-amber-100));
+  --color-amber-200: rgb(var(--tw-amber-200));
+  --color-amber-300: rgb(var(--tw-amber-300));
+  --color-amber-400: rgb(var(--tw-amber-400));
+  --color-amber-500: rgb(var(--tw-amber-500));
+  --color-amber-600: rgb(var(--tw-amber-600));
+  --color-amber-700: rgb(var(--tw-amber-700));
+  --color-amber-800: rgb(var(--tw-amber-800));
+  --color-amber-900: rgb(var(--tw-amber-900));
+  --color-amber-950: rgb(var(--tw-amber-950));
+  --color-emerald-50: rgb(var(--tw-emerald-50));
+  --color-emerald-100: rgb(var(--tw-emerald-100));
+  --color-emerald-200: rgb(var(--tw-emerald-200));
+  --color-emerald-300: rgb(var(--tw-emerald-300));
+  --color-emerald-400: rgb(var(--tw-emerald-400));
+  --color-emerald-500: rgb(var(--tw-emerald-500));
+  --color-emerald-600: rgb(var(--tw-emerald-600));
+  --color-emerald-700: rgb(var(--tw-emerald-700));
+  --color-emerald-800: rgb(var(--tw-emerald-800));
+  --color-emerald-900: rgb(var(--tw-emerald-900));
+  --color-emerald-950: rgb(var(--tw-emerald-950));
+  --color-red-50: rgb(var(--tw-red-50));
+  --color-red-100: rgb(var(--tw-red-100));
+  --color-red-200: rgb(var(--tw-red-200));
+  --color-red-300: rgb(var(--tw-red-300));
+  --color-red-400: rgb(var(--tw-red-400));
+  --color-red-500: rgb(var(--tw-red-500));
+  --color-red-600: rgb(var(--tw-red-600));
+  --color-red-700: rgb(var(--tw-red-700));
+  --color-red-800: rgb(var(--tw-red-800));
+  --color-red-900: rgb(var(--tw-red-900));
+  --color-red-950: rgb(var(--tw-red-950));
+  --color-blue-50: rgb(var(--tw-blue-50));
+  --color-blue-100: rgb(var(--tw-blue-100));
+  --color-blue-200: rgb(var(--tw-blue-200));
+  --color-blue-300: rgb(var(--tw-blue-300));
+  --color-blue-400: rgb(var(--tw-blue-400));
+  --color-blue-500: rgb(var(--tw-blue-500));
+  --color-blue-600: rgb(var(--tw-blue-600));
+  --color-blue-700: rgb(var(--tw-blue-700));
+  --color-blue-800: rgb(var(--tw-blue-800));
+  --color-blue-900: rgb(var(--tw-blue-900));
+  --color-blue-950: rgb(var(--tw-blue-950));
+  /* warn = decoupled warning hue: coral in Night Haul, amber in Classic. */
+  --color-warn-100: rgb(var(--tw-warn-100));
+  --color-warn-200: rgb(var(--tw-warn-200));
+  --color-warn-300: rgb(var(--tw-warn-300));
+  --color-warn-400: rgb(var(--tw-warn-400));
+  --color-warn-500: rgb(var(--tw-warn-500));
+  --color-warn-600: rgb(var(--tw-warn-600));
+  /* Depth system + page gradient deep end. */
+  --color-surface-0: rgb(var(--tw-s0));
+  --color-surface-1: rgb(var(--tw-s1));
+  --color-surface-2: rgb(var(--tw-s2));
+  --color-surface-3: rgb(var(--tw-s3));
+  --color-hairline: rgb(var(--tw-hairline));
+  --color-pagedeep: rgb(var(--tw-pagedeep));
+}
