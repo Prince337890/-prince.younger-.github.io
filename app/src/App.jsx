@@ -672,6 +672,14 @@ const DISPATCHER_PHONE = '';
 
 // Default dispatch fee % when a load/carrier doesn't specify one.
 const DEFAULT_FEE_PCT = 10;
+// Resolves a stored fee % safely: a deliberate 0 is respected as 0 (a real,
+// intentional fee arrangement), while blank/missing/non-numeric falls back
+// to DEFAULT_FEE_PCT. `(Number(v) || DEFAULT_FEE_PCT)` is the bug this
+// replaces — `||` treats 0 as falsy and silently coerces it to 10%.
+const feePctOf = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && v !== '' && v !== null && v !== undefined ? n : DEFAULT_FEE_PCT;
+};
 
 // ============================================================================
 // ===== 2026 MARKET REFERENCE — UPDATE THESE NUMBERS WHEN THE MARKET MOVES ====
@@ -906,7 +914,19 @@ export default function App() {
         setActiveOrg(data && data.orgId);
         setMyOrgId((data && data.orgId) || null);
         setMyRole((data && data.role) || (admin ? 'admin' : 'driver'));
+        // The user-doc marker is a display convenience only (no longer
+        // self-writable under the updated rules — super-only). The
+        // tamper-evident signed_agreements record is authoritative; read it
+        // whenever it could matter (i.e. there's a workspace to gate), and
+        // fall back to the marker on a transient read failure so nobody gets
+        // locked out of a screen they've legitimately signed for.
         setRevShareSigned(!!(data && data.revShareAgreement));
+        if (data && data.orgId) {
+          try {
+            const sa = await getDocs(query(collection(db, 'signed_agreements'), where('uid', '==', u.uid), where('type', '==', 'revShareAgreement')));
+            setRevShareSigned(!sa.empty);
+          } catch (_) { /* keep the marker-based fallback set above */ }
+        }
         // Resolve the workspace type (FMF vs independent) for FMF-only gates
         // like the dispatcher revenue-share agreement. Best-effort.
         if (data && data.orgId) {
@@ -1113,7 +1133,7 @@ export default function App() {
       case 'walkthrough': return isAdmin ? <WalkthroughView /> : <DashboardView />;
       case 'laneintel': return isAdmin ? <LaneIntelView /> : <DashboardView />;
       case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
-      case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
+      case 'calc': return isAdmin ? (fmfUnsigned ? <AgreementRequired onNavigate={go} /> : <NegotiationCalcView />) : <DashboardView />;
       case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
       case 'breakroom': return <BreakRoomView />; // everyone signed in — no role gate
       default: return <DashboardView />;
@@ -1448,7 +1468,7 @@ function AdminWeeklyGross() {
 
           if (dDate >= sow) {
             gross += g;
-            fee += g * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100);
+            fee += g * (feePctOf(l.feePct) / 100);
             count += 1;
           }
 
@@ -2978,6 +2998,9 @@ function LaneManagementView({ uid }) {
     const deliveredLoad = justDelivered ? active : null;
     try {
       await updateDoc(doc(db, 'loads', active.id), { status: newStatus });
+      if (justDelivered && !active.delivery_date) {
+        toast("No delivery date — this load won't appear on any invoice or monthly statement until one is set.", 'error');
+      }
       // Capture a quick debrief before the active load disappears from the screen.
       if (deliveredLoad) setDebriefLoad(deliveredLoad);
       await fetchLoads();
@@ -3627,7 +3650,7 @@ function FinancialsView({ uid }) {
   }, []);
 
   const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-  const feeRateOf = (l) => (Number(l.feePct) || DEFAULT_FEE_PCT) / 100;
+  const feeRateOf = (l) => feePctOf(l.feePct) / 100;
   const settled = loads.filter((l) => l.status === 'Delivered' || l.status === 'Cleared');
   const totalGross = settled.reduce((s, l) => s + (Number(l.gross_pay) || 0), 0);
   const totalFee = settled.reduce((s, l) => s + (Number(l.gross_pay) || 0) * feeRateOf(l), 0);
@@ -4065,6 +4088,10 @@ function AllLoadsView({ onNavigate }) {
     try {
       await updateDoc(doc(db, 'loads', loadDocId), { status: newStatus });
       setLoads((prev) => prev.map((l) => (l.id === loadDocId ? { ...l, status: newStatus } : l)));
+      if (newStatus === 'Delivered') {
+        const l = loads.find((x) => x.id === loadDocId);
+        if (l && !l.delivery_date) toast("No delivery date — this load won't appear on any invoice or monthly statement until one is set.", 'error');
+      }
     } catch (e) {
       console.error('Error updating status:', e);
     } finally {
@@ -4161,6 +4188,9 @@ function AllLoadsView({ onNavigate }) {
       delete payload.driverUid;
       await updateDoc(doc(db, 'loads', editing.id), payload);
       setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...payload } : l)));
+      if (payload.status === 'Delivered' && !payload.delivery_date) {
+        toast("No delivery date — this load won't appear on any invoice or monthly statement until one is set.", 'error');
+      }
       closeEdit();
     } catch (err) {
       console.error('Error saving load:', err);
@@ -4426,7 +4456,12 @@ function AllLoadsView({ onNavigate }) {
                     <Td className="font-mono text-amber-500 font-semibold">{l.loadId || '—'}</Td>
                     <Td className="text-slate-300">{users[l.uid] || <span className="text-slate-500">unknown</span>}</Td>
                     <Td className="text-slate-300">{l.origin || '—'} <span className="text-slate-600">→</span> {l.destination || '—'}</Td>
-                    <Td className="text-slate-400">{l.delivery_date || '—'}</Td>
+                    <Td className="text-slate-400">
+                      {l.delivery_date || '—'}
+                      {!l.delivery_date && (l.status === 'Delivered' || l.status === 'Cleared') && (
+                        <Badge tone="warn" className="ml-1.5 align-middle font-normal" title="No delivery date — won't appear on any invoice or monthly statement until one is set.">no date</Badge>
+                      )}
+                    </Td>
                     <Td className="font-semibold text-white">{money(l.gross_pay)}</Td>
                     <Td onClick={(e) => e.stopPropagation()}><StatusSelect l={l} />{offerBadge(l.offerStatus) && <div className="mt-1">{offerBadge(l.offerStatus)}</div>}</Td>
                     <Td onClick={(e) => e.stopPropagation()}>
@@ -4451,7 +4486,12 @@ function AllLoadsView({ onNavigate }) {
                   </div>
                   <div className="text-sm text-slate-300">{l.origin || '—'} → {l.destination || '—'}</div>
                   <div className="text-xs text-slate-400">Driver: {users[l.uid] || 'unknown'}</div>
-                  <div className="text-xs text-slate-400">Delivery: {l.delivery_date || '—'}</div>
+                  <div className="text-xs text-slate-400 flex items-center gap-1.5 flex-wrap">
+                    Delivery: {l.delivery_date || '—'}
+                    {!l.delivery_date && (l.status === 'Delivered' || l.status === 'Cleared') && (
+                      <Badge tone="warn" className="font-normal" title="No delivery date — won't appear on any invoice or monthly statement until one is set.">no date</Badge>
+                    )}
+                  </div>
                   {offerBadge(l.offerStatus) && <div>{offerBadge(l.offerStatus)}{l.offerStatus === 'declined' && l.declineReason ? <span className="text-[10px] text-slate-500 ml-2">({l.declineReason})</span> : null}</div>}
                 </div>
                 <div className="flex gap-2 items-center">
@@ -5106,7 +5146,7 @@ function NegotiationCalcView() {
         gross_pay: Number(v.finalOffer) || Number(v.brokerOffer) || 0,
         loadedMiles: Number(v.loadedMiles) || 0,
         deadheadMiles: Number(v.deadheadMiles) || 0,
-        feePct: Number(selectedCarrierObj.feePct) || DEFAULT_FEE_PCT,
+        feePct: feePctOf(selectedCarrierObj.feePct),
         pickup_time: v.pickupAt ? new Date(v.pickupAt).toLocaleString() : '',
         delivery_time: v.deliveryAt ? new Date(v.deliveryAt).toLocaleString() : '',
         delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
@@ -5175,7 +5215,7 @@ function NegotiationCalcView() {
   const ready = brokerOffer > 0 && totalMiles > 0 && minRpm > 0;
 
   // The dispatcher's own cut on this load — the number they most want to see.
-  const dispFeePct = Number(selectedCarrierObj?.feePct) || DEFAULT_FEE_PCT;
+  const dispFeePct = feePctOf(selectedCarrierObj?.feePct);
   const yourFee = effRate * dispFeePct / 100;
 
   let status = 'idle';
@@ -5907,7 +5947,7 @@ function CarriersView({ onNavigate }) {
         multiStop: form.multiStop.trim(),
         linkedDriverUid: linkedUid,
         currentDriveHours: Number(form.currentDriveHours) || 0,
-        feePct: Number(form.feePct) || DEFAULT_FEE_PCT,
+        feePct: feePctOf(form.feePct),
         vipConcierge: !!form.vipConcierge,
         availability: form.availability || 'Available',
         verification: verify,
@@ -5970,7 +6010,7 @@ function CarriersView({ onNavigate }) {
   };
 
   const updateFee = async (id, pct) => {
-    const v = Number(pct) || DEFAULT_FEE_PCT;
+    const v = feePctOf(pct);
     try {
       await updateDoc(doc(db, 'carriers', id), { feePct: v });
       setList((p) => p.map((c) => (c.id === id ? { ...c, feePct: v } : c)));
@@ -5993,7 +6033,7 @@ function CarriersView({ onNavigate }) {
     // never gets forgotten. Suggest current + 2 points.
     let feePatch = {};
     if (next) {
-      const cur = Number(c.feePct) || DEFAULT_FEE_PCT;
+      const cur = feePctOf(c.feePct);
       const suggested = cur + 2;
       const input = window.prompt(`Enabling VIP for ${c.name}.\n\nVIP is a premium tier — set this carrier's new dispatch fee % (currently ${cur}%):`, String(suggested));
       if (input === null) return; // cancelled
@@ -7751,11 +7791,23 @@ function DispatcherAgreementView({ onSigned }) {
     try {
       const uSnap = await getDoc(doc(db, 'users', uid));
       const ud = uSnap.exists() ? uSnap.data() : {};
-      setSigned(ud.revShareAgreement || null);
+      // Prefer the append-only record over the user-doc marker — under the
+      // new rules the marker write in doSign can silently fail (self-write
+      // denied), so relying on it here would wrongly show "not yet signed"
+      // to someone who already has signed.
+      let rec = ud.revShareAgreement || null;
+      try {
+        const sa = await getDocs(query(collection(db, 'signed_agreements'), where('uid', '==', uid), where('type', '==', 'revShareAgreement')));
+        if (!sa.empty) {
+          const recs = sa.docs.map((d) => d.data()).sort((a, b) => (b.signedAtMs || 0) - (a.signedAtMs || 0));
+          rec = recs[0];
+        }
+      } catch (_) { /* fall back to the marker read above */ }
+      setSigned(rec);
       const nm = ud.displayName || (ud.email ? ud.email.split('@')[0] : '') || '';
       setDispName(nm);
       setEmail(ud.email || auth.currentUser?.email || '');
-      setSig(ud.revShareAgreement ? ud.revShareAgreement.signedName : nm);
+      setSig(rec ? rec.signedName : nm);
       if (ACTIVE_ORG) { try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setTpl(o.data().revShareText || ''); } catch (_) { /* falls back to default */ } }
     } catch (e) { console.error('agreement load failed', e); }
     finally { setLoading(false); }
@@ -7778,8 +7830,13 @@ function DispatcherAgreementView({ onSigned }) {
     setBusy(true);
     const rec = { signedName: sig.trim(), company, sharePct: FMF_REVSHARE_PCT, minimum: FMF_REVSHARE_MIN, email, signedAtMs: Date.now(), signedAt: serverTimestamp(), textSnapshot: body };
     try {
+      // The append-only record is authoritative — write it first, and gate
+      // the signed state / onSigned callback on THIS succeeding, not the marker.
       await addDoc(collection(db, 'signed_agreements'), stampOrg({ ...rec, uid, type: 'revShareAgreement' }));
-      await setDoc(doc(db, 'users', uid), { revShareAgreement: rec }, { merge: true });
+      // The user-doc marker is now a display convenience only — self-write is
+      // no longer allowed by rules (super-only). Never let its failure block
+      // signing; every real gate reads the record above, not this marker.
+      try { await setDoc(doc(db, 'users', uid), { revShareAgreement: rec }, { merge: true }); } catch (_) { /* denied under the new rules — fine, record already saved */ }
       setSigned(rec);
       if (onSigned) onSigned();
     } catch (e) { console.error('revshare sign failed', e); alert('Could not record your signature — try again.'); }
@@ -7858,7 +7915,7 @@ function CarrierAgreementsView({ uid, isAdmin }) {
     } catch (e) { console.error('agreements load failed', e); } finally { setLoading(false); }
   })(); }, [targetUid]);
 
-  const feePct = (carrier && Number(carrier.feePct)) || DEFAULT_FEE_PCT;
+  const feePct = feePctOf(carrier && carrier.feePct);
   const mc = (carrier && carrier.mcNumber) || '—';
   const legal = w9.legalName || (carrier && carrier.driverName) || 'Carrier';
   const biz = w9.businessName || (carrier && carrier.name) || legal;
@@ -8233,7 +8290,7 @@ function ExpensesView() {
         const l = d.data();
         const delivered = l.status === 'Delivered' || l.status === 'Cleared';
         const inMonth = l.delivery_date && new Date(l.delivery_date + 'T00:00:00') >= som;
-        if (delivered && inMonth) fees += (Number(l.gross_pay) || 0) * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100);
+        if (delivered && inMonth) fees += (Number(l.gross_pay) || 0) * (feePctOf(l.feePct) / 100);
       });
       setFeesThisMonth(fees);
     } catch (e) { console.error('Error loading expenses:', e); }
@@ -9969,7 +10026,7 @@ function VipServicesView() {
     // Set the new (higher) dispatch fee at the moment VIP turns on.
     let feePatch = {};
     if (r.carrier) {
-      const cur = Number(r.carrier.feePct) || DEFAULT_FEE_PCT;
+      const cur = feePctOf(r.carrier.feePct);
       const input = window.prompt(`Enabling VIP for ${nameOf(r)}.\n\nVIP is a premium tier — set their new dispatch fee % (currently ${cur}%):`, String(cur + 2));
       if (input === null) return;
       const v = Number(input);
@@ -10048,7 +10105,7 @@ function VipServicesView() {
                 {activeVip.map((c) => (
                   <div key={c.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
                     <div className="text-sm font-semibold text-white">{c.name}</div>
-                    <Badge tone="amber"><HeartPulse size={11} /> VIP · {Number(c.feePct || DEFAULT_FEE_PCT)}% fee</Badge>
+                    <Badge tone="amber"><HeartPulse size={11} /> VIP · {feePctOf(c.feePct)}% fee</Badge>
                   </div>
                 ))}
               </div>
@@ -10602,6 +10659,7 @@ function FmfRevShareView() {
   const [orgs, setOrgs] = useState([]);
   const [loads, setLoads] = useState([]);
   const [userMap, setUserMap] = useState({});
+  const [signedUids, setSignedUids] = useState(new Set()); // uids with a tamper-evident revShareAgreement record
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [month, setMonth] = useState(() => {
@@ -10611,15 +10669,21 @@ function FmfRevShareView() {
   useEffect(() => { (async () => {
     setLoading(true);
     try {
-      const [oSnap, lSnap, uSnap] = await Promise.all([
+      // Super can read across every workspace, so the tamper-evident record
+      // (not the self-writable user-doc marker) is the real source of truth
+      // here — the marker is kept as a fallback OR for any legacy/super-
+      // written markers that predate this change.
+      const [oSnap, lSnap, uSnap, saSnap] = await Promise.all([
         getDocs(collection(db, 'orgs')),
         getDocs(collection(db, 'loads')),
         getDocs(collection(db, 'users')),
+        getDocs(query(collection(db, 'signed_agreements'), where('type', '==', 'revShareAgreement'))),
       ]);
       setOrgs(oSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((o) => o.orgType === 'fmf'));
       setLoads(lSnap.docs.map((d) => d.data()));
       const um = {}; uSnap.docs.forEach((d) => { um[d.id] = d.data(); });
       setUserMap(um);
+      setSignedUids(new Set(saSnap.docs.map((d) => d.data().uid)));
     } catch (e) { console.error('revshare load failed', e); setErr('Could not load — check that the multi-tenant rules are published.'); }
     finally { setLoading(false); }
   })(); }, []);
@@ -10637,13 +10701,13 @@ function FmfRevShareView() {
 
   const rows = orgs.map((o) => {
     const mine = loads.filter((l) => l.orgId === o.id && (l.status === 'Delivered' || l.status === 'Cleared') && inMonth(l.delivery_date));
-    const feeIncome = mine.reduce((s, l) => s + (Number(l.gross_pay) || 0) * ((Number(l.feePct) || DEFAULT_FEE_PCT) / 100), 0);
+    const feeIncome = mine.reduce((s, l) => s + (Number(l.gross_pay) || 0) * (feePctOf(l.feePct) / 100), 0);
     const share = feeIncome * (FMF_REVSHARE_PCT / 100);
     const minApplied = share < FMF_REVSHARE_MIN;
     const due = Math.max(share, FMF_REVSHARE_MIN);
     const u = userMap[o.ownerUid] || {};
     const who = u.displayName || o.ownerEmail || o.name || '—';
-    const signed = !!u.revShareAgreement;
+    const signed = signedUids.has(o.ownerUid) || !!u.revShareAgreement;
     return { id: o.id, who, workspace: o.name, count: mine.length, feeIncome, share, minApplied, due, signed };
   }).sort((a, b) => b.due - a.due);
 
@@ -10787,13 +10851,22 @@ function WorkspacesView() {
   const fetchOrgs = async () => {
     setLoading(true);
     try {
-      const [oSnap, uSnap] = await Promise.all([getDocs(collection(db, 'orgs')), getDocs(collection(db, 'users'))]);
+      // Super can read across every workspace, so the tamper-evident record
+      // (not the self-writable user-doc marker) is the real source of truth
+      // here — the marker is kept as a fallback OR for any legacy/super-
+      // written markers that predate this change.
+      const [oSnap, uSnap, saSnap] = await Promise.all([
+        getDocs(collection(db, 'orgs')),
+        getDocs(collection(db, 'users')),
+        getDocs(query(collection(db, 'signed_agreements'), where('type', '==', 'revShareAgreement'))),
+      ]);
       setOrgs(oSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const signedUids = new Set(saSnap.docs.map((d) => d.data().uid));
       const st = {}, act = {};
       uSnap.docs.forEach((d) => {
         const u = d.data();
         st[d.id] = u.approved !== false;
-        act[d.id] = { lastLogin: u.lastLogin || null, mustChangePassword: u.mustChangePassword === true, revShareSigned: !!u.revShareAgreement };
+        act[d.id] = { lastLogin: u.lastLogin || null, mustChangePassword: u.mustChangePassword === true, revShareSigned: signedUids.has(d.id) || !!u.revShareAgreement };
       });
       setOwnerStatus(st);
       setOwnerActivity(act);
@@ -11592,7 +11665,11 @@ function InvoicesView() {
     const name = (c && c.name) || emailByUid[uid] || 'Carrier';
     const lines = items.map((l) => {
       const gross = Number(l.gross_pay) || 0;
-      const pct = Number(l.feePct) || (c && Number(c.feePct)) || DEFAULT_FEE_PCT;
+      // Load's own fee % if it was actually set (0 counts as set), else the
+      // carrier's fee %, else the default — feePctOf handles each fallback
+      // step without letting a deliberate 0 get coerced to DEFAULT_FEE_PCT.
+      const loadFeeSet = l.feePct !== '' && l.feePct !== null && l.feePct !== undefined && Number.isFinite(Number(l.feePct));
+      const pct = loadFeeSet ? feePctOf(l.feePct) : feePctOf(c && c.feePct);
       return { loadId: l.loadId || l.id, lane: `${l.origin || '?'} → ${l.destination || '?'}`, date: l.delivery_date || '', gross, pct, fee: gross * pct / 100 };
     });
     return { uid, name, mc: c && c.mcNumber, email: emailByUid[uid], lines,
