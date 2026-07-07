@@ -1591,6 +1591,143 @@ function MarketPulse() {
   );
 }
 
+// ---------- ADMIN: COACH'S CORNER (daily rotating dispatch tip) ----------
+// 90 field-usable tips drawn straight from the course, SOPs, and talk tracks —
+// every number in here is one the product already teaches (True RPM, the 5–10%
+// fee, 2+ red flags = walk, the $75k bond, factoring 90–97%, etc.). Categories
+// are interleaved so consecutive days don't repeat a theme.
+const COACH_TIPS = [
+  { cat: 'Negotiation', tip: 'Never take the broker’s first number. Counter once on every call, even if it’s only $50 — small bumps on every load add up to real money by Friday.' },
+  { cat: 'Broker Red Flags', tip: 'The rule that saves carriers: two or more red flags = walk away. No single rate is worth an unpaid load.' },
+  { cat: 'Paperwork & Pay', tip: 'No POD, no payment. The signed BOL at delivery becomes the POD — have the driver photograph it at the receiver’s dock, not at the truck stop an hour later.' },
+  { cat: 'Ops Discipline', tip: 'Run the 0700 morning audit before you touch a load board: every truck loaded, rolling, and legal on HOS, and weather checked on every route. Surprises found at 0700 are fixable; at 1400 they’re fires.' },
+  { cat: 'Negotiation', tip: 'Anchor above your target with a market reason: “This lane’s been running $2.75 — I can do it at $2,650 all-in.” The middle lands where you wanted; a naked high number just gets a no.' },
+  { cat: 'Broker Red Flags', tip: 'Urgency is a weapon pointed at your checklist. “Cover it right now” pressure to skip vetting is exactly when you slow down and run every check.' },
+  { cat: 'Growth', tip: 'Source carriers from the FMCSA SAFER database, not bought lead lists. Target the sweet spot: owner-operators with 1–3 trucks and authority older than ~6 months.' },
+  { cat: 'Paperwork & Pay', tip: 'Before every RateCon goes to the driver: rate to the dollar, pickup AND delivery times, weight, detention terms. The 30-second audit prevents the most expensive mistakes in dispatch.' },
+  { cat: 'Negotiation', tip: 'Before you dial, know the carrier’s break-even RPM and write down your walk-away number. If you don’t know the floor, the broker is negotiating alone.' },
+  { cat: 'Ops Discipline', tip: 'Hunt loads 0800–1100 — the war-room hours when the board is freshest. By mid-afternoon the good freight is gone and you’re negotiating leftovers.' },
+  { cat: 'Broker Red Flags', tip: 'A rate that’s suspiciously high for the lane is bait, not luck. Fraudsters overpay on paper to make you skip verification — the too-good number IS the red flag.' },
+  { cat: 'Paperwork & Pay', tip: 'Build the proof package as the load runs — signed RateCon, timestamped check-calls, BOL, POD, lumper receipts. It’s what wins a surety-bond claim, and you can’t reconstruct it later.' },
+  { cat: 'Negotiation', tip: 'True RPM = gross ÷ ALL miles, loaded plus deadhead. Say the deadhead out loud: “That’s $2.60 loaded, but I’m running 60 empty to get there — all-in it’s $2.40. I need $2,450 to make this work.”' },
+  { cat: 'Broker Red Flags', tip: 'A broker emailing from gmail or yahoo instead of a corporate domain is a flag. Verify contact through the SAFER-registered company details before you send anything.' },
+  { cat: 'Ops Discipline', tip: 'Close every day with the blueprint: check deliveries, map tomorrow’s moves, invoice today’s funded loads. Fifteen minutes tonight beats a chaotic 0700 tomorrow.' },
+  { cat: 'Paperwork & Pay', tip: 'Make “carrier funded” your invoice trigger: the moment the factoring payment lands, your dispatch fee invoice goes out. Fee money ages badly.' },
+  { cat: 'Negotiation', tip: 'Attach a broker benefit to every counter: “…and that keeps your pickup window covered with a vetted truck.” Brokers move for their problem, not yours.' },
+  { cat: 'Growth', tip: 'Lead with local in every pitch: “I’m a dispatcher based out of [your city], looking for one reliable owner-operator.” Local reads as real; generic reads as spam.' },
+  { cat: 'Negotiation', tip: 'After you name your number, stop talking. Silence is a negotiating tool — the first one to speak after a counter usually gives ground.' },
+  { cat: 'Broker Red Flags', tip: 'Callback discipline: hang up and call the corporate number registered on FMCSA — not the number in the email signature. Fraudsters control the signature; they don’t control SAFER.' },
+  { cat: 'Paperwork & Pay', tip: 'If the carrier factors, the broker needs the NOA before the load moves. A missing Notice of Assignment is how payments end up in the wrong account for weeks.' },
+  { cat: 'Ops Discipline', tip: 'Never book a load in isolation — ask “where does this leave the truck, and what’s coming out of there?” One load is a rate; a sequence is a paycheck.' },
+  { cat: 'Negotiation', tip: 'Open with “Where do you need to be on this one?” before you quote. Making the broker name a number first tells you how much room is really there.' },
+  { cat: 'Broker Red Flags', tip: 'Before you book, confirm the $75k broker bond is active and not pending suspension on FMCSA L&I. A suspended bond means claims don’t get paid — which means your carrier doesn’t.' },
+  { cat: 'Growth', tip: 'One call doesn’t land a carrier — run the sequence. Tuesday AM: the SMS pattern-interrupt (“Running or parked?”). Wednesday PM: a value-first call. Thursday: the proof-of-work close.' },
+  { cat: 'Paperwork & Pay', tip: 'Detention is won at the dock: log the in-time and out-time on the BOL while the driver is sitting. Documented times get paid; “we waited a long time” doesn’t.' },
+  { cat: 'Negotiation', tip: 'Flag detention at hour two, while the truck is still sitting: “In-time is documented — I’m opening a detention case now.” Detention flagged live gets paid; detention mentioned after delivery gets argued.' },
+  { cat: 'Ops Discipline', tip: 'Before booking an out-and-back with a weak return, price the triangle: A→B→C→A through a strong third market usually beats a cheap backhaul on blended RPM. Run it in the TriHaul Planner.' },
+  { cat: 'Broker Red Flags', tip: 'Run the broker’s MC through the factoring company before booking. If they won’t factor that broker, that’s a professional credit team telling you no for free.' },
+  { cat: 'Paperwork & Pay', tip: 'Lumper fee? Get the broker’s reimbursement in writing before the driver pays it. A verbal “we’ll cover it” has no cash value.' },
+  { cat: 'Negotiation', tip: 'Load canceled after dispatch? Ask for the TONU as standard, not a penalty: “My driver was already rolling — standard on a dispatched cancellation is $250. Can you get that on a confirmation?”' },
+  { cat: 'Broker Red Flags', tip: 'A last-minute equipment swap or pickup-location change after you agreed on the load is a classic double-brokering sign. Stop and re-verify before the truck moves.' },
+  { cat: 'Ops Discipline', tip: 'Check outbound freight before you send a truck into any market. A great inbound rate into a dead zone is a loan the backhaul makes you repay.' },
+  { cat: 'Paperwork & Pay', tip: 'Know your carrier’s factoring deal cold — advances typically pay 90–97% of the invoice. Their real take-home, not the sticker gross, is what your True RPM talk should be built on.' },
+  { cat: 'Negotiation', tip: 'On a lane you suspect pays more: broker transparency (49 CFR 371.3) gives you the right to the transaction records. Invoking it plus a real market number usually moves the rate — you rarely have to pull the records.' },
+  { cat: 'Growth', tip: 'The strongest close removes all risk: “Don’t sign anything. Let me run the board for you tomorrow — if I beat your usual rate, I’ll text it. If not, we part as friends.”' },
+  { cat: 'Negotiation', tip: 'Check Market Pulse before your first call. When the trend is up and capacity is tight, that’s your cue to counter harder — leverage has a season.' },
+  { cat: 'Broker Red Flags', tip: 'A broker who refuses tracking is hiding something. Legit brokers want to know where their freight is.' },
+  { cat: 'Paperwork & Pay', tip: 'Scan RateCon fine print for quick-pay deductions and late penalties before signing. Brokers don’t hide the good news in the fine print.' },
+  { cat: 'Ops Discipline', tip: 'Three check-calls per load — at pickup, in transit, at delivery — logged with timestamps. They keep you ahead of problems and they’re a required layer of the proof package.' },
+  { cat: 'Negotiation', tip: 'If the offer sits well under the market band for that equipment, say the band out loud: “Dry van on this lane is running $2.47–$2.80 — you’re at $2.10.” A named number beats “that’s too low.”' },
+  { cat: 'Broker Red Flags', tip: 'Company name or address on SAFER doesn’t match what the broker gave you? That mismatch is a fraud flag, not a typo. Verify independently before booking.' },
+  { cat: 'Growth', tip: 'Interview before you pitch. Qualify authority, factoring, and equipment; get their floor RPM, home base, and no-go states; then ask “what’s the most frustrating part of your day out there?” — and pitch straight at the answer.' },
+  { cat: 'Paperwork & Pay', tip: 'File every document against its load in the Vault the day you get it. An organized vault turns a 30-minute broker setup into a 3-minute one — and speed wins loads.' },
+  { cat: 'Negotiation', tip: 'Trade things that cost you nothing: a flexible pickup window, extra tracking updates, a guaranteed on-time truck. Every one of them is worth dollars on the rate.' },
+  { cat: 'Ops Discipline', tip: 'Keep each carrier’s floor RPM, home base, and no-go states written where you dispatch from. Guessing a driver’s floor mid-call is how bad loads get booked.' },
+  { cat: 'Broker Red Flags', tip: 'Add the suspended-broker list to your routine: it’s a 30-second FMCSA check that catches brokers whose authority already died.' },
+  { cat: 'Paperwork & Pay', tip: 'Complete the carrier packet before load one: W-9, MC authority letter, COI, NOA. Chasing paperwork with a truck already loaded is how deadlines and payments get missed.' },
+  { cat: 'Negotiation', tip: 'Settle accessorials before you settle the linehaul: “Who covers the lumper? What’s detention after the two free hours?” Those answers are cheap now and expensive later.' },
+  { cat: 'Broker Red Flags', tip: 'Save every vetting run in Broker Check. If a load ever goes sideways, a timestamped record showing you checked authority, bond, and flags is your defense.' },
+  { cat: 'Ops Discipline', tip: 'Route around the driver’s life — safe parking, decent food, home time. A driver who feels planned-for doesn’t take his truck to another dispatcher.' },
+  { cat: 'Paperwork & Pay', tip: 'Verify the COI with the issuing agent, not by admiring the PDF. Fake certificates look exactly like real ones — the agent’s phone number is the only test that counts.' },
+  { cat: 'Negotiation', tip: 'Counter with a specific number like $2,485, not a round $2,500. Odd numbers read like math you’ve done, and math is harder to argue with than haggling.' },
+  { cat: 'Growth', tip: 'Big brokers block new MCs for ~90 days — that’s a stranded market nobody serves. Build a list of day-one-friendly brokers and become the dispatcher who keeps new authorities moving.' },
+  { cat: 'Negotiation', tip: 'One counter per number: never lower your own offer before the broker has responded to it. If you drop from $2,600 to $2,450 unprompted, you just negotiated against yourself.' },
+  { cat: 'Broker Red Flags', tip: 'Test the hands-off broker: ask a shipper-specific question they should know — dock hours, pallet count. A “broker” with no answers may not control the freight at all.' },
+  { cat: 'Paperwork & Pay', tip: 'Get listed as a certificate holder on your carrier’s insurance. Then you find out about a coverage lapse from the insurer — not from a broker rejecting your truck at booking.' },
+  { cat: 'Ops Discipline', tip: 'Check remaining HOS before you commit to any pickup window. A perfect rate the driver can’t legally cover is a service failure with your name on it.' },
+  { cat: 'Negotiation', tip: '“Can you do any better?” invites a no. “I can do it at $2,400 all-in” invites a yes. Always counter with a number, never with a question about their generosity.' },
+  { cat: 'Broker Red Flags', tip: 'A brand-new broker MC gets the full checklist, not the benefit of the doubt. New authority isn’t automatically bad — but it earns zero shortcuts.' },
+  { cat: 'Growth', tip: 'Price your fee at 5–10% of gross and sell it as ROI, not cost: “If I don’t make you more than I cost you, fire me.” Then make the numbers prove it every week.' },
+  { cat: 'Paperwork & Pay', tip: 'Know the detention terms before pickup: the free window (usually 2 hours) and the hourly rate should be on the RateCon. If it’s not in writing, it’s a fight.' },
+  { cat: 'Negotiation', tip: 'When a broker says “that’s all the load pays,” move to the edges: fuel surcharge, detention rate, drop fee. Money hides outside the linehaul.' },
+  { cat: 'Ops Discipline', tip: 'If it’s not in the system, it doesn’t exist. Every load, document, and carrier note goes in the TMS — the load you’re tracking in your head is the one that goes wrong.' },
+  { cat: 'Broker Red Flags', tip: 'Screenshot the SAFER and L&I pages when you book. In a bond claim, what matters is the broker’s status at time of booking — prove it with a timestamp, not a memory.' },
+  { cat: 'Paperwork & Pay', tip: 'If the freight scales heavier than the RateCon says, call the broker before the truck leaves the shipper. Weight discrepancies resolved on-site get paid; discovered at delivery, they get argued.' },
+  { cat: 'Negotiation', tip: 'After a good load, ask the broker: “What other lanes do you cover weekly?” One repeat broker relationship is worth more than ten load-board wins.' },
+  { cat: 'Broker Red Flags', tip: 'Any broker who asks your carrier to route payment outside the factoring flow or “skip the NOA this once” is a walk-away. The NOA is how the money finds its way home.' },
+  { cat: 'Ops Discipline', tip: 'Batch your admin into the 1100–1300 block — broker setups, RateCon audits, detention disputes. Don’t let paperwork eat the morning hours when the rates are on the phone.' },
+  { cat: 'Paperwork & Pay', tip: 'Save the executed RateCon the moment it’s signed — into the Vault, against the load. It’s your binding agreement and your evidence, and it should never live only in an inbox.' },
+  { cat: 'Negotiation', tip: 'Decline below-floor freight with the door open: “Can’t make it work at $1,900, but call me first when this lane pays $2,300+.” You want to be the number they save.' },
+  { cat: 'Growth', tip: 'For inbound leads: 9:16 vertical video, premium and professional tone, posted consistently. Consistency beats one viral hit — brand is a compounding asset.' },
+  { cat: 'Negotiation', tip: 'Flexibility is currency: “I can do your number if pickup slides to tomorrow morning.” If the rate won’t move, move the schedule and charge for the convenience.' },
+  { cat: 'Broker Red Flags', tip: 'Before every RateCon: confirm the broker MC on the document matches the MC you vetted. Document swaps are how double-brokers slip a different company under your signature.' },
+  { cat: 'Paperwork & Pay', tip: 'When a broker runs multiple warehouses, check the exact pickup address against what the driver expects. Right company, wrong city is a classic missed-pickup story.' },
+  { cat: 'Ops Discipline', tip: 'A delivered truck should have its reload conversation within the hour. Empty trucks lose money by the hour, and afternoon boards only get thinner.' },
+  { cat: 'Negotiation', tip: 'Before a big call, run one rep in Practice Broker Call. A counter you’ve already said out loud comes out clean under pressure.' },
+  { cat: 'Broker Red Flags', tip: 'Phone deal with one company, RateCon from another name or MC? That’s a re-broker sign. Stop and verify who actually controls this load before anyone signs.' },
+  { cat: 'Growth', tip: 'Your best lead source is a happy carrier. After a strong week, ask: “Who else do you run with who could use numbers like this?” Owner-operators travel in packs.' },
+  { cat: 'Paperwork & Pay', tip: 'Double-check both MC numbers on every RateCon — the broker’s and your carrier’s. A wrong MC can stall a factoring payment cold.' },
+  { cat: 'Negotiation', tip: 'Quote and confirm all-in: “$2,450 all-in, fuel included.” Then check that exact phrase appears on the RateCon — “plus fuel” and “all-in” are very different loads.' },
+  { cat: 'Ops Discipline', tip: 'Audit every truck against tomorrow, not just today: who delivers tomorrow, where, and what’s the plan from there? Dispatchers who work 48 hours ahead are the ones who sound calm on the phone.' },
+  { cat: 'Broker Red Flags', tip: 'Fraud calls are warm and friendly by design. Charm is not a check — run the same six checks on every new broker, no matter how good the call felt.' },
+  { cat: 'Paperwork & Pay', tip: 'Never let the truck roll before the signed RateCon comes back. No signed RateCon means no binding rate and no proof for payment — everything after that is a favor.' },
+  { cat: 'Negotiation', tip: 'Offer ~20¢/mi under the floor? Use the anchor line: “My carrier’s floor on this lane is $2.30/mi — after deadhead I can do it at $1,750 all-in and keep your pickup on time.”' },
+  { cat: 'Broker Red Flags', tip: 'When anything feels off, the move is always the same: hang up, look up the registered number yourself, call back. Independent verification kills most scams in one step.' },
+  { cat: 'Ops Discipline', tip: 'Run the SOP every time, even when you “know” the answer. The dispatchers who win aren’t the smartest — they’re the ones who run their checklists every single day.' },
+  { cat: 'Paperwork & Pay', tip: 'End the delivery day with the money motion: signed RateCon + signed POD + invoice (plus lumper receipts) to the factoring company same day. Every day you sit on a POD is a day the carrier waits to get paid.' },
+  { cat: 'Negotiation', tip: 'Run the True RPM math before you answer, not after. $1,650 on 750 miles is $2.20 — against a $2.30 floor, that’s a counter, not a booking.' },
+  { cat: 'Growth', tip: 'Memorize your value sentence: higher rates, fewer empty miles, zero paperwork stress. Say that — not “I find loads.” Every owner-operator has met a hundred load-finders.' },
+];
+
+const COACH_HIDE_KEY = 'fm_coach_hide';
+
+function CoachCorner() {
+  // Deterministic daily pick — local Y/M/D midnights diffed and rounded, the
+  // same DST-safe technique as Freight Five's ffDayNumber. No Math.random.
+  const dayIdx = React.useMemo(() => {
+    const d = new Date();
+    const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(2026, 0, 1)) / 86400000);
+    return ((days % COACH_TIPS.length) + COACH_TIPS.length) % COACH_TIPS.length;
+  }, []);
+  // "Next tip" previews ahead locally; a reload resets to the day's canonical tip.
+  const [offset, setOffset] = useState(0);
+  const [hidden, setHidden] = useState(() => {
+    try { return localStorage.getItem(COACH_HIDE_KEY) === ffLocalDateStr(); } catch (_) { return false; }
+  });
+  if (hidden) return null;
+  const t = COACH_TIPS[(dayIdx + offset) % COACH_TIPS.length];
+  const tone = { 'Negotiation': 'amber', 'Broker Red Flags': 'red', 'Paperwork & Pay': 'emerald', 'Ops Discipline': 'blue', 'Growth': 'indigo' }[t.cat] || 'slate';
+  const dismiss = () => {
+    try { localStorage.setItem(COACH_HIDE_KEY, ffLocalDateStr()); } catch (_) {}
+    setHidden(true); // returns tomorrow — the key only matches today's date
+  };
+  return (
+    <Card className="p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-500">Coach’s Corner · Day {dayIdx + 1}{offset > 0 ? ' · preview' : ''}</span>
+          <Badge tone={tone} className="text-[10px] px-2 py-0.5">{t.cat}</Badge>
+        </div>
+        <button type="button" onClick={dismiss} aria-label="Hide today’s tip"
+          className="shrink-0 -mt-1 -mr-1 p-1 text-slate-600 hover:text-slate-300 transition-colors leading-none text-base">×</button>
+      </div>
+      <p className="text-sm text-slate-200 leading-relaxed mt-2">{t.tip}</p>
+      <button type="button" onClick={() => setOffset((o) => o + 1)}
+        className="mt-2 text-xs text-slate-500 hover:text-amber-400 transition-colors">next tip →</button>
+    </Card>
+  );
+}
+
 // ---------- ADMIN: GET YOUR FIRST LOAD OUT ----------
 // A day-one dispatcher lands on an empty dashboard of zeros — this gives them
 // an actual next step. Disappears the moment they have any loads (they're
@@ -1765,6 +1902,7 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
       {isAdmin && <AdminGettingStarted onNavigate={onNavigate} />}
       {isAdmin && <AdminWeeklyGross />}
       {isAdmin && <MarketPulse />}
+      {isAdmin && <CoachCorner />}
 
       {!isAdmin && (
         <Card className="fm-glow-hero bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700/50 p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
