@@ -5,7 +5,7 @@ import {
   MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search, Moon,
   Gamepad2, Trophy, Pause, Play, RotateCcw, Fuel, Target, Flame, Share2, Delete,
   NotebookPen, ChevronDown, Coffee, BedDouble, Radio, X, ChevronLeft, ChevronRight,
-  Award, StickyNote, Users
+  Award, StickyNote, Users, Eraser, Grid3x3, Trash2, AlertTriangle
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -1148,7 +1148,7 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} showAgreementGate={fmfUnsigned && !viewAs} />;
+      case 'dashboard': return <DashboardView key={'dash-' + viewUid} uid={viewUid} displayName={viewName} isAdmin={isAdmin && !viewAs} isSuper={isSuper} vipOn={vipOn} onNavigate={go} myStatus={myStatus} onSetStatus={updateMyStatus} vipRequested={vipRequested} onRequestVip={requestVip} onCancelVip={cancelVip} showAgreementGate={fmfUnsigned && !viewAs} />;
       case 'fmfagreement': return isAdmin ? <DispatcherAgreementView onSigned={() => setRevShareSigned(true)} /> : <DashboardView />;
       case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
@@ -1184,7 +1184,7 @@ export default function App() {
       case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
       case 'calc': return isAdmin ? (fmfUnsigned ? <AgreementRequired onNavigate={go} /> : <NegotiationCalcView />) : <DashboardView />;
       case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
-      case 'breakroom': return <BreakRoomView />; // everyone signed in — no role gate
+      case 'breakroom': return <BreakRoomView isSuper={isSuper} />; // everyone signed in — no role gate (isSuper only gates Haul Buddy inside)
       default: return <DashboardView />;
     }
   };
@@ -1823,7 +1823,7 @@ function AdminGettingStarted({ onNavigate }) {
 }
 
 // ---------- DASHBOARD ----------
-function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip, showAgreementGate = false }) {
+function DashboardView({ uid, displayName, isAdmin, isSuper = false, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip, showAgreementGate = false }) {
   const u = auth.currentUser;
   const targetUid = uid || (u && u.uid);
   const [earnings, setEarnings] = useState(0);
@@ -1941,10 +1941,11 @@ function DashboardView({ uid, displayName, isAdmin, vipOn = true, onNavigate, my
   return (
     <div className="space-y-6">
       {/* The one sanctioned Haul Buddy appearance outside the Break Room —
-          see HaulBuddyDashboardPeek for the mood/frequency gating. Never
+          see HaulBuddyDashboardPeek for the mood/frequency gating. SUPER-ONLY
+          for now (Haul Buddy hasn't rolled out to workspaces yet), and never
           rendered during an admin's "View As" session: displayName is only
           ever passed in that case (see the comment on MyCornerStrip below). */}
-      {!displayName && <HaulBuddyDashboardPeek onNavigate={onNavigate} />}
+      {isSuper && !displayName && <HaulBuddyDashboardPeek onNavigate={onNavigate} />}
       {isAdmin && showAgreementGate && (
         <Card className="p-4 border-amber-500/40 bg-amber-500/10 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
@@ -8932,7 +8933,10 @@ const NR_SWIPE_PX = 26;
 const NR_CRASH_SEC = 0.5;
 const NR_DASH_PERIOD = 46;
 
-function NightRunGame() {
+// `big` (Break Room dedicated view): lets the playfield grow on md+ screens
+// only — below md the cap is the same 420px as always, so phones render
+// pixel-identical either way. The ResizeObserver handles the rest.
+function NightRunGame({ big = false }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -9388,12 +9392,12 @@ function NightRunGame() {
   const playAgain = () => startGame();
 
   return (
-    <div className="grid md:grid-cols-[minmax(0,420px)_1fr] gap-5 items-start">
+    <div className={`grid ${big ? 'md:grid-cols-[minmax(0,560px)_1fr]' : 'md:grid-cols-[minmax(0,420px)_1fr]'} gap-5 items-start`}>
       <div>
         <div
           ref={wrapRef}
-          className="relative w-full mx-auto rounded-lg overflow-hidden border border-slate-700/70 bg-slate-950 select-none touch-none"
-          style={{ maxWidth: 420, aspectRatio: '3 / 4' }}
+          className={`relative w-full mx-auto rounded-lg overflow-hidden border border-slate-700/70 bg-slate-950 select-none touch-none ${big ? 'max-w-[420px] md:max-w-[560px]' : 'max-w-[420px]'}`}
+          style={{ aspectRatio: '3 / 4' }}
         >
           <canvas
             ref={canvasRef}
@@ -9981,6 +9985,416 @@ function FreightFiveGame() {
           <GhostButton onClick={copyResult} className="w-full"><Share2 size={14} /> Copy Result</GhostButton>
           <p className="text-[11px] text-slate-600 text-center">Come back after midnight for the next word.</p>
         </div>
+      )}
+    </Card>
+  );
+}
+
+// ---------- BREAK ROOM: "SUDOKU" (classic 9×9, local-only — no Firestore) ----------
+// Same local-first contract as the other Break Room games: the board, notes,
+// timer, and difficulty all live in localStorage (fm_sudoku_*), zero new
+// collections or rules. Every puzzle is generated fresh (solved grid via
+// randomized backtracking, then cells removed one at a time) and every
+// removal is verified against a solution-counting solver so the shipped
+// puzzle ALWAYS has exactly one solution — no hardcoded boards anywhere.
+
+const SUDOKU_STATE_KEY = 'fm_sudoku_state';
+// Target clue counts per difficulty. The digger stops early if removing any
+// further cell would break uniqueness, so these are floors, not guarantees —
+// a board can ship with a few more clues than the target, never fewer.
+const SUDOKU_CLUES = { easy: 40, medium: 32, hard: 26 };
+const SUDOKU_DIFFS = [['easy', 'Easy'], ['medium', 'Medium'], ['hard', 'Hard']];
+
+function sdkShuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Can `v` legally go in empty cell `idx` of grid `g` (81 flat, 0 = empty)?
+function sdkValidAt(g, idx, v) {
+  const r = Math.floor(idx / 9), c = idx % 9;
+  for (let i = 0; i < 9; i++) {
+    if (g[r * 9 + i] === v) return false;            // row
+    if (g[i * 9 + c] === v) return false;            // column
+  }
+  const br = r - (r % 3), bc = c - (c % 3);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      if (g[(br + i) * 9 + (bc + j)] === v) return false; // 3×3 box
+    }
+  }
+  return true;
+}
+
+// Fills grid `g` in place into a complete valid solution. Randomized digit
+// order at every cell = a different solved grid every call.
+function sdkFill(g) {
+  const idx = g.indexOf(0);
+  if (idx === -1) return true;
+  for (const v of sdkShuffle([1, 2, 3, 4, 5, 6, 7, 8, 9])) {
+    if (sdkValidAt(g, idx, v)) {
+      g[idx] = v;
+      if (sdkFill(g)) return true;
+      g[idx] = 0;
+    }
+  }
+  return false;
+}
+
+// Counts solutions up to `limit` (2 is all uniqueness needs). Backtracking
+// with most-constrained-cell-first ordering so even sparse Hard boards
+// resolve in a few milliseconds — this runs ~50× per generated puzzle.
+function sdkCountSolutions(grid, limit = 2) {
+  const g = grid.slice();
+  let count = 0;
+  const rec = () => {
+    if (count >= limit) return;
+    let best = -1, bestCands = null;
+    for (let i = 0; i < 81; i++) {
+      if (g[i] !== 0) continue;
+      const cands = [];
+      for (let v = 1; v <= 9; v++) { if (sdkValidAt(g, i, v)) cands.push(v); }
+      if (cands.length === 0) return; // contradiction — dead branch
+      if (!bestCands || cands.length < bestCands.length) {
+        best = i; bestCands = cands;
+        if (cands.length === 1) break; // can't do better than forced
+      }
+    }
+    if (best === -1) { count++; return; } // no empties — one full solution
+    for (const v of bestCands) {
+      g[best] = v;
+      rec();
+      g[best] = 0;
+      if (count >= limit) return;
+    }
+  };
+  rec();
+  return count;
+}
+
+// Generate { puzzle, solution }: solve a full grid, then dig cells out in
+// random order down toward the difficulty's clue target — but a cell only
+// stays removed if the board still counts exactly ONE solution without it.
+function sdkGenerate(difficulty) {
+  const solution = new Array(81).fill(0);
+  sdkFill(solution);
+  const puzzle = solution.slice();
+  const target = SUDOKU_CLUES[difficulty] || SUDOKU_CLUES.medium;
+  let clues = 81;
+  for (const i of sdkShuffle(Array.from({ length: 81 }, (_, k) => k))) {
+    if (clues <= target) break;
+    const saved = puzzle[i];
+    puzzle[i] = 0;
+    if (sdkCountSolutions(puzzle, 2) === 1) clues--;
+    else puzzle[i] = saved; // removal breaks uniqueness — keep the clue
+  }
+  return { puzzle, solution };
+}
+
+// Restore a saved board, or null. Strict shape check so a corrupt/legacy
+// blob can never crash the Break Room — worst case we just deal fresh.
+function loadSudokuState() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SUDOKU_STATE_KEY) || 'null');
+    if (raw && [raw.puzzle, raw.solution, raw.entries].every((a) => Array.isArray(a) && a.length === 81)) {
+      return { difficulty: 'medium', seconds: 0, solved: false, notes: {}, ...raw };
+    }
+  } catch (_) { /* fall through to a fresh board */ }
+  return null;
+}
+function saveSudokuState(s) {
+  try { localStorage.setItem(SUDOKU_STATE_KEY, JSON.stringify(s)); } catch (_) {}
+}
+
+function sdkFmtTime(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const mm = String(m).padStart(h ? 2 : 1, '0'), ss = String(s).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function SudokuGame() {
+  const [game, setGame] = useState(() => {
+    const saved = loadSudokuState();
+    if (saved) return saved; // refresh mid-puzzle → exact board, notes, and clock restored
+    const { puzzle, solution } = sdkGenerate('medium');
+    return { puzzle, solution, entries: new Array(81).fill(0), notes: {}, difficulty: 'medium', seconds: 0, solved: false };
+  });
+  const [selected, setSelected] = useState(null);
+  const [notesMode, setNotesMode] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  // Persist every change (board, notes, timer tick) — cheap, and it's what
+  // makes a refresh land back exactly where you left off.
+  useEffect(() => { saveSudokuState(game); }, [game]);
+
+  // Timer: one interval while unsolved, torn down on solve/unmount. Skips
+  // ticks while the tab is hidden so walking away doesn't inflate the clock.
+  useEffect(() => {
+    if (game.solved) return;
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      setGame((g) => (g.solved ? g : { ...g, seconds: g.seconds + 1 }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [game.solved]);
+
+  const cellVal = (g, i) => (g.puzzle[i] !== 0 ? g.puzzle[i] : g.entries[i]);
+
+  // Place a digit (or toggle it as a pencil-mark in notes mode) into the
+  // selected non-given cell, then check for the win.
+  const place = (v) => {
+    setGame((g) => {
+      if (g.solved || selected == null || g.puzzle[selected] !== 0) return g;
+      if (notesMode) {
+        const cur = g.notes[selected] || [];
+        const next = cur.includes(v) ? cur.filter((n) => n !== v) : [...cur, v].sort();
+        return { ...g, notes: { ...g.notes, [selected]: next } };
+      }
+      const entries = g.entries.slice();
+      entries[selected] = entries[selected] === v ? 0 : v; // same digit again = clear it
+      const notes = { ...g.notes };
+      if (entries[selected] !== 0) delete notes[selected];
+      let solved = true;
+      for (let i = 0; i < 81; i++) {
+        if ((g.puzzle[i] !== 0 ? g.puzzle[i] : entries[i]) !== g.solution[i]) { solved = false; break; }
+      }
+      return { ...g, entries, notes, solved };
+    });
+  };
+  const erase = () => {
+    setGame((g) => {
+      if (g.solved || selected == null || g.puzzle[selected] !== 0) return g;
+      const entries = g.entries.slice();
+      entries[selected] = 0;
+      const notes = { ...g.notes };
+      delete notes[selected];
+      return { ...g, entries, notes };
+    });
+  };
+  // Refs so the (deliberately sparse-dep) keyboard effect always calls the
+  // latest handlers — selected/notesMode live in their closures.
+  const placeRef = useRef(place); placeRef.current = place;
+  const eraseRef = useRef(erase); eraseRef.current = erase;
+
+  const newPuzzle = (diff) => {
+    if (generating) return;
+    const hasProgress = !game.solved && (game.entries.some((v) => v !== 0) || Object.keys(game.notes).length > 0);
+    if (hasProgress && !window.confirm('Start a new puzzle? Your current board will be lost.')) return;
+    setGenerating(true);
+    setSelected(null);
+    // Generation is synchronous (~tens of ms on Hard) — yield one frame so
+    // the "Dealing…" state paints before the work runs.
+    setTimeout(() => {
+      const { puzzle, solution } = sdkGenerate(diff);
+      setGame({ puzzle, solution, entries: new Array(81).fill(0), notes: {}, difficulty: diff, seconds: 0, solved: false });
+      setNotesMode(false);
+      setGenerating(false);
+    }, 30);
+  };
+
+  // ---- keyboard: gated exactly like Night Run / Freight Five — attached
+  // only while this sub-view is mounted and the puzzle is live, a no-op when
+  // a real form field has focus, and never touching modifier combos so the
+  // command palette (Ctrl/Cmd+K) is completely untouched. ----
+  useEffect(() => {
+    if (game.solved) return;
+    const onKeyDown = (e) => {
+      const ae = document.activeElement;
+      if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key >= '1' && e.key <= '9') { e.preventDefault(); placeRef.current(Number(e.key)); return; }
+      if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { e.preventDefault(); eraseRef.current(); return; }
+      if (e.key === 'n' || e.key === 'N') { e.preventDefault(); setNotesMode((m) => !m); return; }
+      const moves = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 };
+      if (moves[e.key] !== undefined) {
+        e.preventDefault();
+        setSelected((s) => {
+          if (s == null) return 40; // first arrow press lands center-board
+          if (e.key === 'ArrowLeft' && s % 9 === 0) return s;
+          if (e.key === 'ArrowRight' && s % 9 === 8) return s;
+          const next = s + moves[e.key];
+          return next < 0 || next > 80 ? s : next;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [game.solved]);
+
+  // Live mistake feedback, kept gentle: a cell is "in conflict" when its
+  // digit repeats in a shared row/column/box. Recomputed per board change.
+  const conflicts = React.useMemo(() => {
+    const bad = new Set();
+    for (let i = 0; i < 81; i++) {
+      const v = cellVal(game, i);
+      if (!v) continue;
+      const r = Math.floor(i / 9), c = i % 9, b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+      for (let j = i + 1; j < 81; j++) {
+        if (cellVal(game, j) !== v) continue;
+        const r2 = Math.floor(j / 9), c2 = j % 9, b2 = Math.floor(r2 / 3) * 3 + Math.floor(c2 / 3);
+        if (r === r2 || c === c2 || b === b2) { bad.add(i); bad.add(j); }
+      }
+    }
+    return bad;
+  }, [game]);
+
+  // Digit usage — the pad dims a number once all nine are on the board.
+  const digitCounts = React.useMemo(() => {
+    const m = {};
+    for (let i = 0; i < 81; i++) { const v = cellVal(game, i); if (v) m[v] = (m[v] || 0) + 1; }
+    return m;
+  }, [game]);
+
+  const selVal = selected != null ? cellVal(game, selected) : 0;
+  const selR = selected != null ? Math.floor(selected / 9) : -1;
+  const selC = selected != null ? selected % 9 : -1;
+  const selB = selected != null ? Math.floor(selR / 3) * 3 + Math.floor(selC / 3) : -1;
+
+  const cellCls = (i) => {
+    const r = Math.floor(i / 9), c = i % 9, b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+    const given = game.puzzle[i] !== 0;
+    const v = cellVal(game, i);
+    const conflict = !given && conflicts.has(i);
+    let cls = 'relative aspect-square flex items-center justify-center font-data select-none border-slate-800 border transition-colors ';
+    if (c % 3 === 2 && c !== 8) cls += 'border-r-2 border-r-slate-500 ';
+    if (r % 3 === 2 && r !== 8) cls += 'border-b-2 border-b-slate-500 ';
+    // background priority: selected > same digit > peers > given shading
+    if (i === selected) cls += 'bg-amber-500/25 ';
+    else if (selVal && v === selVal) cls += 'bg-amber-500/10 ';
+    else if (selected != null && (r === selR || c === selC || b === selB)) cls += 'bg-slate-800/60 ';
+    else if (given) cls += 'bg-slate-800/30 ';
+    if (conflict) cls += 'bg-red-500/10 ';
+    // ink: givens read solid, your entries read gold, conflicts read soft red
+    cls += given ? 'text-slate-100 font-bold ' : conflict ? 'text-red-400 font-semibold ' : 'text-amber-300 font-semibold ';
+    return cls;
+  };
+
+  return (
+    <Card className="p-4 sm:p-5 max-w-md mx-auto">
+      <PanelHeader
+        icon={<Grid3x3 size={18} />}
+        title="Sudoku"
+        accent="blue"
+        badge={<Badge tone="slate" className="font-normal capitalize">{game.difficulty}</Badge>}
+        action={
+          <span className="flex items-center gap-1.5 text-xs font-data text-slate-400" aria-label={`Time: ${sdkFmtTime(game.seconds)}`}>
+            <Clock size={13} /> {sdkFmtTime(game.seconds)}
+          </span>
+        }
+      />
+      <p className="text-xs text-slate-400 mt-1 mb-4">Classic 9×9. Tap a cell, then a number — givens are locked. Progress saves on this device.</p>
+
+      {/* the board — big enough cells at 390px to be thumb-usable */}
+      <div
+        className="grid grid-cols-9 w-full max-w-[400px] mx-auto rounded-md overflow-hidden border-2 border-slate-500 bg-slate-950"
+        role="grid"
+        aria-label="Sudoku board"
+      >
+        {Array.from({ length: 81 }, (_, i) => {
+          const v = cellVal(game, i);
+          const given = game.puzzle[i] !== 0;
+          const notes = !v ? (game.notes[i] || []) : [];
+          const r = Math.floor(i / 9), c = i % 9;
+          return (
+            <button
+              key={i}
+              type="button"
+              role="gridcell"
+              onClick={() => setSelected(i)}
+              aria-label={`Row ${r + 1}, column ${c + 1}${v ? `, ${given ? 'given ' : ''}${v}` : ', empty'}`}
+              className={cellCls(i) + ' text-base sm:text-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 focus-visible:z-10'}
+            >
+              {v ? v : notes.length > 0 ? (
+                <span className="grid grid-cols-3 w-full h-full p-[2px] text-[8px] leading-none text-slate-400 font-semibold" aria-hidden="true">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                    <span key={n} className="flex items-center justify-center">{notes.includes(n) ? n : ''}</span>
+                  ))}
+                </span>
+              ) : ''}
+            </button>
+          );
+        })}
+      </div>
+
+      {game.solved ? (
+        <div className="mt-5 space-y-4">
+          <div className="text-center rounded-lg border bg-emerald-500/10 border-emerald-500/30 p-4">
+            <div className="text-sm font-bold text-emerald-400">Solved!</div>
+            <p className="text-xs text-slate-400 mt-1">
+              <span className="capitalize">{game.difficulty}</span> board in <span className="font-data text-slate-200">{sdkFmtTime(game.seconds)}</span> — clean grid, no leftovers.
+            </p>
+          </div>
+          <PrimaryButton onClick={() => newPuzzle(game.difficulty)} disabled={generating} className="w-full">
+            {generating ? 'Dealing…' : 'New Puzzle'}
+          </PrimaryButton>
+        </div>
+      ) : (
+        <>
+          {/* number pad — required on phones, handy everywhere */}
+          <div className="mt-4 grid grid-cols-5 gap-1.5 max-w-[400px] mx-auto">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => place(n)}
+                aria-label={notesMode ? `Pencil-mark ${n}` : `Place ${n}`}
+                className={`h-11 rounded-md font-data font-bold text-base transition-colors ${(digitCounts[n] || 0) >= 9 ? 'bg-slate-800/50 text-slate-600' : 'bg-slate-700 text-slate-100 hover:bg-slate-600 active:bg-slate-500'}`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={erase}
+              aria-label="Erase cell"
+              className="h-11 rounded-md bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-colors flex items-center justify-center"
+            >
+              <Eraser size={16} />
+            </button>
+          </div>
+
+          {/* controls: notes toggle · difficulty · new puzzle */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 max-w-[400px] mx-auto">
+            <button
+              type="button"
+              onClick={() => setNotesMode((m) => !m)}
+              aria-pressed={notesMode}
+              aria-label="Toggle notes mode"
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${notesMode ? 'bg-amber-500/15 border-amber-500/40 text-amber-300' : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'}`}
+            >
+              <NotebookPen size={13} /> Notes {notesMode ? 'on' : 'off'}
+            </button>
+            <div className="flex items-center gap-1.5">
+              <div className="flex rounded-md border border-slate-700 overflow-hidden">
+                {SUDOKU_DIFFS.map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => { if (key !== game.difficulty) newPuzzle(key); }}
+                    aria-pressed={game.difficulty === key}
+                    className={`text-[11px] px-2.5 py-1.5 transition-colors ${game.difficulty === key ? 'bg-slate-700 text-white font-semibold' : 'bg-slate-800/60 text-slate-400 hover:text-slate-200'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => newPuzzle(game.difficulty)}
+                disabled={generating}
+                aria-label="New puzzle"
+                title="New puzzle"
+                className="text-xs px-2.5 py-1.5 rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 hover:text-white transition-colors disabled:opacity-50"
+              >
+                {generating ? '…' : <RotateCcw size={13} />}
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-600 text-center mt-3">Keys 1–9 place · Backspace erases · N toggles notes · arrows move</p>
+        </>
       )}
     </Card>
   );
@@ -11257,14 +11671,65 @@ function HaulBuddyDashboardPeek({ onNavigate }) {
   );
 }
 
+// One launcher card in the Break Room hub — icon well, title, one-line
+// description, and a small status cue (best score, streak, in-progress…).
+// Same tappable-card anatomy as HaulBuddyTeaserCard so the grid reads as one
+// family.
+function BreakRoomGameCard({ icon, title, desc, accent = 'amber', cue, onOpen }) {
+  const wellCls = {
+    amber: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+    emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+    blue: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+  }[accent] || 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+  return (
+    <button type="button" onClick={onOpen} className="w-full text-left bg-slate-900/60 border border-slate-800/80 rounded-md shadow-e1 hover:border-amber-500/40 transition-colors p-4 flex items-center gap-4">
+      <div className={`shrink-0 w-16 h-16 rounded-md border flex items-center justify-center ${wellCls}`}>{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-white truncate">{title}</span>
+          {cue}
+        </div>
+        <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
+      </div>
+      <ChevronRight size={18} className="text-slate-600 shrink-0" />
+    </button>
+  );
+}
+
+// Shared frame for a game opened from the hub: the "← Break Room" back
+// control plus an optional page title (games whose Card already carries its
+// own header skip the title to avoid saying everything twice).
+function BreakRoomSubView({ title, subtitle, onBack, children }) {
+  return (
+    <div className="max-w-6xl mx-auto space-y-4">
+      <div>
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to Break Room"
+          className="flex items-center gap-1 text-sm text-slate-400 hover:text-white transition-colors"
+        >
+          <ChevronLeft size={16} /> Break Room
+        </button>
+        {title && <h2 className="text-2xl font-bold mt-2">{title}</h2>}
+        {subtitle && <p className="text-slate-400 text-sm mt-1">{subtitle}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // Break Room tab — visible to every signed-in user (admin or driver), no
-// role gate. The hub shows both arcade games plus a small teaser for Haul
-// Buddy; tapping the teaser opens his own dedicated full-page view (kept
-// separate on purpose so his world doesn't clutter this grid). The page is
-// also deep-linkable from the one sanctioned dashboard peek via a one-shot
-// sessionStorage flag (HB_DEEPLINK_KEY), read once here and cleared.
-function BreakRoomView() {
-  const [view, setView] = useState(() => {
+// role gate. The hub is a game LAUNCHER: a menu of cards, one per game, and
+// picking one opens that game in its own dedicated sub-view with a back
+// control (Night Run gets a bigger desktop playfield when it has the page to
+// itself — see NightRunGame's `big` prop). Haul Buddy is SUPER-ADMIN ONLY
+// for now: non-super users never see his card, and his page won't render for
+// them even via the deep link. The deep link itself comes from the one
+// sanctioned dashboard peek via a one-shot sessionStorage flag
+// (HB_DEEPLINK_KEY), read once here and cleared.
+function BreakRoomView({ isSuper = false }) {
+  const [view, setView] = useState(() => { // 'hub' | 'nightrun' | 'freightfive' | 'sudoku' | 'haulbuddy'
     try {
       if (sessionStorage.getItem(HB_DEEPLINK_KEY)) {
         sessionStorage.removeItem(HB_DEEPLINK_KEY);
@@ -11273,26 +11738,83 @@ function BreakRoomView() {
     } catch (_) { /* ignore — default to the hub */ }
     return 'hub';
   });
+  const back = () => setView('hub');
 
-  if (view === 'haulbuddy') {
-    return <HaulBuddyPage onBack={() => setView('hub')} />;
+  if (view === 'haulbuddy' && isSuper) {
+    return <HaulBuddyPage onBack={back} />;
   }
+  if (view === 'nightrun') {
+    return (
+      <BreakRoomSubView title="Night Run" subtitle="Dodge traffic, grab fuel, don't jackknife." onBack={back}>
+        <NightRunGame big />
+      </BreakRoomSubView>
+    );
+  }
+  if (view === 'freightfive') {
+    return (
+      <BreakRoomSubView onBack={back}>
+        <div className="max-w-md mx-auto"><FreightFiveGame /></div>
+      </BreakRoomSubView>
+    );
+  }
+  if (view === 'sudoku') {
+    return (
+      <BreakRoomSubView onBack={back}>
+        <SudokuGame />
+      </BreakRoomSubView>
+    );
+  }
+
+  // ---- the hub: launcher cards only. Status cues are read fresh on every
+  // hub render (cheap localStorage reads) so returning from a game shows
+  // up-to-date bests/streaks without any shared state. ----
+  const nrScores = loadNightRunScores();
+  const nrBest = nrScores.length ? nrScores[0].score : 0;
+  const ffState = loadFFState();
+  const sdk = loadSudokuState();
+  const sdkInProgress = !!sdk && !sdk.solved && (sdk.entries.some((v) => v !== 0) || Object.keys(sdk.notes || {}).length > 0);
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
       <div>
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold">Break Room</h2>
-          <Badge tone="amber" className="font-normal">v1</Badge>
+          <Badge tone="amber" className="font-normal">v2</Badge>
         </div>
-        <p className="text-slate-400 text-sm mt-1">Off the clock. High scores are forever.</p>
+        <p className="text-slate-400 text-sm mt-1">Off the clock. Pick a game — high scores are forever.</p>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <NightRunGame />
-        <FreightFiveGame />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <BreakRoomGameCard
+          icon={<Gamepad2 size={26} />}
+          accent="amber"
+          title="Night Run"
+          desc="Dodge traffic, grab fuel — the highway only gets faster."
+          cue={nrBest > 0 ? <Badge tone="amber" className="font-normal">Best {nrBest.toLocaleString()}</Badge> : null}
+          onOpen={() => setView('nightrun')}
+        />
+        <BreakRoomGameCard
+          icon={<Target size={26} />}
+          accent="emerald"
+          title="Freight Five"
+          desc="One freight word a day, six guesses. New word at midnight."
+          cue={ffState.done
+            ? <Badge tone="emerald" className="font-normal">Done today</Badge>
+            : <Badge tone="slate" className="font-normal">#{ffDayNumber()}</Badge>}
+          onOpen={() => setView('freightfive')}
+        />
+        <BreakRoomGameCard
+          icon={<Grid3x3 size={26} />}
+          accent="blue"
+          title="Sudoku"
+          desc="Classic 9×9, three difficulties. Your board saves itself."
+          cue={sdkInProgress
+            ? <Badge tone="amber" className="font-normal">In progress</Badge>
+            : sdk && sdk.solved ? <Badge tone="emerald" className="font-normal">Solved</Badge> : null}
+          onOpen={() => setView('sudoku')}
+        />
+        {isSuper && <HaulBuddyTeaserCard onOpen={() => setView('haulbuddy')} />}
       </div>
-      <HaulBuddyTeaserCard onOpen={() => setView('haulbuddy')} />
-      <p className="text-center text-[11px] text-slate-600">Three games deep — he's the one with feelings.</p>
+      {isSuper && <p className="text-center text-[11px] text-slate-600">Four games deep — he's the one with feelings.</p>}
     </div>
   );
 }
@@ -12455,6 +12977,92 @@ function WorkspacesView() {
     } catch (e) { console.error('toggle dispatcher failed', e); alert('Could not update — check the console.'); }
   };
 
+  // ---- permanent workspace deletion (super-admin, DEACTIVATED workspaces
+  // only) ----
+  // Cascade order: every orgId-stamped collection first, then the workspace's
+  // user docs (owner + drivers, matched on orgId), then the org doc itself
+  // LAST — and only if the sweep was clean, so a partial failure keeps the
+  // workspace row around to retry against. Each collection is best-effort:
+  // one failing never aborts the rest, failures are reported by name.
+  //
+  // Two things this CANNOT do from the browser (also spelled out in the UI,
+  // both in the confirm panel and the completion summary):
+  //   1. The Firebase Auth login still exists — Console → Authentication.
+  //   2. Uploaded Storage files (vault docs, PODs) are separate from
+  //      Firestore — Console → Storage.
+  // WIPE_COLS = BACKFILL_COLS minus `users` (handled separately, last) plus
+  // every other orgId-stamped collection in the app: crm_contacts,
+  // broker_checks, carrier_checks, schedule_events, vault_docs,
+  // signed_agreements, and carrier_packets (public intake stamps orgId).
+  // NOT swept (Locke review): `mail` — its rules are read/delete:false for
+  // everyone including super (write-only outbox), so even querying it is
+  // denied and would wedge the cascade forever; and users/{uid}/private/*
+  // (My Corner) — owner-only by design. Both are disclosed in the UI as
+  // surviving this delete.
+  const WIPE_COLS = ['loads', 'carriers', 'expenses', 'lane_intel', 'compliance', 'safe_parking', 'vehicles', 'fleet_drivers', 'hos_status', 'crm_contacts', 'broker_checks', 'carrier_checks', 'schedule_events', 'vault_docs', 'signed_agreements', 'carrier_packets'];
+  const [delTarget, setDelTarget] = useState(null); // org id whose confirm panel is open
+  const [delName, setDelName] = useState('');       // typed-name confirmation
+  const [delBusy, setDelBusy] = useState(false);
+  const [delLog, setDelLog] = useState('');         // live per-collection progress
+  const [delDone, setDelDone] = useState(null);     // { name, ownerEmail, total, log } after a clean delete
+
+  const openDelete = (o) => { setDelTarget(o.id); setDelName(''); setDelLog(''); };
+  const closeDelete = () => { if (delBusy) return; setDelTarget(null); setDelName(''); setDelLog(''); };
+
+  const deleteWorkspace = async (o) => {
+    if (delBusy || !(o.name || '').trim() || delName.trim() !== (o.name || '')) return;
+    // Re-check deactivation at execution time (not just at render) so a
+    // stale tab can never fire the cascade on a workspace that was
+    // reactivated elsewhere in the meantime.
+    try {
+      const owner = o.ownerUid ? await getDoc(doc(db, 'users', o.ownerUid)) : null;
+      if (!owner || !owner.exists() || owner.data().approved !== false) {
+        alert('This workspace is not deactivated (or its owner record changed). Deactivate it first, then delete.');
+        return;
+      }
+    } catch (e) { console.error('pre-delete recheck failed', e); alert('Could not verify the workspace is deactivated — try again.'); return; }
+    if (!window.confirm(`FINAL CHECK: permanently delete "${o.name}" and every Firestore record in it? This cannot be undone.`)) return;
+    setDelBusy(true);
+    const lines = [];
+    const log = (line) => { lines.push(line); setDelLog(lines.join('\n')); };
+    const failures = [];
+    let total = 0;
+    // `users` is deliberately last in the sweep: data first, people second,
+    // and the org doc only after everything else is gone.
+    for (const col of [...WIPE_COLS, 'users']) {
+      try {
+        const snap = await getDocs(query(collection(db, col), where('orgId', '==', o.id)));
+        let n = 0, errs = 0;
+        for (const d of snap.docs) {
+          try { await deleteDoc(doc(db, col, d.id)); n++; }
+          catch (e) { errs++; console.error(`delete ${col}/${d.id} failed`, e); }
+        }
+        total += n;
+        if (errs) { failures.push(col); log(`${col}: deleted ${n}, FAILED on ${errs} — left in place`); }
+        else log(`${col}: deleted ${n}`);
+      } catch (e) {
+        console.error(`workspace wipe: ${col} sweep failed`, e);
+        failures.push(col);
+        log(`${col}: FAILED to query (${e.code || e.message || 'error'}) — skipped, continuing`);
+      }
+    }
+    if (failures.length === 0) {
+      try {
+        await deleteDoc(doc(db, 'orgs', o.id));
+        log('orgs: workspace record deleted');
+        setDelDone({ name: o.name, ownerEmail: o.ownerEmail, total, log: lines.join('\n') });
+        setDelTarget(null); setDelName(''); setDelLog('');
+        fetchOrgs(); // refresh — the deleted workspace drops out of the list
+      } catch (e) {
+        console.error('org doc delete failed', e);
+        log(`orgs: FAILED (${e.code || e.message || 'error'}) — the data sweep finished; retry to remove the workspace record.`);
+      }
+    } else {
+      log(`\nKept the workspace record because ${failures.length} collection(s) had failures: ${failures.join(', ')}. The sweep is safe to re-run — fix (check the console) and retry.`);
+    }
+    setDelBusy(false);
+  };
+
   // ---- one-time data backfill (super-admin) ----
   const [bfOrg, setBfOrg] = useState('');
   const [bfBusy, setBfBusy] = useState(false);
@@ -12576,6 +13184,19 @@ function WorkspacesView() {
 
       <Card className="p-6">
         <h3 className="font-bold mb-4">Workspaces ({orgs.length})</h3>
+        {delDone && (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 mb-4 text-xs text-slate-300 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-semibold text-emerald-400">✓ “{delDone.name}” permanently deleted — {delDone.total} Firestore document(s) removed.</span>
+              <button type="button" onClick={() => setDelDone(null)} aria-label="Dismiss summary" className="text-slate-500 hover:text-white shrink-0"><X size={14} /></button>
+            </div>
+            <pre className="whitespace-pre-wrap font-mono text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg p-3">{delDone.log}</pre>
+            <p className="text-amber-300 flex items-start gap-1.5">
+              <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+              <span>What this could <strong>not</strong> remove — finish in the Firebase Console if needed: the Auth login for <span className="font-mono text-amber-200">{delDone.ownerEmail}</span> (Authentication → find the user → delete), any uploaded files like vault docs and PODs (Storage), queued outbound email records (the mail collection is write-only), and any private My Corner notes (owner-only by design).</span>
+            </p>
+          </div>
+        )}
         {loading ? <SkelRows rows={3} />
           : orgs.length === 0 ? <div className="text-slate-500 text-sm">No workspaces yet. (Or the orgs rule isn't published.)</div>
           : (
@@ -12586,7 +13207,8 @@ function WorkspacesView() {
                 const activity = (o.ownerUid && ownerActivity[o.ownerUid]) || {};
                 const loginMs = activity.lastLogin && activity.lastLogin.toDate ? activity.lastLogin.toDate().getTime() : null;
                 return (
-                  <div key={o.id} className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                  <div key={o.id}>
+                  <div className="flex items-center justify-between gap-3 bg-slate-800/40 border border-slate-700 rounded-xl p-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-semibold text-white truncate">{o.name}</div>
@@ -12637,7 +13259,48 @@ function WorkspacesView() {
                           {active ? 'Deactivate' : 'Reactivate'}
                         </button>
                       )}
+                      {/* the destructive path only exists once a workspace is
+                          already deactivated — an active workspace can never
+                          be deleted directly */}
+                      {!isMe && !active && delTarget !== o.id && (
+                        <button onClick={() => openDelete(o)}
+                          className="text-xs border px-2.5 py-1 rounded-lg text-red-400 border-red-500/40 hover:bg-red-500/10 flex items-center gap-1">
+                          <Trash2 size={12} /> Delete permanently
+                        </button>
+                      )}
                     </div>
+                  </div>
+
+                  {!isMe && !active && delTarget === o.id && (
+                    <div className="mt-2 rounded-lg border border-red-500/40 bg-red-500/5 p-4 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                        <div className="text-xs text-slate-300 space-y-2 leading-relaxed">
+                          <p className="font-semibold text-red-300">Permanently delete “{o.name}” — this cannot be undone.</p>
+                          <p>
+                            <span className="text-slate-100 font-semibold">Deleted:</span> every Firestore record in this workspace — loads, carriers, expenses, lane intel, compliance, safe parking, fleet (vehicles, drivers, HOS), CRM contacts, broker &amp; carrier checks, schedule events, document records, signed agreements, intake packets, and the portal user records (owner + drivers).
+                          </p>
+                          <p>
+                            <span className="text-slate-100 font-semibold">NOT deleted (can’t be done from the browser):</span> the Firebase Auth login for <span className="font-mono text-slate-200">{o.ownerEmail}</span> — remove it in <span className="text-slate-200">Firebase Console → Authentication</span> if you want the email fully gone; any uploaded files (vault docs, PODs), which live in <span className="text-slate-200">Firebase Console → Storage</span>; queued outbound email records (the <span className="font-mono text-slate-200">mail</span> collection is write-only by design); and any private My&nbsp;Corner notes (owner-only by design — even super-admin can’t reach them from the browser; use the Console if they must go).
+                          </p>
+                        </div>
+                      </div>
+                      <Field label={`Type the workspace name to confirm: ${o.name}`}>
+                        <input className={INPUT_CLS} value={delName} onChange={(e) => setDelName(e.target.value)} placeholder={o.name} disabled={delBusy} autoComplete="off" />
+                      </Field>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => deleteWorkspace(o)} disabled={delBusy || delName.trim() !== (o.name || '')}
+                          className="text-xs font-semibold bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors">
+                          <Trash2 size={13} /> {delBusy ? 'Deleting…' : 'Delete permanently'}
+                        </button>
+                        <button type="button" onClick={closeDelete} disabled={delBusy}
+                          className="text-xs text-slate-400 border border-slate-700 hover:bg-slate-800 px-3 py-2 rounded-lg disabled:opacity-50">
+                          Cancel
+                        </button>
+                      </div>
+                      {delLog && <pre className="text-xs text-slate-300 bg-slate-950/60 border border-slate-800 rounded-lg p-3 whitespace-pre-wrap font-mono">{delLog}</pre>}
+                    </div>
+                  )}
                   </div>
                 );
               })}
