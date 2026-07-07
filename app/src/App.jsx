@@ -37,6 +37,16 @@ const storage = getStorage(app);
 const functionsClient = getFunctions(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Per-ACCOUNT localStorage namespacing for game/personal state (Break Room
+// scores + progress, Coach's Corner hide, Haul Buddy, the dashboard-peek
+// stamp). Suffixes the key with the signed-in uid so two accounts sharing
+// one browser never see each other's data. MUST be called at read/write
+// time — never captured at module load — because the uid changes on
+// logout/login within a session. Display prefs (fm_theme, fm_guided,
+// fm_mycorner_collapsed, …) and shared caches (fm_market_cache) are
+// deliberately global and do NOT go through this helper.
+const uidKey = (base) => base + '_' + ((auth.currentUser && auth.currentUser.uid) || 'anon');
+
 // ============================================================================
 // ===== NIGHT HAUL THEME LAYER ===============================================
 // Two full skins — "Night Haul" (warm dark + gold, the new look) and
@@ -1697,19 +1707,41 @@ function AdminWeeklyGross() {
 }
 
 // ---------- ADMIN: MARKET PULSE (live feed via useMarketData, builtin fallback) ----------
+// Collapsible — same pattern as MyCornerStrip: whole header is the toggle,
+// chevron flips, and the choice persists. Collapsed still shows the as-of
+// badge, the live trend, and the one-line blurb, so it stays glanceable.
+const MP_COLLAPSED_KEY = 'fm_marketpulse_collapsed'; // display pref — deliberately global (matches fm_mycorner_collapsed), NOT per-uid
+
 function MarketPulse() {
   const { data: p, source } = useMarketData();
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(MP_COLLAPSED_KEY) !== '1'; } catch (_) { return true; }
+  });
+  const toggleOpen = () => {
+    setOpen((o) => {
+      const next = !o;
+      try { localStorage.setItem(MP_COLLAPSED_KEY, next ? '0' : '1'); } catch (_) {}
+      return next;
+    });
+  };
   const trend = { up: { t: '▲ Rising', c: 'text-emerald-400' }, down: { t: '▼ Falling', c: 'text-red-400' }, flat: { t: '▬ Flat', c: 'text-slate-400' } }[p.trend] || { t: '', c: 'text-slate-400' };
   return (
-    <Card className="p-6">
-      <PanelHeader
-        icon={<Activity size={20} />}
-        title="Market Pulse"
-        badge={<Badge tone="slate" className="font-normal">as of {fmtMarketAsOf(p.asOf)}{source === 'builtin' ? ' · reference data' : ''}</Badge>}
-        action={<span className={`text-sm font-bold ${trend.c}`}>{trend.t}</span>}
-      />
-      <p className="text-sm text-slate-400 mt-2">{p.blurb}</p>
-
+    <Card className="p-0 overflow-hidden">
+      <button type="button" onClick={toggleOpen} aria-expanded={open} className="w-full flex items-center justify-between gap-3 px-6 py-4 text-left hover:bg-white/[0.02] transition-colors">
+        <h3 className="text-base font-semibold text-white flex items-center gap-2.5 min-w-0 flex-wrap">
+          <span className="w-1 h-4 shrink-0 bg-amber-500" />
+          <Activity size={20} className="text-amber-500 shrink-0" />
+          <span>Market Pulse</span>
+          <Badge tone="slate" className="font-normal">as of {fmtMarketAsOf(p.asOf)}{source === 'builtin' ? ' · reference data' : ''}</Badge>
+        </h3>
+        <span className="flex items-center gap-3 shrink-0">
+          <span className={`text-sm font-bold ${trend.c}`}>{trend.t}</span>
+          <ChevronDown size={16} className={`text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      <p className={`text-sm text-slate-400 px-6 -mt-1 ${open ? '' : 'pb-5'}`}>{p.blurb}</p>
+      {open && (
+      <div className="px-6 pb-6">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
         <StatTile label="National Spot (all-in)" value={`$${p.spotAllIn.toFixed(2)}/mi`} accent="emerald" />
         <StatTile label="Avg Diesel" value={`$${p.dieselPerGal.toFixed(2)}/gal`} accent="amber" />
@@ -1746,6 +1778,8 @@ function MarketPulse() {
         {source === 'cached' && 'Estimates for guidance — showing the last fetched market snapshot (feed unreachable right now).'}
         {source === 'builtin' && 'Estimates for guidance — built-in reference data; the live market feed loads automatically when reachable.'}
       </p>
+      </div>
+      )}
     </Card>
   );
 }
@@ -1861,13 +1895,13 @@ function CoachCorner() {
   // "Next tip" previews ahead locally; a reload resets to the day's canonical tip.
   const [offset, setOffset] = useState(0);
   const [hidden, setHidden] = useState(() => {
-    try { return localStorage.getItem(COACH_HIDE_KEY) === ffLocalDateStr(); } catch (_) { return false; }
+    try { return localStorage.getItem(uidKey(COACH_HIDE_KEY)) === ffLocalDateStr(); } catch (_) { return false; }
   });
   if (hidden) return null;
   const t = COACH_TIPS[(dayIdx + offset) % COACH_TIPS.length];
   const tone = { 'Negotiation': 'amber', 'Broker Red Flags': 'red', 'Paperwork & Pay': 'emerald', 'Ops Discipline': 'blue', 'Growth': 'indigo' }[t.cat] || 'slate';
   const dismiss = () => {
-    try { localStorage.setItem(COACH_HIDE_KEY, ffLocalDateStr()); } catch (_) {}
+    try { localStorage.setItem(uidKey(COACH_HIDE_KEY), ffLocalDateStr()); } catch (_) {}
     setHidden(true); // returns tomorrow — the key only matches today's date
   };
   return (
@@ -8979,7 +9013,7 @@ const NIGHTRUN_MAX_SCORES = 10;
 
 function loadNightRunScores() {
   try {
-    const raw = JSON.parse(localStorage.getItem(NIGHTRUN_SCORES_KEY) || '[]');
+    const raw = JSON.parse(localStorage.getItem(uidKey(NIGHTRUN_SCORES_KEY)) || '[]');
     if (!Array.isArray(raw)) return [];
     return raw.filter((r) => r && typeof r.score === 'number' && typeof r.initials === 'string').slice(0, NIGHTRUN_MAX_SCORES);
   } catch (_) { return []; }
@@ -8992,7 +9026,7 @@ function saveNightRunScore(initials, score) {
   list.push(entry);
   list.sort((a, b) => b.score - a.score);
   const trimmed = list.slice(0, NIGHTRUN_MAX_SCORES);
-  try { localStorage.setItem(NIGHTRUN_SCORES_KEY, JSON.stringify(trimmed)); } catch (_) {}
+  try { localStorage.setItem(uidKey(NIGHTRUN_SCORES_KEY), JSON.stringify(trimmed)); } catch (_) {}
   const idx = trimmed.findIndex((r) => r.at === entry.at);
   return { list: trimmed, rank: idx === -1 ? null : idx + 1 };
 }
@@ -9038,6 +9072,18 @@ const NR_SWIPE_PX = 26;
 const NR_CRASH_SEC = 0.5;
 const NR_DASH_PERIOD = 46;
 
+// The playfield's max width in px — width-capped (420, or 560 for `big` on
+// md+) AND height-capped on md+ so the 3:4 board always fits a short desktop
+// viewport. Shared by the lazy initial state and the resize listener.
+function nrBoardCap(big) {
+  try {
+    const md = window.matchMedia('(min-width: 768px)').matches;
+    const capW = big && md ? 560 : 420;
+    if (!md) return capW; // phones: width-only cap, unchanged behavior
+    return Math.max(280, Math.min(capW, Math.floor((window.innerHeight - 250) * 0.75)));
+  } catch (_) { return big ? 560 : 420; }
+}
+
 // `big` (Break Room dedicated view): lets the playfield grow on md+ screens
 // only — below md the cap is the same 420px as always, so phones render
 // pixel-identical either way. The ResizeObserver handles the rest.
@@ -9054,7 +9100,7 @@ function NightRunGame({ big = false }) {
   const [best, setBest] = useState(0);
   const [scores, setScores] = useState(() => loadNightRunScores());
   const [initials, setInitials] = useState(() => {
-    try { return (localStorage.getItem(NIGHTRUN_INITIALS_KEY) || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); }
+    try { return (localStorage.getItem(uidKey(NIGHTRUN_INITIALS_KEY)) || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); }
     catch (_) { return ''; }
   });
   const [justRank, setJustRank] = useState(null);
@@ -9081,6 +9127,23 @@ function NightRunGame({ big = false }) {
   const pointerRef = useRef(null); // {x,y} on pointerdown, for tap vs swipe
 
   useEffect(() => { setBest(scores.length ? scores[0].score : 0); }, [scores]);
+
+  // Height-aware playfield cap (md+ only): the 3:4 board plus ~250px of page
+  // chrome (top bar, back link + title, caption) must fit the viewport, so on
+  // a short laptop (768px tall) the board shrinks to fit instead of pushing
+  // the controls/caption off-screen. width = (viewportHeight − 250) × 3/4,
+  // clamped to the original 420/560 caps and a 280px floor. Below md nothing
+  // changes — phones keep the width-only cap they've always had (that
+  // behavior was fine). The canvas ResizeObserver below picks up the new
+  // wrapper size automatically, and the lazy initializer means the first
+  // paint is already the right size (no resize flash).
+  const [boardMax, setBoardMax] = useState(() => nrBoardCap(big));
+  useEffect(() => {
+    const calc = () => setBoardMax(nrBoardCap(big));
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, [big]);
 
   // Responsive backing store: crisp on retina, resizes with the Card.
   useEffect(() => {
@@ -9480,7 +9543,7 @@ function NightRunGame({ big = false }) {
   const submitScore = (e) => {
     e.preventDefault();
     const chars = (initials || 'YOU').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'YOU';
-    try { localStorage.setItem(NIGHTRUN_INITIALS_KEY, chars); } catch (_) {}
+    try { localStorage.setItem(uidKey(NIGHTRUN_INITIALS_KEY), chars); } catch (_) {}
     const { list, rank } = saveNightRunScore(chars, finalScore);
     setScores(list);
     setJustRank(rank);
@@ -9490,7 +9553,7 @@ function NightRunGame({ big = false }) {
 
   const resetScores = () => {
     if (!window.confirm('Clear all Night Run high scores on this device?')) return;
-    try { localStorage.removeItem(NIGHTRUN_SCORES_KEY); } catch (_) {}
+    try { localStorage.removeItem(uidKey(NIGHTRUN_SCORES_KEY)); } catch (_) {}
     setScores([]);
   };
 
@@ -9501,8 +9564,8 @@ function NightRunGame({ big = false }) {
       <div>
         <div
           ref={wrapRef}
-          className={`relative w-full mx-auto rounded-lg overflow-hidden border border-slate-700/70 bg-slate-950 select-none touch-none ${big ? 'max-w-[420px] md:max-w-[560px]' : 'max-w-[420px]'}`}
-          style={{ aspectRatio: '3 / 4' }}
+          className="relative w-full mx-auto rounded-lg overflow-hidden border border-slate-700/70 bg-slate-950 select-none touch-none"
+          style={{ aspectRatio: '3 / 4', maxWidth: boardMax + 'px' }}
         >
           <canvas
             ref={canvasRef}
@@ -9825,24 +9888,24 @@ function ffYesterday(dateStr) {
 function loadFFState() {
   const today = ffLocalDateStr();
   try {
-    const raw = JSON.parse(localStorage.getItem(FF_STATE_KEY) || 'null');
+    const raw = JSON.parse(localStorage.getItem(uidKey(FF_STATE_KEY)) || 'null');
     if (raw && raw.date === today && Array.isArray(raw.guesses)) return raw;
   } catch (_) { /* fall through to a fresh board */ }
   return { date: today, guesses: [], done: false, won: false };
 }
 function saveFFState(state) {
-  try { localStorage.setItem(FF_STATE_KEY, JSON.stringify(state)); } catch (_) {}
+  try { localStorage.setItem(uidKey(FF_STATE_KEY), JSON.stringify(state)); } catch (_) {}
 }
 function loadFFStats() {
   const fallback = { played: 0, won: 0, currentStreak: 0, maxStreak: 0, lastPlayedDate: null };
   try {
-    const raw = JSON.parse(localStorage.getItem(FF_STATS_KEY) || 'null');
+    const raw = JSON.parse(localStorage.getItem(uidKey(FF_STATS_KEY)) || 'null');
     if (raw && typeof raw === 'object') return { ...fallback, ...raw };
   } catch (_) {}
   return fallback;
 }
 function saveFFStats(stats) {
-  try { localStorage.setItem(FF_STATS_KEY, JSON.stringify(stats)); } catch (_) {}
+  try { localStorage.setItem(uidKey(FF_STATS_KEY), JSON.stringify(stats)); } catch (_) {}
 }
 
 // Standard Wordle-style scoring with correct duplicate-letter handling:
@@ -10203,7 +10266,7 @@ function sdkGenerate(difficulty) {
 // blob can never crash the Break Room — worst case we just deal fresh.
 function loadSudokuState() {
   try {
-    const raw = JSON.parse(localStorage.getItem(SUDOKU_STATE_KEY) || 'null');
+    const raw = JSON.parse(localStorage.getItem(uidKey(SUDOKU_STATE_KEY)) || 'null');
     if (raw && [raw.puzzle, raw.solution, raw.entries].every((a) => Array.isArray(a) && a.length === 81)) {
       return { difficulty: 'medium', seconds: 0, solved: false, notes: {}, ...raw };
     }
@@ -10211,7 +10274,16 @@ function loadSudokuState() {
   return null;
 }
 function saveSudokuState(s) {
-  try { localStorage.setItem(SUDOKU_STATE_KEY, JSON.stringify(s)); } catch (_) {}
+  try { localStorage.setItem(uidKey(SUDOKU_STATE_KEY), JSON.stringify(s)); } catch (_) {}
+}
+
+// The grid's max width in px — 400 everywhere except short md+ viewports,
+// where it's height-capped so grid + pad + controls fit without clipping.
+function sdkGridCap() {
+  try {
+    if (!window.matchMedia('(min-width: 768px)').matches) return 400; // phones unchanged
+    return Math.max(260, Math.min(400, window.innerHeight - 440));
+  } catch (_) { return 400; }
 }
 
 function sdkFmtTime(sec) {
@@ -10230,6 +10302,20 @@ function SudokuGame() {
   const [selected, setSelected] = useState(null);
   const [notesMode, setNotesMode] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  // Height-aware board cap (md+ only): grid + number pad + controls carry
+  // ~440px of fixed chrome around the square grid, so cap the grid at
+  // (viewportHeight − 440) — a 768px laptop gets a ~328px grid and the whole
+  // card fits without the page scroll clipping the pad. 260px floor keeps
+  // cells tappable; below that the card itself scrolls (fm-fit-vh), never
+  // the page. Below md phones keep the original 400px width-only cap.
+  const [gridMax, setGridMax] = useState(() => sdkGridCap());
+  useEffect(() => {
+    const calc = () => setGridMax(sdkGridCap());
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
 
   // Persist every change (board, notes, timer tick) — cheap, and it's what
   // makes a refresh land back exactly where you left off.
@@ -10378,7 +10464,7 @@ function SudokuGame() {
   };
 
   return (
-    <Card className="p-4 sm:p-5 max-w-md mx-auto">
+    <Card className="p-4 sm:p-5 max-w-md mx-auto fm-fit-vh">
       <PanelHeader
         icon={<Grid3x3 size={18} />}
         title="Sudoku"
@@ -10390,11 +10476,13 @@ function SudokuGame() {
           </span>
         }
       />
-      <p className="text-xs text-slate-400 mt-1 mb-4">Classic 9×9. Tap a cell, then a number — givens are locked. Progress saves on this device.</p>
+      <p className="text-xs text-slate-400 mt-1 mb-3">Classic 9×9. Tap a cell, then a number — givens are locked. Progress saves on this device.</p>
 
-      {/* the board — big enough cells at 390px to be thumb-usable */}
+      {/* the board — big enough cells at 390px to be thumb-usable; gridMax
+          shrinks it on short desktop viewports so the pad stays on-screen */}
       <div
-        className="grid grid-cols-9 w-full max-w-[400px] mx-auto rounded-md overflow-hidden border-2 border-slate-500 bg-slate-950"
+        className="grid grid-cols-9 w-full mx-auto rounded-md overflow-hidden border-2 border-slate-500 bg-slate-950"
+        style={{ maxWidth: gridMax + 'px' }}
         role="grid"
         aria-label="Sudoku board"
       >
@@ -10438,15 +10526,16 @@ function SudokuGame() {
         </div>
       ) : (
         <>
-          {/* number pad — required on phones, handy everywhere */}
-          <div className="mt-4 grid grid-cols-5 gap-1.5 max-w-[400px] mx-auto">
+          {/* number pad — required on phones, handy everywhere. h-11 keeps
+              the 44px phone tap target; md:h-10 buys back height on laptops */}
+          <div className="mt-3 grid grid-cols-5 gap-1.5 mx-auto" style={{ maxWidth: gridMax + 'px' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
               <button
                 key={n}
                 type="button"
                 onClick={() => place(n)}
                 aria-label={notesMode ? `Pencil-mark ${n}` : `Place ${n}`}
-                className={`h-11 rounded-md font-data font-bold text-base transition-colors ${(digitCounts[n] || 0) >= 9 ? 'bg-slate-800/50 text-slate-600' : 'bg-slate-700 text-slate-100 hover:bg-slate-600 active:bg-slate-500'}`}
+                className={`h-11 md:h-10 rounded-md font-data font-bold text-base transition-colors ${(digitCounts[n] || 0) >= 9 ? 'bg-slate-800/50 text-slate-600' : 'bg-slate-700 text-slate-100 hover:bg-slate-600 active:bg-slate-500'}`}
               >
                 {n}
               </button>
@@ -10455,14 +10544,14 @@ function SudokuGame() {
               type="button"
               onClick={erase}
               aria-label="Erase cell"
-              className="h-11 rounded-md bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-colors flex items-center justify-center"
+              className="h-11 md:h-10 rounded-md bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition-colors flex items-center justify-center"
             >
               <Eraser size={16} />
             </button>
           </div>
 
           {/* controls: notes toggle · difficulty · new puzzle */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 max-w-[400px] mx-auto">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 mx-auto" style={{ maxWidth: gridMax + 'px' }}>
             <button
               type="button"
               onClick={() => setNotesMode((m) => !m)}
@@ -10498,7 +10587,7 @@ function SudokuGame() {
               </button>
             </div>
           </div>
-          <p className="text-[11px] text-slate-600 text-center mt-3">Keys 1–9 place · Backspace erases · N toggles notes · arrows move</p>
+          <p className="text-[11px] text-slate-600 text-center mt-2">Keys 1–9 place · Backspace erases · N toggles notes · arrows move</p>
         </>
       )}
     </Card>
@@ -10519,8 +10608,9 @@ function SudokuGame() {
 //
 // Storage: fm_haulbuddy_state (the current trucker), fm_haulbuddy_wall (past
 // truckers), fm_haulbuddy_dashpeek_pref / _stamp (the peek's on/off + daily
-// gate). All localStorage, all namespaced, nothing here ever touches
-// Firestore, org data, or the multi-tenant helpers.
+// gate). All localStorage, every key suffixed per-account via uidKey() at
+// read/write time, nothing here ever touches Firestore, org data, or the
+// multi-tenant helpers.
 // ============================================================================
 
 const HB_STATE_KEY = 'fm_haulbuddy_state';
@@ -10822,25 +10912,25 @@ function generateTrucker(now = Date.now()) {
 // loadFFState, etc).
 function loadHBState() {
   try {
-    const raw = JSON.parse(localStorage.getItem(HB_STATE_KEY) || 'null');
+    const raw = JSON.parse(localStorage.getItem(uidKey(HB_STATE_KEY)) || 'null');
     if (raw && raw.needs && raw.first) return raw;
   } catch (_) { /* fall through to a fresh hire */ }
   const fresh = generateTrucker();
-  try { localStorage.setItem(HB_STATE_KEY, JSON.stringify(fresh)); } catch (_) {}
+  try { localStorage.setItem(uidKey(HB_STATE_KEY), JSON.stringify(fresh)); } catch (_) {}
   return fresh;
 }
 function saveHBState(state) {
-  try { localStorage.setItem(HB_STATE_KEY, JSON.stringify(state)); } catch (_) {}
+  try { localStorage.setItem(uidKey(HB_STATE_KEY), JSON.stringify(state)); } catch (_) {}
 }
 function loadHBWall() {
   try {
-    const raw = JSON.parse(localStorage.getItem(HB_WALL_KEY) || '[]');
+    const raw = JSON.parse(localStorage.getItem(uidKey(HB_WALL_KEY)) || '[]');
     if (Array.isArray(raw)) return raw;
   } catch (_) {}
   return [];
 }
 function saveHBWall(list) {
-  try { localStorage.setItem(HB_WALL_KEY, JSON.stringify(list.slice(0, 30))); } catch (_) {}
+  try { localStorage.setItem(uidKey(HB_WALL_KEY), JSON.stringify(list.slice(0, 30))); } catch (_) {}
 }
 
 // Clock-safe elapsed hours: a missing/garbage timestamp reads as "just
@@ -11402,7 +11492,7 @@ function HaulBuddyPage({ onBack }) {
   const [activity, setActivity] = useState(() => ({ station: 'rig', phase: 'idle', x: HB_STATION_X.rig, facing: 1, reason: 'auto' }));
   const [visible, setVisible] = useState(() => (typeof document === 'undefined' ? true : !document.hidden));
   const [peekPref, setPeekPref] = useState(() => {
-    try { return localStorage.getItem(HB_PEEK_PREF_KEY) !== 'off'; } catch (_) { return true; }
+    try { return localStorage.getItem(uidKey(HB_PEEK_PREF_KEY)) !== 'off'; } catch (_) { return true; }
   });
   const [theme] = useTheme();
   const reduceMotion = useHBReducedMotion();
@@ -11573,7 +11663,7 @@ function HaulBuddyPage({ onBack }) {
   const togglePeekPref = () => {
     const next = !peekPref;
     setPeekPref(next);
-    try { localStorage.setItem(HB_PEEK_PREF_KEY, next ? 'on' : 'off'); } catch (_) {}
+    try { localStorage.setItem(uidKey(HB_PEEK_PREF_KEY), next ? 'on' : 'off'); } catch (_) {}
   };
 
   const hireNew = (candidate) => {
@@ -11706,14 +11796,14 @@ function HaulBuddyDashboardPeek({ onNavigate }) {
   useEffect(() => {
     let cancelled = false;
     try {
-      if (localStorage.getItem(HB_PEEK_PREF_KEY) === 'off') return;
-      const state = JSON.parse(localStorage.getItem(HB_STATE_KEY) || 'null');
+      if (localStorage.getItem(uidKey(HB_PEEK_PREF_KEY)) === 'off') return;
+      const state = JSON.parse(localStorage.getItem(uidKey(HB_STATE_KEY)) || 'null');
       if (!state || !state.needs) return; // no trucker hired yet — nothing to peek about
       const derived = computeHBDerived(state);
       if (derived.mood !== 'thriving' && derived.mood !== 'content') return; // hard mood gate
 
       const today = ffLocalDateStr();
-      const stamp = JSON.parse(localStorage.getItem(HB_PEEK_STAMP_KEY) || 'null');
+      const stamp = JSON.parse(localStorage.getItem(uidKey(HB_PEEK_STAMP_KEY)) || 'null');
       if (stamp && stamp.date === today && stamp.shown) return; // today's one appearance is used
 
       if (Math.random() < 0.5) return; // "not every session even then" — leave today's stamp unset so a later session can still roll
@@ -11722,7 +11812,7 @@ function HaulBuddyDashboardPeek({ onNavigate }) {
       if (!pool.length || cancelled) return;
       setLine(hbRandom(pool));
       setShow(true);
-      try { localStorage.setItem(HB_PEEK_STAMP_KEY, JSON.stringify({ date: today, shown: true })); } catch (_) {}
+      try { localStorage.setItem(uidKey(HB_PEEK_STAMP_KEY), JSON.stringify({ date: today, shown: true })); } catch (_) {}
     } catch (_) { /* the peek is best-effort — it must never throw into the dashboard */ }
     return () => { cancelled = true; };
   }, []);
@@ -13555,6 +13645,7 @@ const PROFIT_GLOW_CSS = `
 .fm-toast{animation:fmToastIn .18s ease-out both}
 @keyframes fmFFShake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
 .fm-ff-shake{animation:fmFFShake .35s linear}
+@media (min-width:768px){.fm-fit-vh{max-height:calc(100vh - 150px);max-height:calc(100svh - 150px);overflow-y:auto}}
 @media (prefers-reduced-motion: reduce){.fm-profit,.fm-view,.fm-skel,.fm-toast,.fm-ff-shake{animation:none}}`;
 
 // Animate a number toward its target (eased, ~0.7s). Respects reduced motion.
