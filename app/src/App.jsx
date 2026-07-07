@@ -731,30 +731,33 @@ const slugifyOrgName = (name) => {
 };
 
 // ============================================================================
-// ===== 2026 MARKET REFERENCE — UPDATE THESE NUMBERS WHEN THE MARKET MOVES ====
-// This is the ONE place to edit market data. It feeds the Rate Calculator's
-// market auto-suggest and the admin "Market Pulse" widget. Numbers are a
-// point-in-time snapshot (estimates) — bump MARKET_AS_OF and the values each
-// quarter. A live DAT/market feed replaces this in the backend phase.
+// ===== MARKET DATA — live feed from the marketing site, builtin fallback ====
+// The portal reads its market numbers from a small public JSON file hosted on
+// the marketing site (https://forwardmotionfreight.com/market.json). That file
+// auto-deploys on push, so updating the market needs NO portal paste. Priority:
+// live fetch → last-good localStorage cache (fm_market_cache) → the builtin
+// constants below. Every field is validated individually in mergeMarketData(),
+// so a partial or malformed file can never blank the widgets — bad fields just
+// fall back. Read it via useMarketData(); never read the FALLBACK_* directly.
 // ============================================================================
-const MARKET_AS_OF = 'Q2 2026';
+const MARKET_FEED_URL = 'https://forwardmotionfreight.com/market.json';
+const MARKET_CACHE_KEY = 'fm_market_cache';
 
-// Suggested all-in market rate ($/mi) by commodity, keyed to the calculator's
-// commodity list. Used only as a one-tap suggestion — never overwrites input.
-const MARKET_RATES = {
+// Builtin last-resort snapshot, shipped with the app (shown as "reference
+// data" when neither the live file nor a cached copy is available).
+const FALLBACK_MARKET_RATES = {
   'General Dry Freight': 2.47,
   'Frozen Seafood/Poultry': 3.20,
   'Fresh Produce': 3.20,
   'Coiled Steel': 3.57,
   'High-Value Electronics': 2.60,
 };
-
-// Snapshot shown in the admin Market Pulse dashboard widget.
-const MARKET_PULSE = {
+const BUILTIN_MARKET = {
+  asOf: 'Q2 2026',
+  blurb: 'Supply-constrained market — capacity is tight and rates favor carriers.',
   dieselPerGal: 5.35,
-  spotAllIn: 3.83, // national truckload spot record ($/mi)
+  spotAllIn: 3.83, // national truckload spot ($/mi)
   trend: 'up', // 'up' | 'down' | 'flat'
-  headline: 'Supply-constrained market — capacity is tight and rates favor carriers.',
   modality: [
     { type: 'Dry Van', rpm: '$2.47–$2.80', yoy: '+18–23%' },
     { type: 'Reefer', rpm: '$3.11–$3.31', yoy: '+13–18%' },
@@ -767,7 +770,104 @@ const MARKET_PULSE = {
     { lane: 'Memphis, TN → Atlanta, GA', rpm: '$2.40–$2.75' },
     { lane: 'Yakima, WA → Northeast (reefer)', rpm: '$8.7k–$10.6k / load' },
   ],
+  commodityRates: FALLBACK_MARKET_RATES,
 };
+
+// Validates a raw market.json payload field-by-field against BUILTIN_MARKET.
+// Returns a complete, safe object — or null if the payload isn't even an
+// object (caller keeps whatever it already has). Tolerates missing fields,
+// wrong types, and extra keys; commodity rates merge over the builtin list.
+function mergeMarketData(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const b = BUILTIN_MARKET;
+  const str = (x, fb) => (typeof x === 'string' && x.trim() ? x.trim() : fb);
+  const num = (x, fb) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Number(x) : fb);
+  const modality = Array.isArray(raw.modality)
+    ? raw.modality
+        .filter((m) => m && typeof m === 'object' && typeof m.type === 'string' && typeof m.rpm === 'string')
+        .map((m) => ({ type: m.type, rpm: m.rpm, yoy: typeof m.yoy === 'string' ? m.yoy : '' }))
+    : [];
+  const lanes = Array.isArray(raw.lanes)
+    ? raw.lanes
+        .filter((l) => l && typeof l === 'object' && typeof l.lane === 'string' && typeof l.rpm === 'string')
+        .map((l) => ({ lane: l.lane, rpm: l.rpm }))
+    : [];
+  const rates = { ...b.commodityRates };
+  if (raw.commodityRates && typeof raw.commodityRates === 'object' && !Array.isArray(raw.commodityRates)) {
+    Object.entries(raw.commodityRates).forEach(([k, val]) => {
+      const nv = Number(val);
+      if (k && Number.isFinite(nv) && nv > 0) rates[k] = nv;
+    });
+  }
+  return {
+    asOf: str(raw.asOf, b.asOf),
+    blurb: str(raw.blurb, str(raw.headline, b.blurb)),
+    dieselPerGal: num(raw.dieselPerGal, b.dieselPerGal),
+    spotAllIn: num(raw.spotAllIn, b.spotAllIn),
+    trend: ['up', 'down', 'flat'].includes(raw.trend) ? raw.trend : b.trend,
+    modality: modality.length ? modality : b.modality,
+    lanes: lanes.length ? lanes : b.lanes,
+    commodityRates: rates,
+  };
+}
+
+// Renders the feed's asOf as a human date ("Jul 1, 2026") when it's a
+// YYYY-MM-DD string; anything else (e.g. "Q2 2026") passes through as-is.
+function fmtMarketAsOf(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  if (!m) return String(s || '');
+  const mo = Number(m[2]), day = Number(m[3]);
+  const d = new Date(Number(m[1]), mo - 1, day);
+  // round-trip check: JS Date silently rolls over out-of-range months/days
+  if (d.getMonth() !== mo - 1 || d.getDate() !== day) return String(s);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Module-level market state + listener array (same pattern as the toast
+// system): components subscribe via useMarketData() and re-render when the
+// fetch lands. source: 'live' | 'cached' | 'builtin'.
+let _marketState = { data: BUILTIN_MARKET, source: 'builtin' };
+let _marketListeners = [];
+function _publishMarket(data, source) {
+  _marketState = { data, source };
+  _marketListeners.forEach((fn) => { try { fn(_marketState); } catch (_) {} });
+}
+function useMarketData() {
+  const [m, setM] = useState(_marketState);
+  useEffect(() => {
+    _marketListeners.push(setM);
+    setM(_marketState); // in case the fetch landed between render and mount
+    return () => { _marketListeners = _marketListeners.filter((f) => f !== setM); };
+  }, []);
+  return m;
+}
+
+// One-shot boot: hydrate from the last good cached copy immediately, then try
+// the live file. Any failure (offline, CORS, 404, bad JSON, timeout) is
+// silent — the cache/builtin simply stands, so the widgets always render.
+let _marketBooted = false;
+function bootMarketData() {
+  if (_marketBooted || typeof window === 'undefined') return;
+  _marketBooted = true;
+  try {
+    const cached = JSON.parse(localStorage.getItem(MARKET_CACHE_KEY) || 'null');
+    const merged = cached && mergeMarketData(cached.raw);
+    if (merged) _publishMarket(merged, 'cached');
+  } catch (_) { /* corrupt cache — builtin stands */ }
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => { try { ctl.abort(); } catch (_) {} }, 8000) : null;
+  fetch(MARKET_FEED_URL, { cache: 'no-cache', signal: ctl ? ctl.signal : undefined })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+    .then((raw) => {
+      const merged = mergeMarketData(raw);
+      if (!merged) return; // malformed file — keep what we have
+      _publishMarket(merged, 'live');
+      try { localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify({ fetchedAt: new Date().toISOString(), raw })); } catch (_) {}
+    })
+    .catch(() => { /* silent fallback by design */ })
+    .finally(() => { if (timer) clearTimeout(timer); });
+}
+bootMarketData();
 
 // ============================================================================
 // ===== Multi-tenancy (Lite) — org-scoping helpers ===========================
@@ -1596,19 +1696,19 @@ function AdminWeeklyGross() {
   );
 }
 
-// ---------- ADMIN: 2026 MARKET PULSE (seeded snapshot, see MARKET_PULSE) ----------
+// ---------- ADMIN: MARKET PULSE (live feed via useMarketData, builtin fallback) ----------
 function MarketPulse() {
-  const p = MARKET_PULSE;
+  const { data: p, source } = useMarketData();
   const trend = { up: { t: '▲ Rising', c: 'text-emerald-400' }, down: { t: '▼ Falling', c: 'text-red-400' }, flat: { t: '▬ Flat', c: 'text-slate-400' } }[p.trend] || { t: '', c: 'text-slate-400' };
   return (
     <Card className="p-6">
       <PanelHeader
         icon={<Activity size={20} />}
         title="Market Pulse"
-        badge={<Badge tone="slate" className="font-normal">as of {MARKET_AS_OF}</Badge>}
+        badge={<Badge tone="slate" className="font-normal">as of {fmtMarketAsOf(p.asOf)}{source === 'builtin' ? ' · reference data' : ''}</Badge>}
         action={<span className={`text-sm font-bold ${trend.c}`}>{trend.t}</span>}
       />
-      <p className="text-sm text-slate-400 mt-2">{p.headline}</p>
+      <p className="text-sm text-slate-400 mt-2">{p.blurb}</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
         <StatTile label="National Spot (all-in)" value={`$${p.spotAllIn.toFixed(2)}/mi`} accent="emerald" />
@@ -1623,7 +1723,7 @@ function MarketPulse() {
             {p.modality.map((m) => (
               <div key={m.type} className="flex items-center justify-between text-sm">
                 <span className="text-slate-300">{m.type}</span>
-                <span className="text-white font-semibold">{m.rpm} <span className="text-slate-500 font-normal text-xs">({m.yoy})</span></span>
+                <span className="text-white font-semibold">{m.rpm}{m.yoy ? <span className="text-slate-500 font-normal text-xs"> ({m.yoy})</span> : null}</span>
               </div>
             ))}
           </div>
@@ -1641,7 +1741,11 @@ function MarketPulse() {
         </div>
       </div>
       <GuidedHint>Use these as your anchor on broker calls. If the broker's offer is well under the market band for that equipment, you have room to counter — don't take the first number.</GuidedHint>
-      <p className="text-[10px] text-slate-600 mt-3">Estimates for guidance — update the snapshot in code (MARKET_PULSE) each quarter. Live market data arrives with the backend phase.</p>
+      <p className="text-[10px] text-slate-600 mt-3">
+        {source === 'live' && 'Estimates for guidance — pulled live from the Forward OS market feed.'}
+        {source === 'cached' && 'Estimates for guidance — showing the last fetched market snapshot (feed unreachable right now).'}
+        {source === 'builtin' && 'Estimates for guidance — built-in reference data; the live market feed loads automatically when reachable.'}
+      </p>
     </Card>
   );
 }
@@ -5215,6 +5319,7 @@ function FleetView() {
 // ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
 function NegotiationCalcView() {
   const guided = useGuided();
+  const { data: market } = useMarketData(); // live per-commodity rates + asOf (builtin fallback)
   const DEFAULTS = {
     selectedCarrier: '',
     originCity: '', originZip: '', destCity: '', destZip: '',
@@ -5601,12 +5706,12 @@ function NegotiationCalcView() {
             <div>
               <label className="block text-xs text-slate-400 mb-1">Current Market Rate ($/mi)</label>
               <input className={field} type="number" inputMode="decimal" value={v.marketRpm} onChange={set('marketRpm')} placeholder="2.45" />
-              {MARKET_RATES[v.commodity] ? (
-                <button type="button" onClick={() => setV((s) => ({ ...s, marketRpm: String(MARKET_RATES[v.commodity]) }))}
+              {market.commodityRates[v.commodity] ? (
+                <button type="button" onClick={() => setV((s) => ({ ...s, marketRpm: String(market.commodityRates[v.commodity]) }))}
                   className="text-[10px] text-amber-400 hover:text-amber-300 mt-1">
-                  Market ~${MARKET_RATES[v.commodity].toFixed(2)}/mi ({MARKET_AS_OF}) — tap to use
+                  Market ~${market.commodityRates[v.commodity].toFixed(2)}/mi ({fmtMarketAsOf(market.asOf)}) — tap to use
                 </button>
-              ) : <p className="text-[10px] text-slate-500 mt-1">Manual now — live market data later.</p>}
+              ) : <p className="text-[10px] text-slate-500 mt-1">No market suggestion for this commodity — enter it manually.</p>}
             </div>
             <div><label className="block text-xs text-slate-400 mb-1">Loaded Miles</label><input className={field} type="number" inputMode="decimal" value={v.loadedMiles} onChange={set('loadedMiles')} placeholder="800" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Deadhead Miles</label><input className={field} type="number" inputMode="decimal" value={v.deadheadMiles} onChange={set('deadheadMiles')} placeholder="50" /></div>
