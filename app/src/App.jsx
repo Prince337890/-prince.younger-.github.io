@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
-  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search, Moon
+  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search, Moon,
+  Gamepad2, Trophy, Pause, Play, RotateCcw, Fuel
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -977,6 +978,7 @@ export default function App() {
           { tab: 'fmfrevshare', label: 'FMF Rev-Share', icon: <Wallet size={16} />, keywords: ['revenue share'] },
         );
       }
+      items.push({ tab: 'breakroom', label: 'Break Room', icon: <Gamepad2 size={16} />, keywords: ['game', 'arcade', 'break'] });
       items.push({ tab: 'settings', label: 'Settings', icon: <Settings size={16} />, keywords: ['guided mode', 'account'] });
       return items;
     }
@@ -1000,6 +1002,7 @@ export default function App() {
         { tab: 'pets', label: 'Pet Logistics', icon: <Dog size={16} />, keywords: ['pet'] },
       );
     }
+    items.push({ tab: 'breakroom', label: 'Break Room', icon: <Gamepad2 size={16} />, keywords: ['game', 'arcade', 'break'] });
     items.push({ tab: 'settings', label: 'Settings', icon: <Settings size={16} />, keywords: ['account'] });
     return items;
   }, [paletteIsAdmin, isFmfDispatcher, isSuper, vipOn]);
@@ -1111,6 +1114,7 @@ export default function App() {
       case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
       case 'calc': return isAdmin ? <NegotiationCalcView /> : <DashboardView />;
       case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
+      case 'breakroom': return <BreakRoomView />; // everyone signed in — no role gate
       default: return <DashboardView />;
     }
   };
@@ -1220,6 +1224,7 @@ export default function App() {
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
               <NavItem icon={<Navigation size={18} />} label="First Load Walkthrough" isActive={activeTab === 'walkthrough'} onClick={() => go('walkthrough')} />
+              <NavItem icon={<Gamepad2 size={18} />} label="Break Room" isActive={activeTab === 'breakroom'} onClick={() => go('breakroom')} />
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
               {isSuper && <NavItem icon={<User size={18} />} label="Access Requests" isActive={activeTab === 'requests'} onClick={() => go('requests')} />}
               {isSuper && <NavItem icon={<GraduationCap size={18} />} label="Course Progress" isActive={activeTab === 'courseprogress'} onClick={() => go('courseprogress')} />}
@@ -1251,6 +1256,9 @@ export default function App() {
                   <NavItem icon={<Dog size={18} />} label="Pet Logistics" isActive={activeTab === 'pets'} onClick={() => go('pets')} />
                 </>
               )}
+
+              <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">OFF THE CLOCK</div>
+              <NavItem icon={<Gamepad2 size={18} />} label="Break Room" isActive={activeTab === 'breakroom'} onClick={() => go('breakroom')} />
             </>
           )}
         </nav>
@@ -8404,6 +8412,643 @@ function WalkthroughView() {
           style={{ height: 'calc(100vh - 220px)', minHeight: 480 }}
         />
       </Card>
+    </div>
+  );
+}
+
+// ---------- BREAK ROOM: "NIGHT RUN" (local arcade game, v1 — no Firestore) ----------
+// A phone-first canvas runner. Local-only by design: scores live in
+// localStorage (`fm_nightrun_scores`), so v1 ships with zero new Firestore
+// collections/rules. Everything below — persistence, theming, the loop — is
+// self-contained in this one component so it drops into the single-file
+// paste cleanly. Visible to every signed-in user, both roles.
+
+const NIGHTRUN_SCORES_KEY = 'fm_nightrun_scores';
+const NIGHTRUN_MAX_SCORES = 10;
+
+function loadNightRunScores() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NIGHTRUN_SCORES_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((r) => r && typeof r.score === 'number' && typeof r.initials === 'string').slice(0, NIGHTRUN_MAX_SCORES);
+  } catch (_) { return []; }
+}
+// Inserts a score into the local top-10, sorted desc, and persists it.
+// Returns { list, rank } — rank is 1-based, or null if it didn't place.
+function saveNightRunScore(initials, score) {
+  const list = loadNightRunScores();
+  const entry = { initials: (initials || '---').toUpperCase().slice(0, 3), score: Math.max(0, Math.floor(score)), at: Date.now() };
+  list.push(entry);
+  list.sort((a, b) => b.score - a.score);
+  const trimmed = list.slice(0, NIGHTRUN_MAX_SCORES);
+  try { localStorage.setItem(NIGHTRUN_SCORES_KEY, JSON.stringify(trimmed)); } catch (_) {}
+  const idx = trimmed.findIndex((r) => r.at === entry.at);
+  return { list: trimmed, rank: idx === -1 ? null : idx + 1 };
+}
+
+// Pull the live theme tokens straight off :root so the canvas always matches
+// Night Haul / Classic without hardcoding either palette. Read once at game
+// start and again on every `fm-themechange` (see NightRunGame).
+function readNightRunColors() {
+  const toRgb = (name, fallback) => {
+    try {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      const parts = raw.split(/\s+/).filter(Boolean);
+      return parts.length === 3 ? `rgb(${parts.join(',')})` : fallback;
+    } catch (_) { return fallback; }
+  };
+  return {
+    gold: toRgb('--tw-amber-500', '#f59e0b'),
+    goldBright: toRgb('--tw-amber-400', '#fbbf24'),
+    goldSoft: toRgb('--tw-amber-300', '#fcd34d'),
+    ink: toRgb('--tw-white', '#f8fafc'),
+    road: toRgb('--tw-s1', '#0f172a'),
+    roadDeep: toRgb('--tw-s0', '#020617'),
+    shoulder: toRgb('--tw-s2', '#1e293b'),
+    dash: toRgb('--tw-slate-500', '#64748b'),
+    hazard: toRgb('--tw-warn-500', '#f59e0b'),
+    hazardDim: toRgb('--tw-warn-600', '#d97706'),
+    danger: toRgb('--tw-red-500', '#ef4444'),
+    fuel: toRgb('--tw-emerald-500', '#10b981'),
+    fuelDim: toRgb('--tw-emerald-700', '#047857'),
+  };
+}
+
+// Tuning — kept together so difficulty is easy to eyeball/adjust.
+const NR_LANES = 3;
+const NR_MARGIN = 0.11;      // shoulder width, fraction of canvas width per side
+const NR_BASE_SPEED = 210;   // px/sec at game start
+const NR_MAX_SPEED = 620;    // px/sec speed cap
+const NR_RAMP = 5.2;         // px/sec gained per second elapsed
+const NR_SCORE_PER_PX = 0.075;
+const NR_FUEL_BONUS = 250;
+const NR_LANE_LERP = 11;     // higher = snappier lane changes
+const NR_SWIPE_PX = 26;
+const NR_CRASH_SEC = 0.5;
+const NR_DASH_PERIOD = 46;
+
+function NightRunGame() {
+  const wrapRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  // React state — only what the overlay UI needs to re-render on. Everything
+  // the 60fps loop touches lives in refs below so gameplay never triggers a
+  // React re-render mid-frame.
+  const [gameState, setGameState] = useState('idle'); // idle | playing | paused | gameover
+  const [displayScore, setDisplayScore] = useState(0);
+  const [finalScore, setFinalScore] = useState(0);
+  const [best, setBest] = useState(0);
+  const [scores, setScores] = useState(() => loadNightRunScores());
+  const [initials, setInitials] = useState('');
+  const [justRank, setJustRank] = useState(null);
+
+  // ---- simulation state (refs — no re-render on write) ----
+  const sizeRef = useRef({ w: 360, h: 480 });
+  const colorsRef = useRef(readNightRunColors());
+  const laneRef = useRef(1);
+  const playerXRef = useRef(0);
+  const playerYRef = useRef(0);
+  const elapsedRef = useRef(0);
+  const speedRef = useRef(NR_BASE_SPEED);
+  const offsetRef = useRef(0);
+  const scoreRef = useRef(0);
+  const spawnTimerRef = useRef(0.6);
+  const obstaclesRef = useRef([]); // {lane, x, y, w, h, kind, closing}
+  const popRef = useRef([]);       // brief fuel-pickup flashes {x,y,t}
+  const phaseRef = useRef('running'); // running | crashing | done
+  const shakeRef = useRef(0);
+  const lastTsRef = useRef(null);
+  const scoreTickRef = useRef(0);
+  const pointerRef = useRef(null); // {x,y} on pointerdown, for tap vs swipe
+
+  useEffect(() => { setBest(scores.length ? scores[0].score : 0); }, [scores]);
+
+  // Responsive backing store: crisp on retina, resizes with the Card.
+  useEffect(() => {
+    const canvas = canvasRef.current, wrap = wrapRef.current;
+    if (!canvas || !wrap) return;
+    const doResize = () => {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const w = Math.max(240, Math.round(rect.width));
+      const h = Math.max(320, Math.round(rect.height));
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sizeRef.current = { w, h };
+      playerYRef.current = h * 0.80;
+      if (!playerXRef.current) playerXRef.current = laneCenterX(laneRef.current, w);
+    };
+    doResize();
+    const ro = new ResizeObserver(doResize);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+
+  // Theme sync — re-read tokens on every skin flip so an in-progress run
+  // never looks stale after switching Night Haul <-> Classic.
+  useEffect(() => {
+    const onTheme = () => { colorsRef.current = readNightRunColors(); };
+    window.addEventListener('fm-themechange', onTheme);
+    return () => window.removeEventListener('fm-themechange', onTheme);
+  }, []);
+
+  // Auto-pause when the tab/page is hidden — always listening while mounted,
+  // independent of gameState, so it can't be missed mid-run.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) setGameState((s) => (s === 'playing' ? 'paused' : s));
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  const laneCenterX = (lane, w) => {
+    const margin = w * NR_MARGIN;
+    const roadW = w - margin * 2;
+    const laneW = roadW / NR_LANES;
+    return margin + laneW * (lane + 0.5);
+  };
+
+  const stepLane = (dir) => {
+    if (phaseRef.current !== 'running') return;
+    laneRef.current = Math.max(0, Math.min(NR_LANES - 1, laneRef.current + dir));
+  };
+
+  const togglePause = () => {
+    setGameState((s) => (s === 'playing' ? 'paused' : s === 'paused' ? 'playing' : s));
+  };
+
+  const startGame = () => {
+    obstaclesRef.current = [];
+    popRef.current = [];
+    laneRef.current = 1;
+    playerXRef.current = laneCenterX(1, sizeRef.current.w);
+    elapsedRef.current = 0;
+    speedRef.current = NR_BASE_SPEED;
+    offsetRef.current = 0;
+    scoreRef.current = 0;
+    spawnTimerRef.current = 0.6;
+    phaseRef.current = 'running';
+    shakeRef.current = 0;
+    scoreTickRef.current = 0;
+    setDisplayScore(0);
+    setJustRank(null);
+    setInitials('');
+    setGameState('playing');
+  };
+
+  const triggerCrash = () => {
+    if (phaseRef.current !== 'running') return;
+    phaseRef.current = 'crashing';
+    shakeRef.current = NR_CRASH_SEC;
+  };
+
+  const finalizeGameOver = () => {
+    const s = Math.floor(scoreRef.current);
+    setFinalScore(s);
+    setGameState('gameover');
+  };
+
+  // ---- keyboard: only ever attached while a session is active (playing or
+  // paused, i.e. never idle/gameover), so the command palette, Ctrl/Cmd+K,
+  // and every form field elsewhere in the app are completely untouched. ----
+  useEffect(() => {
+    if (gameState !== 'playing' && gameState !== 'paused') return;
+    const onKeyDown = (e) => {
+      const ae = document.activeElement;
+      if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return; // never steal focus from a real field
+      if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); togglePause(); return; }
+      if (gameState !== 'playing') return; // arrows only steer mid-run, not while paused
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { e.preventDefault(); stepLane(-1); }
+      else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); stepLane(1); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [gameState]);
+
+  // ---- the 60fps loop: lives entirely inside one effect keyed off
+  // gameState==='playing', so pausing, game-over, and unmount all clean it
+  // up via the exact same return function — one guaranteed teardown path. ----
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    lastTsRef.current = null;
+    let raf = requestAnimationFrame(loop);
+    function loop(ts) {
+      raf = requestAnimationFrame(loop);
+      if (lastTsRef.current == null) { lastTsRef.current = ts; return; } // first frame after start/resume: just timestamp
+      let dt = (ts - lastTsRef.current) / 1000;
+      lastTsRef.current = ts;
+      dt = Math.min(dt, 0.05); // clamp so a stalled tab never causes a giant leap
+      step(dt);
+      render(ctx);
+    }
+    return () => cancelAnimationFrame(raf);
+  }, [gameState]);
+
+  function spawnObstacle(speed) {
+    const w = sizeRef.current.w;
+    const margin = w * NR_MARGIN;
+    const laneW = (w - margin * 2) / NR_LANES;
+    // Avoid stacking a wall the player can't get through: skip this spawn if
+    // two lanes already have something near the top of the screen.
+    const crowded = obstaclesRef.current.filter((o) => o.y < 170).length;
+    if (crowded >= 2) return;
+    const busyLanes = new Set(obstaclesRef.current.filter((o) => o.y < 170).map((o) => o.lane));
+    let lane = Math.floor(Math.random() * NR_LANES);
+    for (let i = 0; i < NR_LANES && busyLanes.has(lane); i++) lane = (lane + 1) % NR_LANES;
+    if (busyLanes.has(lane)) return;
+
+    const roll = Math.random();
+    const kind = roll < 0.22 ? 'fuel' : roll < 0.60 ? 'car' : 'truck';
+    let cw, ch, closing;
+    if (kind === 'fuel') { cw = laneW * 0.30; ch = cw * 1.35; closing = 1.05; }
+    else if (kind === 'car') { cw = laneW * 0.52; ch = cw * 1.35; closing = 1.55; }
+    else { cw = laneW * 0.66; ch = cw * 1.65; closing = 0.55; }
+
+    obstaclesRef.current.push({ lane, x: laneCenterX(lane, w), y: -ch, w: cw, h: ch, kind, closing });
+  }
+
+  function nextSpawnGap(speed) {
+    const t = Math.max(0, Math.min(1, (speed - NR_BASE_SPEED) / (NR_MAX_SPEED - NR_BASE_SPEED)));
+    const base = 1.05 - t * 0.62; // tightens from ~1.05s to ~0.43s as speed ramps
+    return base * (0.8 + Math.random() * 0.4);
+  }
+
+  function collides(o) {
+    const w = sizeRef.current.w;
+    const margin = w * NR_MARGIN;
+    const laneW = (w - margin * 2) / NR_LANES;
+    const pw = laneW * 0.50, ph = pw * 1.5;
+    const dx = Math.abs(playerXRef.current - o.x);
+    const dy = Math.abs(playerYRef.current - o.y);
+    return dx < (pw + o.w) * 0.34 && dy < (ph + o.h) * 0.36;
+  }
+
+  function step(dt) {
+    if (phaseRef.current === 'done') return;
+    if (phaseRef.current === 'crashing') {
+      shakeRef.current -= dt;
+      if (shakeRef.current <= 0) { phaseRef.current = 'done'; finalizeGameOver(); }
+      return; // freeze the world during the crash beat
+    }
+
+    elapsedRef.current += dt;
+    const speed = Math.min(NR_MAX_SPEED, NR_BASE_SPEED + elapsedRef.current * NR_RAMP);
+    speedRef.current = speed;
+    offsetRef.current = (offsetRef.current + speed * dt) % NR_DASH_PERIOD;
+    scoreRef.current += speed * dt * NR_SCORE_PER_PX;
+
+    const targetX = laneCenterX(laneRef.current, sizeRef.current.w);
+    playerXRef.current += (targetX - playerXRef.current) * Math.min(1, NR_LANE_LERP * dt);
+
+    spawnTimerRef.current -= dt;
+    if (spawnTimerRef.current <= 0) { spawnObstacle(speed); spawnTimerRef.current = nextSpawnGap(speed); }
+
+    const H = sizeRef.current.h;
+    const keep = [];
+    for (const o of obstaclesRef.current) {
+      o.y += speed * o.closing * dt;
+      if (o.y > H + 60) continue;
+      if (collides(o)) {
+        if (o.kind === 'fuel') {
+          scoreRef.current += NR_FUEL_BONUS;
+          popRef.current.push({ x: o.x, y: o.y, t: 0 });
+          continue;
+        }
+        triggerCrash();
+      }
+      keep.push(o);
+    }
+    obstaclesRef.current = keep;
+    popRef.current = popRef.current.map((p) => ({ ...p, t: p.t + dt })).filter((p) => p.t < 0.35);
+
+    scoreTickRef.current += dt;
+    if (scoreTickRef.current > 0.12) { scoreTickRef.current = 0; setDisplayScore(Math.floor(scoreRef.current)); }
+  }
+
+  function drawTruck(ctx, x, y, w, h, c, shakeX) {
+    const bx = x + shakeX;
+    ctx.save();
+    ctx.translate(bx, y);
+    // trailer
+    ctx.fillStyle = c.ink;
+    ctx.globalAlpha = 0.92;
+    roundRectPath(ctx, -w / 2, -h / 2 + h * 0.16, w, h * 0.62, w * 0.10);
+    ctx.fill();
+    // cab
+    const cabH = h * 0.30;
+    ctx.fillStyle = c.gold;
+    roundRectPath(ctx, -w / 2, -h / 2, w, cabH, w * 0.14);
+    ctx.fill();
+    // windshield
+    ctx.fillStyle = c.roadDeep;
+    ctx.globalAlpha = 0.85;
+    roundRectPath(ctx, -w * 0.34, -h / 2 + cabH * 0.22, w * 0.68, cabH * 0.42, w * 0.06);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // headlight cones (gold, fading forward)
+    const coneH = h * 0.9;
+    for (const side of [-1, 1]) {
+      const gx = side * w * 0.30;
+      const grad = ctx.createLinearGradient(gx, -h / 2, gx + side * w * 0.55, -h / 2 - coneH);
+      grad.addColorStop(0, 'rgba(255,255,255,0.28)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(gx - w * 0.05, -h / 2);
+      ctx.lineTo(gx + w * 0.05, -h / 2);
+      ctx.lineTo(gx + side * w * 0.42, -h / 2 - coneH);
+      ctx.lineTo(gx + side * w * 0.14, -h / 2 - coneH);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // headlight dots
+    ctx.fillStyle = c.goldBright;
+    ctx.beginPath(); ctx.arc(-w * 0.30, -h / 2 + 1, w * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(w * 0.30, -h / 2 + 1, w * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawTraffic(ctx, o, c) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    const isTruck = o.kind === 'truck';
+    ctx.fillStyle = isTruck ? c.dash : c.danger;
+    ctx.globalAlpha = 0.9;
+    roundRectPath(ctx, -o.w / 2, -o.h / 2, o.w, o.h, o.w * 0.16);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // taillights (facing the player = bottom edge)
+    ctx.fillStyle = c.hazard;
+    roundRectPath(ctx, -o.w * 0.36, o.h / 2 - o.h * 0.10, o.w * 0.22, o.h * 0.09, 2);
+    ctx.fill();
+    roundRectPath(ctx, o.w * 0.14, o.h / 2 - o.h * 0.10, o.w * 0.22, o.h * 0.09, 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFuel(ctx, o, c) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    ctx.shadowColor = c.fuel;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = c.fuel;
+    roundRectPath(ctx, -o.w / 2, -o.h / 2, o.w, o.h * 0.82, o.w * 0.28);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = c.fuelDim;
+    roundRectPath(ctx, -o.w * 0.22, -o.h / 2 - o.h * 0.14, o.w * 0.44, o.h * 0.16, 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function render(ctx) {
+    const { w, h } = sizeRef.current;
+    const c = colorsRef.current;
+    const shakeAmt = phaseRef.current === 'crashing' ? (shakeRef.current / NR_CRASH_SEC) * 6 : 0;
+    const shakeX = shakeAmt ? (Math.random() - 0.5) * shakeAmt : 0;
+    const shakeY = shakeAmt ? (Math.random() - 0.5) * shakeAmt : 0;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+
+    // sky/shoulders
+    ctx.fillStyle = c.roadDeep;
+    ctx.fillRect(-shakeAmt, -shakeAmt, w + shakeAmt * 2, h + shakeAmt * 2);
+    const margin = w * NR_MARGIN;
+    ctx.fillStyle = c.shoulder;
+    ctx.fillRect(0, 0, margin, h);
+    ctx.fillRect(w - margin, 0, margin, h);
+    // road
+    ctx.fillStyle = c.road;
+    ctx.fillRect(margin, 0, w - margin * 2, h);
+
+    // lane dashes
+    const roadW = w - margin * 2;
+    const laneW = roadW / NR_LANES;
+    ctx.strokeStyle = c.dash;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = Math.max(2, laneW * 0.03);
+    for (let l = 1; l < NR_LANES; l++) {
+      const x = margin + laneW * l;
+      ctx.beginPath();
+      for (let y = -NR_DASH_PERIOD + (offsetRef.current % NR_DASH_PERIOD); y < h; y += NR_DASH_PERIOD) {
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + NR_DASH_PERIOD * 0.55);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // obstacles + pickups
+    for (const o of obstaclesRef.current) {
+      if (o.kind === 'fuel') drawFuel(ctx, o, c);
+      else drawTraffic(ctx, o, c);
+    }
+    // fuel pickup flashes
+    for (const p of popRef.current) {
+      const a = 1 - p.t / 0.35;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, a) * 0.6;
+      ctx.strokeStyle = c.fuel;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 10 + p.t * 60, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // player
+    if (phaseRef.current !== 'done') {
+      const laneW2 = (w - margin * 2) / NR_LANES;
+      const pw = laneW2 * 0.56, ph = pw * 1.55;
+      drawTruck(ctx, playerXRef.current, playerYRef.current, pw, ph, c, 0);
+    }
+
+    ctx.restore();
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  // Draw one static frame whenever we're not looping (idle/paused/gameover)
+  // so the canvas never looks blank or frozen mid-motion.
+  useEffect(() => {
+    if (gameState === 'playing') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    render(canvas.getContext('2d'));
+  }, [gameState, displayScore]);
+
+  // ---- touch: tap left/right half, or swipe — both work, both guarded to
+  // only act while a run is actually in progress. React's synthetic pointer
+  // handlers are unmounted automatically with the canvas, no manual cleanup
+  // needed. ----
+  const onPointerDown = (e) => {
+    pointerRef.current = { x: e.clientX, y: e.clientY };
+  };
+  const onPointerUp = (e) => {
+    if (gameState !== 'playing' || !pointerRef.current) { pointerRef.current = null; return; }
+    const dx = e.clientX - pointerRef.current.x;
+    pointerRef.current = null;
+    if (Math.abs(dx) > NR_SWIPE_PX) { stepLane(dx > 0 ? 1 : -1); return; }
+    const rect = canvasRef.current.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    stepLane(localX < rect.width / 2 ? -1 : 1);
+  };
+
+  const submitScore = (e) => {
+    e.preventDefault();
+    const chars = (initials || 'YOU').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || 'YOU';
+    const { list, rank } = saveNightRunScore(chars, finalScore);
+    setScores(list);
+    setJustRank(rank);
+  };
+
+  const playAgain = () => startGame();
+
+  return (
+    <div className="grid md:grid-cols-[minmax(0,420px)_1fr] gap-5 items-start">
+      <div>
+        <div
+          ref={wrapRef}
+          className="relative w-full mx-auto rounded-lg overflow-hidden border border-slate-700/70 bg-slate-950 select-none touch-none"
+          style={{ maxWidth: 420, aspectRatio: '3 / 4' }}
+        >
+          <canvas
+            ref={canvasRef}
+            className="block w-full h-full"
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            aria-label="Night Run game canvas"
+            role="img"
+          />
+
+          {/* HUD */}
+          {(gameState === 'playing' || gameState === 'paused') && (
+            <div className="absolute top-0 inset-x-0 flex items-center justify-between px-3 py-2 pointer-events-none">
+              <div className="font-data text-xs bg-black/40 backdrop-blur px-2 py-1 rounded text-amber-300 font-semibold tracking-wide">
+                {displayScore.toLocaleString()}
+              </div>
+              <button
+                onClick={togglePause}
+                className="pointer-events-auto bg-black/40 backdrop-blur hover:bg-black/60 text-slate-200 rounded p-1.5 transition-colors"
+                aria-label={gameState === 'paused' ? 'Resume' : 'Pause'}
+                title={gameState === 'paused' ? 'Resume (Space)' : 'Pause (Space)'}
+              >
+                {gameState === 'paused' ? <Play size={14} /> : <Pause size={14} />}
+              </button>
+            </div>
+          )}
+
+          {/* Overlays */}
+          {gameState === 'idle' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/80 backdrop-blur-sm text-center px-6">
+              <Gamepad2 size={30} className="text-amber-400" />
+              <h3 className="text-lg font-bold text-white">Night Run</h3>
+              <p className="text-xs text-slate-400 max-w-[240px]">Dodge traffic, grab fuel, don't jackknife. Arrows/A·D to steer, or tap/swipe on mobile.</p>
+              <PrimaryButton onClick={startGame} className="mt-1">Start Run</PrimaryButton>
+              {best > 0 && <p className="text-[11px] text-slate-500">Local best: <span className="text-amber-400 font-semibold">{best.toLocaleString()}</span></p>}
+            </div>
+          )}
+
+          {gameState === 'paused' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/80 backdrop-blur-sm text-center px-6">
+              <Pause size={26} className="text-amber-400" />
+              <h3 className="text-base font-bold text-white">Paused</h3>
+              <PrimaryButton onClick={togglePause}><Play size={14} /> Resume</PrimaryButton>
+            </div>
+          )}
+
+          {gameState === 'gameover' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-slate-950/88 backdrop-blur-sm text-center px-6">
+              <Badge tone="red" className="font-bold tracking-widest">RUN OVER</Badge>
+              <div className="font-data text-2xl font-bold text-white">{finalScore.toLocaleString()}</div>
+              {justRank === null ? (
+                <form onSubmit={submitScore} className="flex flex-col items-center gap-2 mt-1">
+                  <label className="text-[11px] text-slate-400">Enter your initials</label>
+                  <input
+                    autoFocus
+                    value={initials}
+                    onChange={(e) => setInitials(e.target.value.toUpperCase().replace(/[^A-Za-z0-9]/g, '').slice(0, 3))}
+                    maxLength={3}
+                    placeholder="YOU"
+                    className={`${INPUT_CLS} w-24 text-center text-lg font-data font-bold tracking-[0.3em] uppercase py-2`}
+                  />
+                  <PrimaryButton type="submit" className="mt-1">Save Score</PrimaryButton>
+                </form>
+              ) : (
+                <>
+                  <p className="text-xs text-emerald-400 font-semibold">
+                    {justRank <= NIGHTRUN_MAX_SCORES ? `Saved — #${justRank} on this device` : 'Saved'}
+                  </p>
+                  <GhostButton onClick={playAgain} className="mt-1"><RotateCcw size={14} /> Run Again</GhostButton>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <p className="text-[11px] text-slate-500 text-center mt-2">
+          {gameState === 'playing' ? 'Space to pause · Arrows / A·D to steer' : 'Scores are saved on this device only.'}
+        </p>
+      </div>
+
+      <Card className="p-5">
+        <PanelHeader icon={<Trophy size={18} />} title="Local High Scores" accent="amber" />
+        {scores.length === 0 ? (
+          <p className="text-sm text-slate-500 mt-3">No runs yet — be the first name on the board.</p>
+        ) : (
+          <ol className="mt-3 space-y-1.5">
+            {scores.map((s, i) => (
+              <li key={s.at + '-' + i} className={`flex items-center justify-between px-3 py-2 rounded-sm text-sm ${i === 0 ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-slate-800/40 border border-slate-700/60'}`}>
+                <span className="flex items-center gap-3">
+                  <span className={`font-data text-xs w-4 text-right ${i === 0 ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>{i + 1}</span>
+                  <span className="font-data font-semibold tracking-[0.2em]">{s.initials}</span>
+                </span>
+                <span className={`font-data font-bold ${i === 0 ? 'text-amber-400' : 'text-slate-300'}`}>{s.score.toLocaleString()}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <div className="mt-4 pt-4 border-t border-slate-800 flex items-start gap-2 text-[11px] text-slate-500">
+          <Fuel size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+          <span>Fuel cans are worth +250. Traffic in your lane ends the run — swerve early, the highway gets faster the longer you last.</span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// Break Room tab — visible to every signed-in user (admin or driver), no
+// role gate. v1 is one game (Night Run); the empty-state note below leaves
+// room for a rotating daily puzzle later without promising one yet.
+function BreakRoomView() {
+  return (
+    <div className="max-w-4xl mx-auto space-y-5">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">Break Room</h2>
+          <Badge tone="amber" className="font-normal">v1</Badge>
+        </div>
+        <p className="text-slate-400 text-sm mt-1">Off the clock. High scores are forever.</p>
+      </div>
+      <NightRunGame />
+      <p className="text-center text-[11px] text-slate-600">More games are coming to the Break Room — a daily puzzle is next up.</p>
     </div>
   );
 }
