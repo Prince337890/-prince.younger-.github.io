@@ -558,15 +558,32 @@ async function queueEmail(to, subject, html) {
   }
 }
 
+// Escapes text for safe interpolation into HTML (email bodies, printed
+// invoices). Call this exactly once, at the point of interpolation — never
+// store the escaped result anywhere, and never run it twice on the same
+// string (that's how "A & B Trucking" would end up as "A &amp;amp; B…").
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Brand-aware email wrapper. Pass a brand ({ name, logoUrl }) to co-brand the
 // banner with the dispatcher's business (white-label uses their logo; Pro shows
 // their name). A small "Powered by Forward OS" footer always stays. No brand →
 // the default Forward Motion Freight banner (used for FMF's own emails).
 function emailShell(bodyHtml, brand) {
   const b = brand || {};
-  const banner = b.logoUrl
-    ? `<img src="${b.logoUrl}" alt="${(b.name || 'Logo').replace(/"/g, '')}" style="max-height:30px;max-width:220px;display:block" />`
-    : `<span style="color:#f59e0b;font-weight:bold;letter-spacing:2px;font-size:13px">${(b.name || 'Forward Motion Freight').toUpperCase()}</span>`;
+  // Only ever emit an <img> for a real http(s) URL — anything else (a blank
+  // string, "javascript:...", a bare filename) falls back to the text banner
+  // instead of being trusted as a src.
+  const isHttpLogo = typeof b.logoUrl === 'string' && /^https?:\/\//i.test(b.logoUrl.trim());
+  const banner = isHttpLogo
+    ? `<img src="${escapeHtml(b.logoUrl.trim())}" alt="${escapeHtml(b.name || 'Logo')}" style="max-height:30px;max-width:220px;display:block" />`
+    : `<span style="color:#f59e0b;font-weight:bold;letter-spacing:2px;font-size:13px">${escapeHtml((b.name || 'Forward Motion Freight').toUpperCase())}</span>`;
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1f2937;line-height:1.6">
     <div style="background:#0a0f1a;padding:22px 24px;border-radius:12px 12px 0 0">
       ${banner}
@@ -578,21 +595,26 @@ function emailShell(bodyHtml, brand) {
 
 function welcomeCarrierEmail({ name, email, tempPw, company, phone, logoUrl }) {
   const co = company || 'Forward Motion Freight';
+  const safeName = escapeHtml(name || 'driver');
+  const safeCo = escapeHtml(co);
+  const safeEmail = escapeHtml(email);
+  const safeTempPw = escapeHtml(tempPw);
+  const safePhone = escapeHtml(phone);
   return emailShell(`
-    <h2 style="margin:0 0 12px;font-size:20px">Welcome aboard, ${name || 'driver'}!</h2>
-    <p>Your ${co} driver portal is set up and ready. Here's how to get rolling:</p>
+    <h2 style="margin:0 0 12px;font-size:20px">Welcome aboard, ${safeName}!</h2>
+    <p>Your ${safeCo} driver portal is set up and ready. Here's how to get rolling:</p>
     <ol style="padding-left:18px">
       <li><strong>Sign in:</strong> <a href="${PORTAL_URL}" style="color:#2563eb">${PORTAL_URL}</a><br>
-        Email: <strong>${email}</strong><br>
-        Temporary password: <strong>${tempPw}</strong></li>
+        Email: <strong>${safeEmail}</strong><br>
+        Temporary password: <strong>${safeTempPw}</strong></li>
       <li>You'll be prompted to set your own password.</li>
       <li>A quick 2-minute setup confirms your carrier profile (equipment, lanes, docs).</li>
       <li>Take the optional dashboard tour — then you're ready to roll.</li>
     </ol>
     <p>Inside you'll find your assigned loads, pay, compliance dates, document vault, and your own cost-per-mile calculator — all in one place.</p>
-    ${phone ? `<p>Questions about a load? Call your dispatcher: <strong>${phone}</strong>.</p>` : ''}
+    ${phone ? `<p>Questions about a load? Call your dispatcher: <strong>${safePhone}</strong>.</p>` : ''}
     <p style="color:#6b7280;font-size:13px">Questions? Just reply to this email and we'll get you sorted.</p>
-    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`, { name: company, logoUrl });
+    <p style="margin-top:18px">Keep moving forward,<br><strong>${safeCo} — Dispatch</strong></p>`, { name: company, logoUrl });
 }
 
 function welcomeCarrierText({ email, tempPw, company, phone }) {
@@ -602,13 +624,16 @@ function welcomeCarrierText({ email, tempPw, company, phone }) {
 }
 
 function welcomeDispatcherEmail({ name, email, tempPw }) {
+  const safeName = escapeHtml(name);
+  const safeEmail = escapeHtml(email);
+  const safeTempPw = escapeHtml(tempPw);
   return emailShell(`
-    <h2 style="margin:0 0 12px;font-size:20px">Welcome to the deal desk${name ? ', ' + name : ''}.</h2>
+    <h2 style="margin:0 0 12px;font-size:20px">Welcome to the deal desk${name ? ', ' + safeName : ''}.</h2>
     <p>Your Forward OS dispatcher account is ready.</p>
     <ol style="padding-left:18px">
       <li><strong>Sign in:</strong> <a href="${PORTAL_URL}" style="color:#2563eb">${PORTAL_URL}</a><br>
-        Email: <strong>${email}</strong><br>
-        Temporary password: <strong>${tempPw}</strong></li>
+        Email: <strong>${safeEmail}</strong><br>
+        Temporary password: <strong>${safeTempPw}</strong></li>
       <li>Set your own password when prompted.</li>
       <li>Flip on <strong>Guided Mode</strong> (top of the screen) — it walks you through every tab.</li>
       <li>Take the dashboard tour for a 60-second orientation.</li>
@@ -624,20 +649,29 @@ function welcomeDispatcherEmail({ name, email, tempPw }) {
 function offerCarrierEmail({ carrierName, loadId, origin, destination, rate, pickup, delivery, commodity, dispatchPhone, company, logoUrl }) {
   const co = company || 'Forward Motion Freight';
   const money = (x) => '$' + (Number(x) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const safeCarrierName = escapeHtml(carrierName);
+  const safeLoadId = escapeHtml(loadId);
+  const safeOrigin = escapeHtml(origin) || '?';
+  const safeDestination = escapeHtml(destination) || '?';
+  const safePickup = escapeHtml(pickup);
+  const safeDelivery = escapeHtml(delivery);
+  const safeCommodity = escapeHtml(commodity);
+  const safeDispatchPhone = escapeHtml(dispatchPhone);
+  const safeCo = escapeHtml(co);
   return emailShell(`
-    <h2 style="margin:0 0 12px;font-size:20px">New load offer${carrierName ? ', ' + carrierName : ''} — ${loadId}</h2>
+    <h2 style="margin:0 0 12px;font-size:20px">New load offer${carrierName ? ', ' + safeCarrierName : ''} — ${safeLoadId}</h2>
     <p>A load offer is waiting in your portal. Review and accept or decline before it's gone.</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0">
-      <tr><td style="padding:4px 0;color:#6b7280">Load</td><td style="text-align:right;font-weight:bold">${loadId}</td></tr>
-      <tr><td style="padding:4px 0;color:#6b7280">Lane</td><td style="text-align:right;font-weight:bold">${origin || '?'} &rarr; ${destination || '?'}</td></tr>
+      <tr><td style="padding:4px 0;color:#6b7280">Load</td><td style="text-align:right;font-weight:bold">${safeLoadId}</td></tr>
+      <tr><td style="padding:4px 0;color:#6b7280">Lane</td><td style="text-align:right;font-weight:bold">${safeOrigin} &rarr; ${safeDestination}</td></tr>
       <tr><td style="padding:4px 0;color:#6b7280">Rate</td><td style="text-align:right;font-weight:bold;color:#059669">${money(rate)}</td></tr>
-      ${pickup ? `<tr><td style="padding:4px 0;color:#6b7280">Pickup</td><td style="text-align:right">${pickup}</td></tr>` : ''}
-      ${delivery ? `<tr><td style="padding:4px 0;color:#6b7280">Delivery</td><td style="text-align:right">${delivery}</td></tr>` : ''}
-      ${commodity ? `<tr><td style="padding:4px 0;color:#6b7280">Commodity</td><td style="text-align:right">${commodity}</td></tr>` : ''}
+      ${pickup ? `<tr><td style="padding:4px 0;color:#6b7280">Pickup</td><td style="text-align:right">${safePickup}</td></tr>` : ''}
+      ${delivery ? `<tr><td style="padding:4px 0;color:#6b7280">Delivery</td><td style="text-align:right">${safeDelivery}</td></tr>` : ''}
+      ${commodity ? `<tr><td style="padding:4px 0;color:#6b7280">Commodity</td><td style="text-align:right">${safeCommodity}</td></tr>` : ''}
     </table>
     <p><a href="${PORTAL_URL}" style="background:#f59e0b;color:#06141f;font-weight:bold;padding:12px 22px;border-radius:8px;text-decoration:none;display:inline-block">Review the offer &rarr;</a></p>
-    ${dispatchPhone ? `<p style="color:#6b7280;font-size:13px">Questions? Call dispatch: <strong>${dispatchPhone}</strong>.</p>` : ''}
-    <p style="margin-top:18px">Keep moving forward,<br><strong>${co} — Dispatch</strong></p>`, { name: company, logoUrl });
+    ${dispatchPhone ? `<p style="color:#6b7280;font-size:13px">Questions? Call dispatch: <strong>${safeDispatchPhone}</strong>.</p>` : ''}
+    <p style="margin-top:18px">Keep moving forward,<br><strong>${safeCo} — Dispatch</strong></p>`, { name: company, logoUrl });
 }
 
 function offerCarrierText({ loadId, origin, destination, rate, pickup, dispatchPhone, company }) {
@@ -11967,8 +12001,13 @@ ${brandName}`;
 
   const printInvoice = (inv) => {
     const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print the invoice.', 'info'); return; }
-    const rowsHtml = inv.lines.map((x) => `<tr><td>${x.loadId}</td><td>${x.lane}</td><td>${x.date}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
-    w.document.write(`<!doctype html><html><head><title>Invoice — ${inv.name}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>${brandName}</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${inv.name}${inv.mc ? ' (' + inv.mc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
+    // Self-XSS today (it's the dispatcher's own popup), but escape at the
+    // document.write boundary anyway — same rule as the email templates.
+    const safeName = escapeHtml(inv.name);
+    const safeMc = escapeHtml(inv.mc);
+    const safeBrand = escapeHtml(brandName);
+    const rowsHtml = inv.lines.map((x) => `<tr><td>${escapeHtml(x.loadId)}</td><td>${escapeHtml(x.lane)}</td><td>${escapeHtml(x.date)}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
+    w.document.write(`<!doctype html><html><head><title>Invoice — ${safeName}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>${safeBrand}</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${safeName}${inv.mc ? ' (' + safeMc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
     w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
   };
 

@@ -18,6 +18,33 @@ const BROKER_PERSONAS = {
   hard: 'You are a tough, busy freight broker with plenty of other carrier options. You start low, resist raising the rate, and only budge for a strong argument (tight capacity, urgency, specialized equipment).',
 };
 
+// Simple per-uid daily quota so one account can't burn the whole Anthropic
+// budget in a sitting. Admin SDK bypasses Firestore rules entirely, so this
+// is safe to read/write server-side regardless of what the client rules
+// allow. Dependency-free — a transaction on one doc per uid/day is enough;
+// no need for a scheduled reset job, since a new date just means a new doc.
+const PRACTICE_CALL_DAILY_LIMIT = 25;
+async function checkAndIncrementPracticeQuota(uid) {
+  const db = admin.firestore();
+  const dateStr = new Date().toISOString().slice(0, 10); // UTC calendar day
+  const usageRef = db.collection('practice_call_usage').doc(`${uid}_${dateStr}`);
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(usageRef);
+      const count = snap.exists ? (snap.data().count || 0) : 0;
+      if (count >= PRACTICE_CALL_DAILY_LIMIT) {
+        throw new HttpsError('resource-exhausted', `Daily practice call limit reached (${PRACTICE_CALL_DAILY_LIMIT}/day). Try again tomorrow.`);
+      }
+      tx.set(usageRef, { count: count + 1, uid, date: dateStr, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    // A transaction hiccup shouldn't take the whole feature down — log and
+    // let the call through rather than fail-closed on an infra blip.
+    console.error('practice_call_usage quota check failed (allowing call)', e);
+  }
+}
+
 exports.practiceBrokerCall = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Sign in required.');
@@ -27,6 +54,8 @@ exports.practiceBrokerCall = onCall({ secrets: [ANTHROPIC_API_KEY] }, async (req
   if (!scenario || !Array.isArray(messages) || messages.length === 0) {
     throw new HttpsError('invalid-argument', 'Missing scenario or messages.');
   }
+
+  await checkAndIncrementPracticeQuota(request.auth.uid);
 
   const persona = BROKER_PERSONAS[scenario.difficulty] || BROKER_PERSONAS.normal;
   const systemPrompt = `${persona}
@@ -51,7 +80,10 @@ Stay in character as the broker only. Never break character, never mention you a
         model: 'claude-sonnet-5',
         max_tokens: 300,
         system: systemPrompt,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        // Only 'assistant' or 'user' are valid roles for the Anthropic API —
+        // coerce anything else (including a client trying to pass 'system'
+        // to smuggle in its own system-prompt-like turn) down to 'user'.
+        messages: messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       }),
     });
 
