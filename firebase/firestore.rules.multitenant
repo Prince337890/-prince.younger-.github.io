@@ -54,11 +54,18 @@ service cloud.firestore {
       // Provisioning only — never self-create (blocks a fresh Google/email
       // sign-in from minting itself an admin user doc).
       allow create: if ownNew(request);
+      // A dispatcher manages their org's users (incl. toggling a driver's
+      // 'approved' login access) but must never change role/orgId (blocks
+      // self-promotion and moving oneself into another workspace) or forge
+      // the revShareAgreement marker (the FMF go-live gate reads the
+      // append-only signed_agreements record; the marker is super-only).
       allow update: if isSuper()
-                    || (isDispatcher() && resource.data.orgId == myOrg())
+                    || (isDispatcher() && resource.data.orgId == myOrg()
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                              .hasAny(['role', 'orgId', 'revShareAgreement']))
                     || (request.auth.uid == uid
                         && !request.resource.data.diff(resource.data).affectedKeys()
-                              .hasAny(['role', 'orgId', 'approved']));
+                              .hasAny(['role', 'orgId', 'approved', 'revShareAgreement']));
       allow delete: if ownDoc(resource);
     }
 
