@@ -3,9 +3,36 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#020617" />
+    <meta name="theme-color" content="#0C0A07" />
     <meta name="color-scheme" content="dark" />
     <title>Forward Motion | VIP Freight Dashboard</title>
+    <!-- Stamp the saved theme BEFORE first paint so there's no flash of the
+         wrong skin. App.jsx re-stamps on boot too, so a stale copy of this
+         file still ends up themed — this is just the zero-flicker fast path. -->
+    <script>
+      try {
+        document.documentElement.setAttribute(
+          'data-theme',
+          localStorage.getItem('fm_theme') === 'classic' ? 'classic' : 'nighthaul'
+        );
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'nighthaul');
+      }
+    </script>
+    <!-- Pre-JS background guard: the token variables ship from App.jsx, so
+         before the bundle runs the body utility classes resolve to nothing.
+         Keep the page dark in that window. -->
+    <style>
+      html { background: #0c0a07; }
+      html[data-theme='classic'] { background: #020617; }
+    </style>
+    <!-- Night Haul type pairing: Inter Tight (UI) + IBM Plex Mono (data). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body class="bg-slate-950">
     <div id="root"></div>

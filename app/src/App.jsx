@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Map, FileText, Wallet, HeartPulse, Dog, LayoutDashboard, Bell, Settings,
   Upload, CheckCircle2, Navigation, Activity, ShieldCheck, CreditCard, Building,
-  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search
+  MapPin, User, Calendar, Wrench, Plus, GraduationCap, BookOpen, Clock, Search, Moon
 } from 'lucide-react';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -33,6 +33,293 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const functionsClient = getFunctions(app);
 const googleProvider = new GoogleAuthProvider();
+
+// ============================================================================
+// ===== NIGHT HAUL THEME LAYER ===============================================
+// Two full skins — "Night Haul" (warm dark + gold, the new look) and
+// "Classic" (the original slate/amber) — expressed as CSS custom properties.
+// tailwind.config.js maps the slate/amber/emerald/red/blue/warn scales onto
+// these variables as `rgb(var(--tw-…) / <alpha-value>)`, so flipping
+// `data-theme` on <html> reskins every existing utility class instantly,
+// opacity modifiers included. Injected at module load (below) so the login
+// screen is themed too, and so one paste of this file ships the whole skin.
+//
+// Structure follows the three-layer token model:
+//   1. Primitives — raw RGB channel triplets consumed by Tailwind.
+//   2. Semantic   — fonts / radii / shadows aliases (--fm-*).
+//   3. Component  — the .font-data pairing + the theme crossfade helper.
+// ============================================================================
+const FM_THEME_CSS = `
+/* === NIGHT HAUL (default — also the fallback if data-theme is missing) === */
+:root, :root[data-theme="nighthaul"] {
+  /* 1. Primitives — surfaces & warm ink (slate remap) */
+  --tw-slate-50: 250 247 240;
+  --tw-slate-100: 239 233 220;
+  --tw-slate-200: 222 213 194;
+  --tw-slate-300: 200 190 169;
+  --tw-slate-400: 169 159 141;  /* ink-2 #A99F8D */
+  --tw-slate-500: 111 103 87;   /* ink-3 #6F6757 */
+  --tw-slate-600: 76 69 54;
+  --tw-slate-700: 54 47 32;     /* warm hairline (strong) */
+  --tw-slate-800: 30 25 18;     /* s2 raised #1E1912 */
+  --tw-slate-900: 20 17 12;     /* s1 card #14110C */
+  --tw-slate-950: 12 10 7;      /* s0 page #0C0A07 */
+  --tw-white: 243 238 227;      /* ink-1 #F3EEE3 */
+  /* Primitives — brand gold (amber remap) */
+  --tw-amber-50: 255 248 232;
+  --tw-amber-100: 255 239 200;
+  --tw-amber-200: 255 227 160;
+  --tw-amber-300: 255 216 126;
+  --tw-amber-400: 255 202 95;   /* gold-bright #FFCA5F */
+  --tw-amber-500: 255 178 36;   /* gold #FFB224 */
+  --tw-amber-600: 226 150 9;
+  --tw-amber-700: 180 118 5;
+  --tw-amber-800: 138 90 8;
+  --tw-amber-900: 107 70 12;
+  --tw-amber-950: 64 41 5;
+  /* Primitives — status: ok (emerald remap, #34D590 at 500) */
+  --tw-emerald-50: 235 251 243;
+  --tw-emerald-100: 210 246 228;
+  --tw-emerald-200: 169 237 203;
+  --tw-emerald-300: 123 227 176;
+  --tw-emerald-400: 87 220 160;
+  --tw-emerald-500: 52 213 144;
+  --tw-emerald-600: 36 174 116;
+  --tw-emerald-700: 29 138 93;
+  --tw-emerald-800: 26 109 75;
+  --tw-emerald-900: 22 89 63;
+  --tw-emerald-950: 10 50 36;
+  /* Primitives — status: bad (red remap, #F0564A at 500) */
+  --tw-red-50: 254 241 240;
+  --tw-red-100: 253 225 223;
+  --tw-red-200: 250 197 193;
+  --tw-red-300: 247 161 154;
+  --tw-red-400: 244 124 114;
+  --tw-red-500: 240 86 74;
+  --tw-red-600: 214 58 46;
+  --tw-red-700: 176 44 34;
+  --tw-red-800: 143 39 31;
+  --tw-red-900: 118 37 31;
+  --tw-red-950: 64 15 11;
+  /* Primitives — status: info (blue remap, #5AA2FF at 500) */
+  --tw-blue-50: 239 246 255;
+  --tw-blue-100: 222 235 255;
+  --tw-blue-200: 194 219 255;
+  --tw-blue-300: 156 197 255;
+  --tw-blue-400: 122 179 255;
+  --tw-blue-500: 90 162 255;
+  --tw-blue-600: 59 130 230;
+  --tw-blue-700: 46 103 188;
+  --tw-blue-800: 41 84 147;
+  --tw-blue-900: 38 72 117;
+  --tw-blue-950: 26 46 74;
+  /* Primitives — status: warn = coral (#FF7A59), NEVER the brand gold */
+  --tw-warn-100: 255 227 218;
+  --tw-warn-200: 255 199 184;
+  --tw-warn-300: 255 172 148;
+  --tw-warn-400: 255 147 118;
+  --tw-warn-500: 255 122 89;
+  --tw-warn-600: 224 90 56;
+  /* Primitives — named depth system + page gradient deep end */
+  --tw-s0: 12 10 7;
+  --tw-s1: 20 17 12;
+  --tw-s2: 30 25 18;
+  --tw-s3: 42 35 24;
+  --tw-hairline: 42 35 24;
+  --tw-pagedeep: 22 18 11;
+  /* 2. Semantic — type, radii, elevation */
+  --fm-font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --fm-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  --fm-font-data: var(--fm-font-mono);
+  --fm-r-sm: 4px;
+  --fm-r: 6px;
+  --fm-r-md: 8px;
+  --fm-r-lg: 10px;
+  --fm-r-xl: 14px;
+  --fm-r-2xl: 18px;
+  --fm-shadow-1: inset 0 1px 0 rgb(255 255 255 / 0.03), 0 1px 2px rgb(0 0 0 / 0.5);
+  --fm-shadow-2: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 10px 30px rgb(0 0 0 / 0.5);
+}
+/* === CLASSIC (the original look — stock Tailwind slate/amber values) === */
+:root[data-theme="classic"] {
+  --tw-slate-50: 248 250 252;
+  --tw-slate-100: 241 245 249;
+  --tw-slate-200: 226 232 240;
+  --tw-slate-300: 203 213 225;
+  --tw-slate-400: 148 163 184;
+  --tw-slate-500: 100 116 139;
+  --tw-slate-600: 71 85 105;
+  --tw-slate-700: 51 65 85;
+  --tw-slate-800: 30 41 59;
+  --tw-slate-900: 15 23 42;
+  --tw-slate-950: 2 6 23;
+  --tw-white: 255 255 255;
+  --tw-amber-50: 255 251 235;
+  --tw-amber-100: 254 243 199;
+  --tw-amber-200: 253 230 138;
+  --tw-amber-300: 252 211 77;
+  --tw-amber-400: 251 191 36;
+  --tw-amber-500: 245 158 11;
+  --tw-amber-600: 217 119 6;
+  --tw-amber-700: 180 83 9;
+  --tw-amber-800: 146 64 14;
+  --tw-amber-900: 120 53 15;
+  --tw-amber-950: 69 26 3;
+  --tw-emerald-50: 236 253 245;
+  --tw-emerald-100: 209 250 229;
+  --tw-emerald-200: 167 243 208;
+  --tw-emerald-300: 110 231 183;
+  --tw-emerald-400: 52 211 153;
+  --tw-emerald-500: 16 185 129;
+  --tw-emerald-600: 5 150 105;
+  --tw-emerald-700: 4 120 87;
+  --tw-emerald-800: 6 95 70;
+  --tw-emerald-900: 6 78 59;
+  --tw-emerald-950: 2 44 34;
+  --tw-red-50: 254 242 242;
+  --tw-red-100: 254 226 226;
+  --tw-red-200: 254 202 202;
+  --tw-red-300: 252 165 165;
+  --tw-red-400: 248 113 113;
+  --tw-red-500: 239 68 68;
+  --tw-red-600: 220 38 38;
+  --tw-red-700: 185 28 28;
+  --tw-red-800: 153 27 27;
+  --tw-red-900: 127 29 29;
+  --tw-red-950: 69 10 10;
+  --tw-blue-50: 239 246 255;
+  --tw-blue-100: 219 234 254;
+  --tw-blue-200: 191 219 254;
+  --tw-blue-300: 147 197 253;
+  --tw-blue-400: 96 165 250;
+  --tw-blue-500: 59 130 246;
+  --tw-blue-600: 37 99 235;
+  --tw-blue-700: 29 78 216;
+  --tw-blue-800: 30 64 175;
+  --tw-blue-900: 30 58 138;
+  --tw-blue-950: 23 37 84;
+  /* Classic warnings were amber — keep them amber so "off" = today's look. */
+  --tw-warn-100: 254 243 199;
+  --tw-warn-200: 253 230 138;
+  --tw-warn-300: 252 211 77;
+  --tw-warn-400: 251 191 36;
+  --tw-warn-500: 245 158 11;
+  --tw-warn-600: 217 119 6;
+  --tw-s0: 2 6 23;
+  --tw-s1: 15 23 42;
+  --tw-s2: 30 41 59;
+  --tw-s3: 51 65 85;
+  --tw-hairline: 30 41 59;
+  --tw-pagedeep: 11 18 32;  /* the old hardcoded #0b1220 */
+  --fm-font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --fm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --fm-font-data: var(--fm-font-sans);
+  --fm-r-sm: 0.125rem;
+  --fm-r: 0.25rem;
+  --fm-r-md: 0.375rem;
+  --fm-r-lg: 0.5rem;
+  --fm-r-xl: 0.75rem;
+  --fm-r-2xl: 1rem;
+  --fm-shadow-1: 0 0 rgb(0 0 0 / 0);
+  --fm-shadow-2: 0 0 rgb(0 0 0 / 0);
+}
+/* 3. Component — ~300ms crossfade while the theme flips (class added by
+   applyTheme, removed right after). Reduced-motion users flip instantly. */
+:root.fm-theme-x, :root.fm-theme-x *, :root.fm-theme-x *::before, :root.fm-theme-x *::after {
+  transition: background-color .3s ease, border-color .3s ease, color .3s ease, fill .3s ease, stroke .3s ease, box-shadow .3s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root.fm-theme-x, :root.fm-theme-x *, :root.fm-theme-x *::before, :root.fm-theme-x *::after { transition: none !important; }
+}`;
+
+const THEME_KEY = 'fm_theme';
+const getStoredTheme = () => {
+  try { return localStorage.getItem(THEME_KEY) === 'classic' ? 'classic' : 'nighthaul'; }
+  catch (_) { return 'nighthaul'; }
+};
+
+// Flip the whole portal skin: stamp <html data-theme>, persist per device,
+// sync the mobile status-bar color, and tell every mounted useTheme() hook.
+function applyTheme(theme, animate = true) {
+  try {
+    const root = document.documentElement;
+    let reduce = false;
+    try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+    if (animate && !reduce) {
+      root.classList.add('fm-theme-x');
+      clearTimeout(applyTheme._t);
+      applyTheme._t = setTimeout(() => root.classList.remove('fm-theme-x'), 350);
+    }
+    root.setAttribute('data-theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'classic' ? '#020617' : '#0C0A07');
+    try { localStorage.setItem(THEME_KEY, theme); } catch (_) {}
+    window.dispatchEvent(new CustomEvent('fm-themechange', { detail: theme }));
+  } catch (_) { /* non-browser env */ }
+}
+
+// Boot: inject the token stylesheet + stamp the saved theme once, at module
+// load — before anything renders, so even the login screen is skinned.
+(function bootTheme() {
+  try {
+    if (typeof document === 'undefined') return;
+    if (!document.getElementById('fm-theme-tokens')) {
+      const el = document.createElement('style');
+      el.id = 'fm-theme-tokens';
+      el.textContent = FM_THEME_CSS;
+      document.head.appendChild(el);
+    }
+    applyTheme(getStoredTheme(), false);
+  } catch (_) { /* ignore */ }
+})();
+
+// Live theme state for any component; instances stay in sync via the
+// fm-themechange event, so the header control and Settings row never drift.
+function useTheme() {
+  const [theme, setThemeState] = useState(getStoredTheme);
+  useEffect(() => {
+    const onChange = (e) => setThemeState((e && e.detail) || getStoredTheme());
+    window.addEventListener('fm-themechange', onChange);
+    return () => window.removeEventListener('fm-themechange', onChange);
+  }, []);
+  return [theme, applyTheme];
+}
+
+// Theme switch, two presentations:
+//  - compact: icon-only button for the header (next to search/bell)
+//  - default: labeled Night Haul / Classic segmented control for Settings
+function ThemeToggle({ compact = false }) {
+  const [theme, setTheme] = useTheme();
+  const night = theme !== 'classic';
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => setTheme(night ? 'classic' : 'nighthaul')}
+        className={`transition-colors ${night ? 'text-amber-400 hover:text-amber-300' : 'hover:text-white'}`}
+        title={night ? 'Theme: Night Haul — switch to Classic' : 'Theme: Classic — switch to Night Haul'}
+        aria-label={night ? 'Switch to Classic theme' : 'Switch to Night Haul theme'}
+      >
+        <Moon size={20} />
+      </button>
+    );
+  }
+  return (
+    <div className="inline-flex rounded-lg border border-slate-700 overflow-hidden shrink-0" role="group" aria-label="Portal theme">
+      {[['nighthaul', 'Night Haul'], ['classic', 'Classic']].map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setTheme(key)}
+          aria-pressed={theme === key}
+          className={`text-xs font-semibold px-3 py-1.5 transition-colors ${theme === key ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // --- Google Maps (client-side distance lookup) ---
 const GOOGLE_MAPS_API_KEY = 'AIzaSyBwhjnErrb0u91XdcPvavYknLNQBVSCzJI';
@@ -771,7 +1058,7 @@ export default function App() {
   }
 
   if (authLoading) {
-    return <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-[#0b1220] text-slate-400 font-sans">Loading…</div>;
+    return <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-pagedeep text-slate-400 font-sans">Loading…</div>;
   }
   if (!user) {
     return <LoginView accessDenied={accessDenied} />;
@@ -787,7 +1074,7 @@ export default function App() {
   // console until a super-admin assigns them an orgId. Super-admins are exempt.
   if (isAdmin && !isSuper && !myOrgId) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-[#0b1220] text-slate-100 font-sans p-6">
+      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 to-pagedeep text-slate-100 font-sans p-6">
         <div className="max-w-md text-center">
           <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30">
             <Building size={26} className="text-amber-400" />
@@ -811,13 +1098,13 @@ export default function App() {
   return (
     <GuidedModeContext.Provider value={isAdmin && guidedMode}>
     <style>{PROFIT_GLOW_CSS}</style>
-    <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans overflow-hidden">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-[#0b1220]/95 backdrop-blur border-r border-slate-800/80 flex flex-col transform transition-transform duration-200 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 bg-pagedeep/95 backdrop-blur border-r border-slate-800/80 flex flex-col transform transition-transform duration-200 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
@@ -986,6 +1273,7 @@ export default function App() {
               className="text-sm flex items-center gap-1.5 hover:text-white transition-colors">
               ← <span className="hidden sm:inline">Back to Website</span>
             </a>
+            <ThemeToggle compact />
             <button
               onClick={() => setPaletteOpen(true)}
               className="hover:text-white transition-colors"
@@ -4025,7 +4313,7 @@ function LoginView({ accessDenied }) {
   };
 
   return (
-    <div className="relative flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-4 overflow-hidden">
+    <div className="relative flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans p-4 overflow-hidden">
       <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-amber-500/10 blur-[120px]" />
       <div className="relative w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
         <div className="flex justify-center mb-2"><BrandLockup size={42} stack /></div>
@@ -4092,7 +4380,7 @@ function ChangePasswordView({ onDone }) {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-4">
+    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans p-4">
       <div className="w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
         <div className="flex justify-center mb-6"><BrandLockup size={36} stack /></div>
         <h2 className="text-xl font-bold mb-2">Set Your Password</h2>
@@ -5157,7 +5445,7 @@ function CarrierIntakeView({ orgId }) {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans p-6">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans p-6">
         <div className="max-w-md text-center">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-3xl">✓</div>
           <h1 className="text-2xl font-bold mb-2">Packet received</h1>
@@ -5171,7 +5459,7 @@ function CarrierIntakeView({ orgId }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans py-10 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <div className="text-amber-400 font-bold tracking-[0.2em] text-xs mb-2">FORWARD MOTION</div>
@@ -6350,7 +6638,7 @@ function OnboardingWizard({ onDone }) {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0b1220] text-slate-100 font-sans flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-pagedeep text-slate-100 font-sans flex flex-col">
       <div className="border-b border-slate-800/80 px-4 md:px-8 py-4 flex items-center justify-between">
         <BrandLockup size={30} branded />
         <button onClick={() => signOut(auth)} className="text-xs text-slate-400 hover:text-white">Sign out</button>
@@ -7919,7 +8207,7 @@ function BrokerCheckView() {
   if (flagCount >= 2) verdict = { tone: 'red', label: '🔴 HIGH RISK — do not book', sub: 'Multiple double-brokering / fraud red flags. Verify independently or walk away.' };
   else if (!allClear || flagCount === 1) verdict = { tone: 'amber', label: '🟡 Caution — finish vetting', sub: 'Complete every check and clear all red flags before you tender this load.' };
   else verdict = { tone: 'emerald', label: '🟢 Cleared to book', sub: 'All checks pass and no red flags. Keep the proof package for this load.' };
-  const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-amber-500/15 border-amber-500/40 text-amber-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
+  const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-warn-500/15 border-warn-500/40 text-warn-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
 
   const reset = () => { setB({ name: '', mc: '' }); setChecks({}); setFlags({}); setSaveMsg(''); };
   const save = async () => {
@@ -8012,7 +8300,7 @@ function BrokerCheckView() {
                   <span className="text-slate-500 ml-2">· {r.checksPassed}/{r.checksTotal} checks · {r.flagCount} flag{r.flagCount === 1 ? '' : 's'}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-xs px-2 py-0.5 rounded ${({ red: 'bg-red-500/15 text-red-300', amber: 'bg-amber-500/15 text-amber-300', emerald: 'bg-emerald-500/15 text-emerald-300' })[r.verdictTone] || 'bg-slate-700 text-slate-300'}`}>{r.verdict}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded ${({ red: 'bg-red-500/15 text-red-300', amber: 'bg-warn-500/15 text-warn-300', emerald: 'bg-emerald-500/15 text-emerald-300' })[r.verdictTone] || 'bg-slate-700 text-slate-300'}`}>{r.verdict}</span>
                   <span className="text-[11px] text-slate-500">{fmtChkDate(r.createdAt)}</span>
                 </div>
               </div>
@@ -8097,7 +8385,7 @@ function CarrierCheckView() {
   if (flagCount >= 2) verdict = { tone: 'red', label: '🔴 HIGH RISK — do not dispatch', sub: 'Multiple identity/insurance red flags. A stolen load or a fake COI lands on you. Verify independently or walk away.' };
   else if (!allClear || flagCount === 1) verdict = { tone: 'amber', label: '🟡 Caution — finish vetting', sub: 'Complete every check and clear all red flags before you put freight on this truck.' };
   else verdict = { tone: 'emerald', label: '🟢 Cleared to dispatch', sub: 'All checks pass and no red flags. Keep this record with the carrier’s onboarding packet.' };
-  const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-amber-500/15 border-amber-500/40 text-amber-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
+  const verdictCls = { red: 'bg-red-500/15 border-red-500/40 text-red-300', amber: 'bg-warn-500/15 border-warn-500/40 text-warn-300', emerald: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' }[verdict.tone];
 
   const reset = () => { setC({ name: '', mc: '', dot: '' }); setChecks({}); setFlags({}); setSaveMsg(''); };
   const save = async () => {
@@ -8191,7 +8479,7 @@ function CarrierCheckView() {
                   <span className="text-slate-500 ml-2">· {r.checksPassed}/{r.checksTotal} checks · {r.flagCount} flag{r.flagCount === 1 ? '' : 's'}</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-xs px-2 py-0.5 rounded ${({ red: 'bg-red-500/15 text-red-300', amber: 'bg-amber-500/15 text-amber-300', emerald: 'bg-emerald-500/15 text-emerald-300' })[r.verdictTone] || 'bg-slate-700 text-slate-300'}`}>{r.verdict}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded ${({ red: 'bg-red-500/15 text-red-300', amber: 'bg-warn-500/15 text-warn-300', emerald: 'bg-emerald-500/15 text-emerald-300' })[r.verdictTone] || 'bg-slate-700 text-slate-300'}`}>{r.verdict}</span>
                   <span className="text-[11px] text-slate-500">{fmtChkDate(r.createdAt)}</span>
                 </div>
               </div>
@@ -8658,6 +8946,13 @@ function SettingsView({ isAdmin, myStatus, onSetStatus, vipOn, vipRequested, onR
             <div className="text-xs text-slate-400">Replay the first-login walkthrough anytime.</div>
           </div>
           {onReplayTour && <GhostButton onClick={onReplayTour} className="text-sm shrink-0">Replay tour</GhostButton>}
+        </div>
+        <div className="flex items-center justify-between gap-3 py-1 mt-2 pt-3 border-t border-slate-800">
+          <div>
+            <div className="text-sm font-semibold text-white">Portal theme</div>
+            <div className="text-xs text-slate-400">Night Haul is the new warm-dark look; Classic is the original slate. Saved on this device.</div>
+          </div>
+          <ThemeToggle />
         </div>
       </Card>
 
@@ -9465,7 +9760,7 @@ const LABEL_CLS = 'block text-xs font-medium text-slate-400 mb-1.5';
 // brochure — deliberately distinct from the rounded marketing-site cards.
 function Card({ children, className = '', ...rest }) {
   return (
-    <div className={`bg-slate-900/60 border border-slate-800/80 rounded-md transition-colors ${className}`} {...rest}>
+    <div className={`bg-slate-900/60 border border-slate-800/80 rounded-md shadow-e1 transition-colors ${className}`} {...rest}>
       {children}
     </div>
   );
@@ -9474,8 +9769,10 @@ function Card({ children, className = '', ...rest }) {
 // Panel/section header: a vertical accent rail + title, optional icon, inline
 // badge, right-aligned action. The rail gives screens a console-like structure.
 function PanelHeader({ icon, title, accent = 'amber', badge, action, className = '' }) {
-  const accentCls = { amber: 'text-amber-500', blue: 'text-blue-400', emerald: 'text-emerald-400', slate: 'text-slate-400' }[accent] || 'text-amber-500';
-  const railCls = { amber: 'bg-amber-500', blue: 'bg-blue-400', emerald: 'bg-emerald-400', slate: 'bg-slate-500' }[accent] || 'bg-amber-500';
+  // NOTE: `warn` is the coral warning hue (amber in Classic) — use it for
+  // caution states so the brand gold stays reserved for brand/primary.
+  const accentCls = { amber: 'text-amber-500', blue: 'text-blue-400', emerald: 'text-emerald-400', slate: 'text-slate-400', warn: 'text-warn-500', red: 'text-red-400' }[accent] || 'text-amber-500';
+  const railCls = { amber: 'bg-amber-500', blue: 'bg-blue-400', emerald: 'bg-emerald-400', slate: 'bg-slate-500', warn: 'bg-warn-500', red: 'bg-red-500' }[accent] || 'bg-amber-500';
   return (
     <div className={`flex items-center justify-between gap-3 ${className}`}>
       <h3 className="text-base font-semibold text-white flex items-center gap-2.5 min-w-0">
@@ -9492,8 +9789,8 @@ function PanelHeader({ icon, title, accent = 'amber', badge, action, className =
 // Compact stat tile — label over a bold value, with a left accent rail so a
 // row of metrics reads like a dashboard readout.
 function StatTile({ label, value, accent = 'white', className = '', glow = false }) {
-  const v = { white: 'text-white', emerald: 'text-emerald-400', amber: 'text-amber-400', blue: 'text-blue-400', red: 'text-red-400', slate: 'text-slate-300' }[accent] || 'text-white';
-  const rail = { white: 'border-l-slate-600', emerald: 'border-l-emerald-500', amber: 'border-l-amber-500', blue: 'border-l-blue-400', red: 'border-l-red-500', slate: 'border-l-slate-600' }[accent] || 'border-l-slate-600';
+  const v = { white: 'text-white', emerald: 'text-emerald-400', amber: 'text-amber-400', blue: 'text-blue-400', red: 'text-red-400', slate: 'text-slate-300', warn: 'text-warn-400' }[accent] || 'text-white';
+  const rail = { white: 'border-l-slate-600', emerald: 'border-l-emerald-500', amber: 'border-l-amber-500', blue: 'border-l-blue-400', red: 'border-l-red-500', slate: 'border-l-slate-600', warn: 'border-l-warn-500' }[accent] || 'border-l-slate-600';
   return (
     <div className={`bg-slate-800/40 border border-slate-700/60 border-l-2 ${rail} rounded-sm p-4 ${className}`}>
       <div className="font-data text-[10px] uppercase tracking-[0.14em] text-slate-500 mb-1">{label}</div>
@@ -9507,12 +9804,12 @@ function StatTile({ label, value, accent = 'white', className = '', glow = false
 // config — so the whole skin still deploys by pasting this one file.
 const PROFIT_GLOW_CSS = `
 .font-data{font-variant-numeric:tabular-nums}
-@keyframes fmProfitGlow{0%,100%{text-shadow:0 0 0 rgba(16,185,129,0)}50%{text-shadow:0 0 16px rgba(16,185,129,.6)}}
+@keyframes fmProfitGlow{0%,100%{text-shadow:0 0 0 rgb(var(--tw-emerald-500) / 0)}50%{text-shadow:0 0 16px rgb(var(--tw-emerald-500) / .6)}}
 .fm-profit{animation:fmProfitGlow 2.6s ease-in-out infinite}
 @keyframes fmViewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .fm-view{animation:fmViewIn .22s ease-out both}
 @keyframes fmShimmer{from{background-position:-200% 0}to{background-position:200% 0}}
-.fm-skel{background:linear-gradient(90deg,rgba(148,163,184,.08) 25%,rgba(148,163,184,.18) 50%,rgba(148,163,184,.08) 75%);background-size:200% 100%;animation:fmShimmer 1.4s linear infinite;border-radius:3px}
+.fm-skel{background:linear-gradient(90deg,rgb(var(--tw-slate-400) / .08) 25%,rgb(var(--tw-slate-400) / .18) 50%,rgb(var(--tw-slate-400) / .08) 75%);background-size:200% 100%;animation:fmShimmer 1.4s linear infinite;border-radius:3px}
 .fm-press{transition:transform .08s ease}
 .fm-press:active{transform:translateY(1px)}
 @keyframes fmToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -9554,6 +9851,8 @@ function Badge({ children, tone = 'slate', className = '' }) {
     blue: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     red: 'bg-red-500/20 text-red-400 border-red-500/30',
     indigo: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+    // Decoupled warning hue — coral in Night Haul, amber in Classic.
+    warn: 'bg-warn-500/20 text-warn-400 border-warn-500/30',
   };
   return <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-sm border ${tones[tone] || tones.slate} ${className}`}>{children}</span>;
 }
