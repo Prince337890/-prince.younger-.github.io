@@ -1149,6 +1149,7 @@ export default function App() {
         { tab: 'invoices', label: 'Invoices', icon: <FileText size={16} />, keywords: ['billing', 'invoice'] },
         { tab: 'fleet', label: 'Fleet (ELD)', icon: <Activity size={16} />, keywords: ['eld', 'trucks'] },
         { tab: 'training', label: 'Training', icon: <GraduationCap size={16} />, keywords: ['course', 'quiz'] },
+        { tab: 'equipment', label: 'Equipment Guide', icon: <BookOpen size={16} />, keywords: ['equipment', 'reefer', 'flatbed', 'freight', 'guide', 'trailer', 'hotshot', 'step deck'] },
         { tab: 'walkthrough', label: 'First Load Walkthrough', icon: <Navigation size={16} />, keywords: ['walkthrough', 'tutorial', 'first load'] },
       );
       if (isSuper) {
@@ -1295,6 +1296,7 @@ export default function App() {
       case 'trihaul': return isAdmin ? <TriHaulView /> : <DashboardView />;
       case 'calc': return isAdmin ? (fmfUnsigned ? <AgreementRequired onNavigate={go} /> : <NegotiationCalcView />) : <DashboardView />;
       case 'training': return isAdmin ? <TrainingView /> : <DashboardView />;
+      case 'equipment': return isAdmin ? <EquipmentGuideView /> : <DashboardView />;
       case 'breakroom': return <BreakRoomView isSuper={isSuper} />; // everyone signed in — no role gate (isSuper only gates Haul Buddy inside)
       default: return <DashboardView />;
     }
@@ -1406,6 +1408,7 @@ export default function App() {
               <NavItem icon={<FileText size={18} />} label="Invoices" isActive={activeTab === 'invoices'} onClick={() => go('invoices')} />
               <NavItem icon={<Activity size={18} />} label="Fleet (ELD)" isActive={activeTab === 'fleet'} onClick={() => go('fleet')} />
               <NavItem icon={<GraduationCap size={18} />} label="Training" isActive={activeTab === 'training'} onClick={() => go('training')} />
+              <NavItem icon={<BookOpen size={18} />} label="Equipment Guide" isActive={activeTab === 'equipment'} onClick={() => go('equipment')} />
               <NavItem icon={<Navigation size={18} />} label="First Load Walkthrough" isActive={activeTab === 'walkthrough'} onClick={() => go('walkthrough')} />
               <NavItem icon={<Gamepad2 size={18} />} label="Break Room" isActive={activeTab === 'breakroom'} onClick={() => go('breakroom')} />
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
@@ -8263,6 +8266,432 @@ function PracticeCallView() {
           <PrimaryButton onClick={resetAll} className="px-5">Try another scenario</PrimaryButton>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ---------- ADMIN: EQUIPMENT & FREIGHT GUIDE ----------
+// Static dispatcher reference (content by Mark — his dispatcher-voice wording is
+// preserved). Trailer types, weights, and commodity rules to have in your head
+// BEFORE you book, so you don't put a carrier in a bad spot or blow a claim.
+// No Firestore — the content ships with the app. The search box filters on
+// title + full body text so a dispatcher mid-call can type "reefer" or
+// "step deck" and jump straight there (matches auto-expand).
+const EQUIP_TOPICS = [
+  {
+    id: 'dryvan', icon: '📦', tag: 'Equipment', title: 'Dry Van', keywords: 'van box trailer general freight palletized',
+    specs: [
+      ['Length', "53' (most common); 48' still exists on some fleets."],
+      ['Typical max payload', '~44,000–45,000 lbs (varies by tractor/trailer tare weight).'],
+      ['Hauls', 'Palletized general freight, retail, packaged goods, non-perishable food, boxed anything.'],
+    ],
+    gotchas: [
+      'Confirm inside dimensions if the shipper mentions load bars, pallet count, or odd dimensions — not every 53′ box has the same door height or inside width.',
+      'Ask about liftgate, ramps, or dock-only — a driver without a liftgate can’t unload a no-dock shipper.',
+      'Watch for hazmat placarding requirements hiding inside “general freight” descriptions.',
+      'Detention risk is highest here (slow docks, appointment-only receivers).',
+    ],
+  },
+  {
+    id: 'reefer', icon: '🧊', tag: 'Equipment', title: 'Reefer (Refrigerated)', keywords: 'refrigerated cold temp temperature produce frozen',
+    specs: [
+      ['Length', "53' standard."],
+      ['Typical max payload', '~42,000–44,000 lbs (reefer unit adds tare weight vs. dry van, so payload is slightly lower).'],
+      ['Hauls', 'Produce, meat, dairy, frozen goods, pharma, anything temp-sensitive.'],
+    ],
+    gotchas: [
+      'Reefer has its own rulebook — see the Reefer / Produce Rules card. Never book a reefer load without nailing down temperature, continuous-run requirement, and pulp protocol in writing before dispatch.',
+    ],
+  },
+  {
+    id: 'flatbed', icon: '🏗️', tag: 'Equipment', title: 'Flatbed', keywords: 'steel lumber tarp tarps straps chains coils open deck',
+    specs: [
+      ['Length', "48'–53' deck."],
+      ['Typical max payload', '~48,000 lbs (no walls/roof means more usable weight capacity than van/reefer).'],
+      ['Hauls', 'Steel, lumber, machinery, building materials, pipe, coils — anything that loads/unloads from the top or side, or doesn’t fit inside a box.'],
+    ],
+    gotchas: [
+      'Freight almost always needs tarps, straps, chains, or coil racks — confirm the driver has the right gear and the physical ability/equipment to tarp (tarping is manual labor and can take an hour+).',
+      'Ask who tarps — shipper, driver, or lumper — before the truck rolls. This affects detention and driver time.',
+      'Confirm load securement requirements match the commodity (chain count/rating varies by weight and cargo type).',
+      'Weather matters — tarping in high wind or rain is a real safety and schedule risk.',
+    ],
+  },
+  {
+    id: 'stepdeck', icon: '📐', tag: 'Equipment', title: 'Step Deck / Drop Deck', keywords: 'stepdeck drop deck tall height clearance machinery',
+    specs: [
+      ['Length', "Typically 48'–53' total, split between an upper deck (~10') and lower deck (~37–43')."],
+      ['Typical max payload', '~45,000–48,000 lbs.'],
+      ['Hauls', 'Taller freight that won’t clear a standard flatbed’s height limit — equipment, machinery, tall crates, vehicles.'],
+    ],
+    gotchas: [
+      'The whole point of a step deck is height clearance — always get the freight’s height and compare to the deck’s legal max height before booking.',
+      'Same tarping/securement rules as flatbed apply.',
+      'Ramps (for drive-on equipment) may be needed — confirm if the load is a vehicle or rolling equipment.',
+    ],
+  },
+  {
+    id: 'hotshot', icon: '🛻', tag: 'Equipment', title: 'Hotshot', keywords: 'pickup gooseneck dually 3500 expedited small loads',
+    specs: [
+      ['Quick summary', 'Pickup truck (usually 1-ton dual-wheel, “3500” class or similar) pulling a gooseneck/bumper-pull flatbed or deck trailer, typically 30′–40′ combined.'],
+      ['Used for', 'Smaller, time-sensitive, or regional loads that don’t justify a full-size semi.'],
+    ],
+    gotchas: [
+      'See the Hotshot Specifics card for the full detail — CDL vs. non-CDL, typical loads, and why rates/pay differ from van/reefer.',
+    ],
+  },
+  {
+    id: 'poweronly', icon: '🚛', tag: 'Equipment', title: 'Power Only', keywords: 'tractor only drop hook trailer pool drayage',
+    specs: [
+      ['What it is', 'The carrier supplies just the tractor (and driver) — no trailer. They hook to a trailer that’s already loaded and sitting at a shipper, drop-yard, or another carrier’s location.'],
+      ['Hauls', 'Anything — the trailer (and its contents) belongs to someone else (a broker’s trailer pool, a retailer’s private fleet trailer, a drayage/intermodal chassis situation, etc.).'],
+    ],
+    gotchas: [
+      'Confirm trailer condition and location before the driver commits — a bad trailer (flat tire, broken lights, damaged floor) becomes the carrier’s problem once they hook.',
+      'Confirm who owns the trailer and what happens if it breaks down mid-route (repair responsibility, downtime pay).',
+      'Get clear drop/hook instructions — where to leave the trailer at destination, and whether they’re expected to bring a trailer back.',
+      'Rates should reflect that the carrier isn’t providing a trailer — pricing conversations differ from a full truckload dry van rate.',
+    ],
+  },
+  {
+    id: 'boxtruck', icon: '🚚', tag: 'Equipment', title: 'Box Truck / Straight Truck', keywords: 'straight truck 26 foot non-cdl ltl expedited last mile',
+    specs: [
+      ['Length', "No tractor-trailer split — it's one vehicle. Box sizes commonly run 16'–26' in cargo length."],
+      ['Typical max payload', 'Varies widely by truck class — generally well under semi-trailer capacity, often 10,000–12,000 lbs or less depending on the specific truck’s GVWR.'],
+      ['Hauls', 'Smaller loads, LTL-style single shipments, expedited/hot freight, last-mile, appliances, furniture.'],
+    ],
+    gotchas: [
+      'Many box trucks are non-CDL (driver doesn’t hold a Class A/B CDL) — confirm what license/endorsements the driver actually has before assuming they can run any load.',
+      'Liftgate availability matters even more here — box truck freight often goes to non-dock locations (residential, small business).',
+      'Don’t assume box truck = light duty; some are heavier-class and CDL-required. Always ask the carrier what class/GVWR their truck is.',
+    ],
+  },
+  {
+    id: 'specialized', icon: '🏋️', tag: 'Equipment', title: 'Heavy / Specialized (RGN, Conestoga, Tanker)', keywords: 'rgn lowboy removable gooseneck conestoga tanker oversize permits escort washout',
+    intro: 'Lighter touch — know what these are and when to call in someone with deeper expertise.',
+    rows: [
+      {
+        type: 'RGN (Removable Gooseneck) / Lowboy',
+        what: 'Low-deck trailer, gooseneck detaches so equipment can drive on.',
+        hauls: 'Heavy equipment, oversized machinery, construction gear.',
+        gotcha: 'Almost always needs permits for height/weight; escort vehicles possible on wide/tall loads. Don’t book without confirming dimensions and whether permits are already secured or need to be pulled.',
+      },
+      {
+        type: 'Conestoga',
+        what: 'Flatbed/step deck with a retractable tarp system on a frame.',
+        hauls: 'Freight that needs weather protection but flatbed-style loading (no forklift-through-the-back).',
+        gotcha: 'Loading is still side/top access — confirm the shipper can load it that way. Faster to cover than manual tarping, which can reduce detention.',
+      },
+      {
+        type: 'Tanker',
+        what: 'Cylindrical tank trailer, liquid or dry bulk.',
+        hauls: 'Fuel, chemicals, food-grade liquids (milk, juice, oil), dry bulk (flour, sugar, plastic pellets).',
+        gotcha: 'Requires a Tanker endorsement on the driver’s CDL (and Hazmat endorsement if hauling regulated chemicals). Food-grade tankers require washout between loads — see Commodity & Handling Notes. Never assume a tanker can haul “whatever fits” — compatibility and prior-load residue matter.',
+      },
+    ],
+  },
+  {
+    id: 'weights', icon: '⚖️', tag: 'Rules', title: 'Weights & Dimensions Basics', keywords: '80000 gross axle scale cat scale overweight permits oversize heavy',
+    sections: [
+      { h: 'Federal gross vehicle weight limit', lines: [
+        '80,000 lbs is the standard maximum gross weight (truck + trailer + freight combined) on the U.S. Interstate system, in the general case. State and local roads, and bridge formulas, can impose different limits — this is the number to know as your baseline, not a universal guarantee.',
+      ] },
+      { h: 'Typical payload capacity', lines: [
+        'A standard 53′ dry van or reefer combo usually nets ~44,000–45,000 lbs of actual freight weight once you subtract the tractor and trailer’s own weight (“tare weight”) from the 80,000 lb gross limit. This varies by the specific tractor/trailer — sleeper cabs, fuel load, and reefer units all add tare weight and eat into payload.',
+      ] },
+      { h: '“Heavy load” (near-max weight)', lines: [
+        'A load booked at 95%+ of a truck’s legal payload capacity is considered heavy/tight. Why it matters:',
+        'Little to no margin for scale error — if the shipper’s numbers are off even slightly, the truck can come in overweight.',
+        'Almost no room to add a second stop or partial pickup.',
+        'Fuel weight, driver/passenger weight, and equipment (chains, straps, pallet jack) all count against the limit — a truck that scales fine empty can be overweight once loaded “to the pound.”',
+      ] },
+      { h: 'Axle weight / scaling basics', lines: [
+        'Total gross weight isn’t the only limit — weight has to be legally distributed across axle groups (steer axle, drive axles, trailer axles), each with its own limit. A load can be under 80,000 lbs total gross and still be illegal if it’s not distributed correctly (freight loaded too far forward or back).',
+        'This is why drivers hitting a CAT scale after loading is standard practice on tight or unusual loads — always encourage a scale ticket on anything close to max weight or oddly distributed (e.g., one heavy pallet, unevenly loaded steel).',
+      ] },
+      { h: 'When a load needs permits (oversize/overweight) — high level only', lines: [
+        'Any load exceeding standard legal length, width, height, or weight thresholds for the states it’s traveling through generally requires an oversize/overweight permit, which can also trigger requirements like escort vehicles, flags/lights, and route restrictions (avoiding certain bridges, low clearances, or city centers).',
+        'This is common on flatbed, step deck, and RGN/lowboy freight — equipment and machinery loads are the most frequent source of oversize moves.',
+        'Do not estimate permit requirements or costs yourself. Confirm with the carrier whether the load requires permits, and whether they (or a permit service) are handling it, before you commit to a pickup date. Permit lead times can affect scheduling.',
+      ] },
+    ],
+  },
+  {
+    id: 'reeferrules', icon: '🌡️', tag: 'Rules', title: 'Reefer / Produce Rules', keywords: 'temperature continuous cycle sentry pulp pulping precool pre-cool rejection claim ratecon',
+    intro: 'Reefer freight has the highest claim risk in the industry — most reefer disputes come down to “what was the temperature and who set it.” Get everything in writing.',
+    sections: [
+      { h: 'Continuous run vs. Cycle Sentry (start/stop)', lines: [
+        'Continuous means the reefer unit runs nonstop to hold a tight temperature — required for most produce, meat, dairy, and anything sensitive to temperature swings.',
+        'Cycle Sentry / start-stop means the unit only kicks on when the trailer temp drifts outside a set range — saves fuel, but allows more temperature fluctuation. Only appropriate for freight that tolerates a wider range (some frozen goods, non-critical loads).',
+        'Never assume which mode a load needs. Get it specified by the shipper/broker, and confirm the driver sets the reefer unit accordingly before leaving origin.',
+      ] },
+      { h: 'Pulping and temperature recording', lines: [
+        '“Pulping” means inserting a probe thermometer directly into the product (not just reading the trailer’s air temp) to record the actual product temperature at time of loading.',
+        'Habit to build into every reefer dispatch: the driver should pulp and record temps at loading, and again at delivery if possible. This is the single best protection against a bogus rejection or claim — if the receiver claims the product arrived out of temp, a documented pulp temp at origin (matching the required range) shifts the burden of proof.',
+      ] },
+      { h: 'Pre-cooling', lines: [
+        'The trailer should be pre-cooled to the required set point before the driver arrives to load — loading warm product into a warm trailer starts the load out of range and can cause immediate rejection risk.',
+        'Ask the shipper to confirm pre-cool status, and have the driver check the trailer temp against the set point before backing in.',
+      ] },
+      { h: 'Produce claims / rejection risk', lines: [
+        'Produce is the most claim-prone freight category — it’s perishable, inspected on arrival (often by a third party like a produce inspection service), and rejected for temperature, quality, or condition issues more than almost any other commodity.',
+        'A rejected load can mean no pay, a claim against the carrier, and a truck stuck with unsellable freight. Minimizing this risk is a dispatch responsibility, not just a driver responsibility.',
+      ] },
+      { h: 'Why temp-in-writing on the Rate Confirmation matters', lines: [
+        'The required temperature (and continuous vs. cycle) must be on the Rate Confirmation, not just said verbally on a phone call. If a claim happens and the temp requirement was never documented, the carrier has no defense and the dispatcher has no leverage to push back.',
+        'Standing rule: no reefer load gets booked or dispatched until the temperature setting is confirmed in writing on the RateCon. If it’s missing, get it added before the driver rolls — this is a five-minute fix upfront versus a costly dispute later.',
+      ] },
+    ],
+  },
+  {
+    id: 'hotshotrules', icon: '⚡', tag: 'Rules', title: 'Hotshot Specifics', keywords: 'hotshot cdl gvwr gooseneck oilfield construction rates',
+    sections: [
+      { h: 'What qualifies as hotshot', lines: [
+        'A pickup truck (typically a heavy-duty 1-ton dual-rear-wheel, often called a “3500” class or similar) pulling a gooseneck or bumper-pull trailer — flatbed, deck, or enclosed. It’s a smaller-capacity alternative to a full tractor-trailer.',
+      ] },
+      { h: 'CDL vs. non-CDL — general rule, verify the number', lines: [
+        'Whether a hotshot combination requires a CDL depends on the combined gross vehicle weight rating (GVWR) of the truck and trailer together — there’s a widely-used federal threshold above which a CDL is required.',
+        'Because this is a specific regulatory weight figure, do not quote it from memory — confirm current FMCSA guidance, and always ask the carrier directly what license class they hold and what their combined GVWR is. Don’t assume a hotshot driver has a CDL, and don’t assume they don’t — ask.',
+      ] },
+      { h: 'Typical loads', lines: [
+        'Smaller equipment, machinery parts, pipe, steel, pallets — freight that’s time-sensitive, regional, or too small/light to justify booking a full 53′ trailer. Common in construction, oilfield, and ag-adjacent freight.',
+      ] },
+      { h: 'Why rates/pay differ', lines: [
+        'Hotshot trucks have lower payload capacity than a full semi, so they typically move smaller loads shorter distances, often with quicker turnaround expectations (same-day or next-day pickup is common).',
+        'Per-mile rates can run higher than standard truckload rates because hotshot carriers are competing on speed and flexibility, not volume — but total settlement per load is often lower than a full truckload since the freight volume/weight is smaller.',
+        'Fuel and maintenance costs per mile are different from a semi (pickup trucks get better mileage but have lower total capacity), which affects what a hotshot carrier needs per load to stay profitable — factor this into rate negotiations rather than comparing hotshot rates directly to van/reefer rates.',
+      ] },
+    ],
+  },
+  {
+    id: 'commodity', icon: '📋', tag: 'Rules', title: 'Commodity & Handling Notes', keywords: 'hazmat placard high value team drivers tarping food grade washout endorsement',
+    sections: [
+      { h: 'Hazmat', lines: [
+        'Hauling hazardous materials requires the driver to hold a Hazmat endorsement on their CDL, which involves a background check (TSA security threat assessment) and separate testing beyond a standard CDL.',
+        'Hazmat loads typically require specific placarding, documentation (shipping papers matching the hazmat classification), and sometimes route restrictions (avoiding tunnels, certain bridges, or urban cores).',
+        'High-level rule for dispatchers: never book a load you know or suspect is hazmat with a driver who doesn’t explicitly confirm they hold a current Hazmat endorsement. If you’re unsure whether a commodity classifies as hazmat, ask the broker/shipper directly rather than guessing — misclassifying hazmat freight is a compliance and safety issue, not just a paperwork one.',
+      ] },
+      { h: 'High-value freight', lines: [
+        'Electronics, pharmaceuticals, alcohol, tobacco, and similar high-value loads often come with extra security requirements: sealed trailers, team drivers (so the truck is never left unattended), tracking devices, or no-stop/limited-stop routing.',
+        'Confirm insurance requirements — high-value loads sometimes require the carrier to carry cargo insurance above their standard policy limit, which not every carrier has.',
+      ] },
+      { h: 'Team loads', lines: [
+        'Two drivers alternating drive/rest so the truck moves nearly continuously. Used for high-value freight (security) or extremely time-sensitive freight (speed).',
+        'Confirm both drivers are on the carrier’s authority/insurance and that the rate reflects the added driver cost — team rates are priced differently than solo rates.',
+      ] },
+      { h: 'Tarping on flatbed', lines: [
+        'Confirm before booking: does this commodity require a tarp (weather/product protection), and if so, how many tarps and what size? Steel coils, lumber, and machinery often have specific tarping conventions.',
+        'Confirm who is responsible for tarping (driver, shipper, or a third-party tarping service at the yard) — this affects load time and whether the driver needs their own tarps/straps on the truck already.',
+      ] },
+      { h: 'Food-grade / washout for tankers', lines: [
+        'Tankers hauling food-grade liquids (milk, juice, edible oils, etc.) generally require the trailer to be washed out between loads, especially if the prior load was a different or non-compatible product, to prevent contamination.',
+        'Ask the carrier: what was the trailer’s last load, and does it need a wash before this pickup? A wash can add hours and cost to the schedule — factor it into timing, not just as an afterthought.',
+        'Non-food-grade tankers (fuel, chemical) have their own compatibility rules for what products can follow each other in the same tank — never assume a tanker is interchangeable across commodity types.',
+      ] },
+    ],
+  },
+  {
+    id: 'checklist', icon: '✅', tag: 'Checklist', title: 'Questions to Ask Before You Book', keywords: 'checklist questions book pre-book confirm ask',
+    intro: 'Quick checklist by equipment — run the matching list while the broker is still on the phone.',
+    groups: [
+      { h: 'Dry Van', items: [
+        'Does the shipper require a liftgate or dock-high trailer?',
+        'Any hazmat component in the freight description?',
+        'What are the load bar/pallet count requirements, if any?',
+        'Appointment time, and is detention likely (known slow dock)?',
+      ] },
+      { h: 'Reefer', items: [
+        'What’s the required temperature — continuous or Cycle Sentry?',
+        'Is the temp setting documented on the RateCon? (If not, get it added before dispatch.)',
+        'Is the trailer pre-cooled before the driver arrives?',
+        'Will the driver pulp and record temps at loading?',
+        'Is there a produce inspection expected at delivery?',
+      ] },
+      { h: 'Flatbed / Step Deck / Conestoga', items: [
+        'What are the exact freight dimensions (length, width, height, weight)?',
+        'Does the load need tarps — how many, what size, and who provides/applies them?',
+        'What securement (chains, straps, load bars) does this commodity require?',
+        'Does the driver have the physical tarping gear on the truck already?',
+        'Any height clearance concerns for the route (step deck especially)?',
+      ] },
+      { h: 'Hotshot', items: [
+        'What’s the driver’s license class, and what’s the combined GVWR of truck + trailer?',
+        'Does the freight fit the truck’s actual payload capacity — confirmed, not estimated?',
+        'Is this a same-day/rapid-turnaround expectation, and is that reflected in the rate?',
+      ] },
+      { h: 'Power Only', items: [
+        'Where is the trailer located, and what condition is it in?',
+        'Who owns the trailer, and who’s responsible if it breaks down?',
+        'What are the drop/hook instructions at destination?',
+      ] },
+      { h: 'Box Truck / Straight Truck', items: [
+        'What license class does the driver hold — CDL or non-CDL?',
+        'What’s the truck’s actual GVWR and payload capacity?',
+        'Liftgate needed? Residential or non-dock delivery?',
+      ] },
+      { h: 'RGN/Lowboy, Tanker, or any Oversize/Specialized Load', items: [
+        'Does this load require permits — and who is pulling them?',
+        'Are escort vehicles required based on dimensions?',
+        '(Tanker) What was the trailer’s last load, and does it need a washout?',
+        '(Tanker) Does the driver hold the required endorsement(s) — confirm current CDL requirements rather than assuming?',
+        'Is the route confirmed clear of low clearances/weight-restricted bridges?',
+      ] },
+    ],
+  },
+];
+
+// Flatten a topic into one lowercase haystack so search covers body text, not
+// just titles — "pulp", "washout", "cat scale" all land on the right card.
+const equipTopicText = (t) => [
+  t.title, t.tag, t.keywords || '', t.intro || '',
+  ...(t.specs || []).flat(),
+  ...(t.gotchas || []),
+  ...(t.sections || []).flatMap((s) => [s.h, ...s.lines]),
+  ...(t.rows || []).flatMap((r) => [r.type, r.what, r.hauls, r.gotcha]),
+  ...(t.groups || []).flatMap((g) => [g.h, ...g.items]),
+].join(' ').toLowerCase();
+
+function EquipmentGuideView() {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState({}); // id -> bool (manual toggles when not searching)
+  const haystacks = React.useMemo(() => {
+    const m = {};
+    EQUIP_TOPICS.forEach((t) => { m[t.id] = equipTopicText(t); });
+    return m;
+  }, []);
+
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? EQUIP_TOPICS.filter((t) => haystacks[t.id].includes(needle)) : EQUIP_TOPICS;
+  // Mid-call flow: an active search auto-expands its matches — no second tap.
+  const isOpen = (id) => (needle ? true : !!open[id]);
+  const toggle = (id) => setOpen((o) => ({ ...o, [id]: !o[id] }));
+
+  const tagTone = (tag) => (tag === 'Rules' ? 'blue' : tag === 'Checklist' ? 'emerald' : 'amber');
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold">Equipment &amp; Freight Guide</h2>
+        <Badge tone="amber" className="font-bold tracking-wide">ADMIN</Badge>
+      </div>
+      <p className="text-slate-400">A practical field guide to trailer types, weights, and commodity rules — the trucking knowledge you need in your head <em>before</em> you book a load, so you don’t put a carrier in a bad spot or blow a claim.</p>
+      <GuidedHint>Mid-call? Type what the broker just said — “reefer”, “step deck”, “washout” — and the matching card opens itself. The two pinned rules below prevent the most expensive mistakes in dispatch.</GuidedHint>
+
+      {/* Pinned claim-preventers — always visible, above the search. */}
+      <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 sm:p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold text-amber-300"><AlertTriangle size={16} /> Pinned — the two claim-preventers</div>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-3.5">
+            <div className="text-sm font-bold text-white">🌡️ Temp in writing, on the RateCon</div>
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Standing rule: <strong className="text-slate-200">no reefer load gets booked or dispatched until the temperature setting is confirmed in writing on the RateCon.</strong> If it’s missing, get it added before the driver rolls — a five-minute fix upfront versus a costly dispute later. Verbal on a phone call doesn’t count: no documented temp means no defense when a claim lands.</p>
+          </div>
+          <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-3.5">
+            <div className="text-sm font-bold text-white">⚖️ 95%+ of payload = heavy load</div>
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">A load booked at <strong className="text-slate-200">95%+ of a truck’s legal payload capacity is heavy/tight</strong> — little to no margin for scale error, almost no room for a second stop, and fuel, driver, and equipment weight all count against the limit. A truck that scales fine empty can be overweight loaded “to the pound.” Encourage a CAT scale ticket on anything close to max.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search — filters titles AND full body text. */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search the guide — “reefer”, “step deck”, “tarps”, “washout”…"
+          aria-label="Search the equipment guide"
+          className={`${INPUT_CLS} pl-9`}
+        />
+        {q && (
+          <button type="button" onClick={() => setQ('')} aria-label="Clear search"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white p-1"><X size={14} /></button>
+        )}
+      </div>
+
+      {shown.length === 0 ? (
+        <Card className="p-10 text-center text-slate-400">
+          <div className="text-2xl mb-2">🔍</div>
+          Nothing in the guide matches “{q}”. Try the equipment type (“flatbed”) or the thing you’re worried about (“permits”, “temp”).
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {shown.map((t) => (
+            <Card key={t.id} className={`overflow-hidden ${isOpen(t.id) ? 'md:col-span-2' : ''}`}>
+              <button type="button" onClick={() => toggle(t.id)} aria-expanded={isOpen(t.id)}
+                className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-800/30 transition-colors">
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-lg shrink-0" aria-hidden="true">{t.icon}</span>
+                  <span className="font-semibold text-white truncate">{t.title}</span>
+                  <Badge tone={tagTone(t.tag)} className="shrink-0">{t.tag}</Badge>
+                </span>
+                <ChevronDown size={16} className={`text-slate-500 shrink-0 transition-transform ${isOpen(t.id) ? 'rotate-180' : ''}`} />
+              </button>
+              {isOpen(t.id) && (
+                <div className="px-4 pb-4 space-y-3 border-t border-slate-800 pt-3">
+                  {t.intro && <p className="text-xs text-slate-400 leading-relaxed">{t.intro}</p>}
+                  {t.specs && (
+                    <div className="space-y-1.5">
+                      {t.specs.map(([k, v]) => (
+                        <div key={k} className="text-sm">
+                          <span className="text-slate-500">{k}: </span>
+                          <span className="text-slate-200">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {t.gotchas && (
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide font-semibold text-amber-400 mb-1.5">Dispatcher gotchas</div>
+                      <ul className="space-y-1.5">
+                        {t.gotchas.map((g, i) => (
+                          <li key={i} className="text-sm text-slate-300 leading-relaxed flex gap-2"><span className="text-amber-500/70 shrink-0">▸</span><span>{g}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {t.rows && (
+                    <div className="space-y-2.5">
+                      {t.rows.map((r) => (
+                        <div key={r.type} className="rounded-lg bg-slate-800/50 border border-slate-700/60 p-3">
+                          <div className="text-sm font-bold text-white">{r.type}</div>
+                          <div className="text-xs text-slate-400 mt-1"><span className="text-slate-500">What it is: </span>{r.what}</div>
+                          <div className="text-xs text-slate-400 mt-1"><span className="text-slate-500">Hauls: </span>{r.hauls}</div>
+                          <div className="text-xs text-slate-300 mt-1.5 leading-relaxed"><span className="text-amber-400 font-semibold">Key gotcha: </span>{r.gotcha}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {t.sections && t.sections.map((s) => (
+                    <div key={s.h}>
+                      <div className="text-sm font-semibold text-slate-200 mb-1.5">{s.h}</div>
+                      <ul className="space-y-1.5">
+                        {s.lines.map((ln, i) => (
+                          <li key={i} className="text-sm text-slate-400 leading-relaxed flex gap-2"><span className="text-slate-600 shrink-0">•</span><span>{ln}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                  {t.groups && t.groups.map((g) => (
+                    <div key={g.h}>
+                      <div className="text-sm font-semibold text-amber-300 mb-1.5">{g.h}</div>
+                      <ul className="space-y-1.5">
+                        {g.items.map((it, i) => (
+                          <li key={i} className="text-sm text-slate-300 leading-relaxed flex gap-2"><span className="text-slate-600 shrink-0">▢</span><span>{it}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Mark's "verify the legal number" caveat — kept verbatim in spirit and scope. */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-500 leading-relaxed">
+        <strong className="text-slate-400">Note on numbers:</strong> weights, dimensions, and thresholds in this guide are the industry-standard figures dispatchers work from day to day. Federal (FMCSA/DOT), state, and bridge-law limits can vary by state and change over time. Anywhere a number affects legality or a permit decision — CDL weight thresholds, hazmat endorsement specifics, current federal weight/permit limits — confirm current federal and state rules before you book; don’t rely on memory for a citation-level number. When in doubt, ask the carrier directly what their equipment, license, and endorsements actually are — never assume.
+      </div>
     </div>
   );
 }
