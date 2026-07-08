@@ -13993,6 +13993,7 @@ function CourseProgressView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
+  const [delId, setDelId] = useState(''); // doc id mid-delete, disables its button
 
   useEffect(() => { (async () => {
     setLoading(true);
@@ -14027,6 +14028,22 @@ function CourseProgressView() {
     ? <Badge tone="emerald">✓ Completed</Badge>
     : ((r.pct || 0) >= 1 ? <Badge tone="amber">In progress</Badge> : <Badge tone="slate">Signed up</Badge>);
 
+  // Super-only cleanup: course_progress delete is already allowed by the
+  // published rules (allow read, delete: if isSuper()), so no rule change.
+  const removeLearner = async (r) => {
+    const who = r.name || r.email || 'this learner';
+    if (!window.confirm(`Remove ${who} from Course Progress? This deletes their progress record — it does not affect any workspace or login.`)) return;
+    setDelId(r.id);
+    try {
+      await deleteDoc(doc(db, 'course_progress', r.id));
+      setRows((p) => p.filter((x) => x.id !== r.id));
+      toast(`${who} removed from Course Progress.`, 'success');
+    } catch (e) {
+      console.error('course progress delete failed', e);
+      toast('Could not delete — try again.', 'error');
+    } finally { setDelId(''); }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-2">
@@ -14051,7 +14068,7 @@ function CourseProgressView() {
           <Card className="overflow-x-auto">
             <table className="w-full text-left text-sm min-w-[640px]">
               <thead><tr className="border-b border-slate-800 bg-slate-800/30">
-                <Th>Learner</Th><Th>Progress</Th><Th>Status</Th><Th>Started</Th><Th>Last active</Th>
+                <Th>Learner</Th><Th>Progress</Th><Th>Status</Th><Th>Started</Th><Th>Last active</Th><Th className="w-10"><span className="sr-only">Actions</span></Th>
               </tr></thead>
               <tbody>
                 {filtered.map((r) => (
@@ -14070,6 +14087,13 @@ function CourseProgressView() {
                     <Td>{statusBadge(r)}</Td>
                     <Td className="text-slate-400">{fmtDate(r.startedAt)}</Td>
                     <Td className="text-slate-400">{ago(r.lastActiveAt)}</Td>
+                    <Td className="text-right">
+                      <button type="button" onClick={() => removeLearner(r)} disabled={delId === r.id}
+                        aria-label={`Delete ${r.name || r.email || 'learner'}`} title="Delete progress record"
+                        className="p-1.5 rounded-lg text-red-400/70 hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </Td>
                   </tr>
                 ))}
               </tbody>
