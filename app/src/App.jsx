@@ -9073,29 +9073,32 @@ function VideoEmbed({ id, title }) {
 }
 
 // Curated starter library. Grouped by category; each entry is { title, id, by,
-// note }. `id` accepts any YouTube link or a bare video id. Edit this list to
-// curate your own picks — or paste any link into the "Watch any link" box in
-// the Video Resources tab to play it on the spot without touching code.
+// note }. `id` accepts any YouTube link or a bare video id. These are neutral,
+// concept-level explainers (paperwork, RateCons, factoring) chosen to COMPLEMENT
+// the in-house crash course rather than compete with it — deliberately not
+// "become a dispatcher" course funnels. Spot-check them on Vercel and swap in
+// your own picks anytime by editing this list; or paste any link into the
+// "Watch any link" box in the Video Resources tab to play it without touching code.
 const VIDEO_RESOURCES = [
   {
     category: 'Getting Started',
     items: [
-      { title: 'What a freight dispatcher actually does', id: '', note: 'Overview of the role, the money flow, and where you fit between carrier and broker.' },
-      { title: 'How to find your first carrier', id: '', note: 'Prospecting owner-operators and small fleets, and the pitch that lands them.' },
+      { title: 'The trucking paperwork process — BOL, RateCon, Load Sheet, POD', id: 'w5FKBSqFCYk', note: 'The whole document chain in one pass — how a load moves from booked to paid.' },
+      { title: 'How to become a freight dispatcher — live training', id: 'mHfzYWsEGqE', note: 'Orientation to the role and the day-to-day for someone brand new.' },
     ],
   },
   {
     category: 'Booking & Negotiation',
     items: [
-      { title: 'Reading a load board like a pro', id: '', note: 'Filtering noise, spotting a real rate, and avoiding double-brokered loads.' },
-      { title: 'Rate negotiation on the phone', id: '', note: 'Talk-tracks for holding your number — pairs with the Negotiation Scripts tab.' },
+      { title: 'What is a rate confirmation? Overview & examples', id: 'WWu3qvm2FzA', note: 'What every line on a RateCon means before you sign it.' },
+      { title: 'Rate confirmation (“RateCon”) — transport paperwork, part 1', id: 'LGqLaWPtVr8', note: 'A closer read of a real RateCon and what to double-check.' },
     ],
   },
   {
     category: 'Paperwork & Getting Paid',
     items: [
-      { title: 'RateCon, BOL, POD — the paperwork chain', id: '', note: 'What each doc is, when it’s signed, and why the POD unlocks your invoice.' },
-      { title: 'Factoring explained', id: '', note: 'How the carrier gets paid next-day and what that means for your fee timing.' },
+      { title: 'What is freight factoring? Invoice factoring & cash flow', id: '2UtACKsH94o', note: 'How the carrier gets paid next-day — and what that means for your fee timing.' },
+      { title: 'Factoring 101 for truckers', id: 'SjzkV5b-2bM', note: 'Rates, chargebacks, and the fine print carriers ask dispatchers about.' },
     ],
   },
 ];
