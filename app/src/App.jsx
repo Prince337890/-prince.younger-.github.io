@@ -1157,6 +1157,7 @@ export default function App() {
           { tab: 'workspaces', label: 'Workspaces', icon: <Building size={16} />, keywords: ['orgs', 'provision'] },
           { tab: 'requests', label: 'Access Requests', icon: <User size={16} />, keywords: ['leads'] },
           { tab: 'courseprogress', label: 'Course Progress', icon: <GraduationCap size={16} />, keywords: ['training'] },
+          { tab: 'revenue', label: 'Revenue', icon: <Wallet size={16} />, keywords: ['mrr', 'arr', 'income', 'revenue', 'money'] },
           { tab: 'fmfrevshare', label: 'FMF Rev-Share', icon: <Wallet size={16} />, keywords: ['revenue share'] },
         );
       }
@@ -1279,6 +1280,7 @@ export default function App() {
       case 'workspaces': return isSuper ? <WorkspacesView /> : <DashboardView />;
       case 'requests': return isSuper ? <AccessRequestsView onNavigate={go} /> : <DashboardView />;
       case 'courseprogress': return isSuper ? <CourseProgressView /> : <DashboardView />;
+      case 'revenue': return isSuper ? <RevenueView /> : <DashboardView />;
       case 'fmfrevshare': return isSuper ? <FmfRevShareView /> : <DashboardView />;
       case 'expenses': return isAdmin ? <ExpensesView /> : <DashboardView />;
       case 'invoices': return isAdmin ? <InvoicesView /> : <DashboardView />;
@@ -1414,6 +1416,7 @@ export default function App() {
               {isSuper && <NavItem icon={<Building size={18} />} label="Workspaces" isActive={activeTab === 'workspaces'} onClick={() => go('workspaces')} />}
               {isSuper && <NavItem icon={<User size={18} />} label="Access Requests" isActive={activeTab === 'requests'} onClick={() => go('requests')} />}
               {isSuper && <NavItem icon={<GraduationCap size={18} />} label="Course Progress" isActive={activeTab === 'courseprogress'} onClick={() => go('courseprogress')} />}
+              {isSuper && <NavItem icon={<Wallet size={18} />} label="Revenue" isActive={activeTab === 'revenue'} onClick={() => go('revenue')} />}
               {isSuper && <NavItem icon={<Wallet size={18} />} label="FMF Rev-Share" isActive={activeTab === 'fmfrevshare'} onClick={() => go('fmfrevshare')} />}
             </>
           ) : (
@@ -9005,12 +9008,188 @@ function EquipmentGuideView() {
   );
 }
 
+// ---------- VIDEO RESOURCES (Training → Video Resources) ----------
+// Pull a YouTube video id out of any common link form (watch?v=, youtu.be/,
+// /embed/, /shorts/) or accept a bare 11-char id pasted on its own. Returns
+// null if nothing usable is found, so callers can degrade gracefully.
+function youTubeId(input) {
+  if (!input) return null;
+  const s = String(input).trim();
+  if (/^[\w-]{11}$/.test(s)) return s; // already a bare id
+  try {
+    const m = s.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
+    return m ? m[1] : null;
+  } catch (_) { return null; }
+}
+
+// Click-to-load YouTube embed (a "lite" pattern): shows the thumbnail until the
+// user hits play, THEN mounts the iframe. Nothing loads from YouTube on render,
+// so the Training tab stays fast and no cookies/trackers fire until a video is
+// actually watched (youtube-nocookie host). Falls back to a plain card if the
+// id can't be parsed.
+function VideoEmbed({ id, title }) {
+  const vid = youTubeId(id);
+  const [playing, setPlaying] = useState(false);
+  if (!vid) {
+    return (
+      <div className="aspect-video w-full rounded-xl border border-slate-800 bg-slate-900/60 flex items-center justify-center text-slate-600 text-sm">
+        Video unavailable
+      </div>
+    );
+  }
+  if (playing) {
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-xl border border-slate-800 bg-black">
+        <iframe
+          className="w-full h-full"
+          src={`https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0&modestbranding=1`}
+          title={title || 'Video'}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setPlaying(true)}
+      className="group relative block aspect-video w-full overflow-hidden rounded-xl border border-slate-800 bg-black"
+      aria-label={`Play ${title || 'video'}`}
+    >
+      <img
+        src={`https://i.ytimg.com/vi/${vid}/hqdefault.jpg`}
+        alt=""
+        loading="lazy"
+        className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+      />
+      <span className="absolute inset-0 flex items-center justify-center">
+        <span className="flex items-center justify-center w-16 h-16 rounded-full bg-red-600/90 shadow-lg shadow-black/50 transition-transform group-hover:scale-110">
+          <Play size={28} className="text-white translate-x-0.5" fill="currentColor" />
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// Curated starter library. Grouped by category; each entry is { title, id, by,
+// note }. `id` accepts any YouTube link or a bare video id. Edit this list to
+// curate your own picks — or paste any link into the "Watch any link" box in
+// the Video Resources tab to play it on the spot without touching code.
+const VIDEO_RESOURCES = [
+  {
+    category: 'Getting Started',
+    items: [
+      { title: 'What a freight dispatcher actually does', id: '', note: 'Overview of the role, the money flow, and where you fit between carrier and broker.' },
+      { title: 'How to find your first carrier', id: '', note: 'Prospecting owner-operators and small fleets, and the pitch that lands them.' },
+    ],
+  },
+  {
+    category: 'Booking & Negotiation',
+    items: [
+      { title: 'Reading a load board like a pro', id: '', note: 'Filtering noise, spotting a real rate, and avoiding double-brokered loads.' },
+      { title: 'Rate negotiation on the phone', id: '', note: 'Talk-tracks for holding your number — pairs with the Negotiation Scripts tab.' },
+    ],
+  },
+  {
+    category: 'Paperwork & Getting Paid',
+    items: [
+      { title: 'RateCon, BOL, POD — the paperwork chain', id: '', note: 'What each doc is, when it’s signed, and why the POD unlocks your invoice.' },
+      { title: 'Factoring explained', id: '', note: 'How the carrier gets paid next-day and what that means for your fee timing.' },
+    ],
+  },
+];
+
+function VideoResourcesView() {
+  const [url, setUrl] = useState('');
+  const [watch, setWatch] = useState(null); // { id, title } for the paste-a-link player
+  const play = () => {
+    const id = youTubeId(url);
+    if (!id) { toast('Paste a full YouTube link (or a video id) to watch it here.', 'info'); return; }
+    setWatch({ id, title: 'Pasted video' });
+  };
+  const curatedCount = VIDEO_RESOURCES.reduce((n, g) => n + g.items.filter((v) => youTubeId(v.id)).length, 0);
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <h3 className="text-lg font-bold flex items-center gap-2 mb-1"><Play size={18} className="text-amber-500" /> Video Resources</h3>
+        <p className="text-sm text-slate-400">Short training videos to watch alongside the written playbook. Nothing loads from YouTube until you press play — the tab stays fast and private.</p>
+      </Card>
+
+      {/* Watch any link — immediately useful even before the curated list is filled in. */}
+      <Card className="p-6">
+        <div className="font-semibold text-white text-sm mb-1">Watch any link</div>
+        <p className="text-xs text-slate-400 mb-3">Paste a YouTube link (or video id) and play it right here — handy for a video someone sends you.</p>
+        <div className="flex gap-2">
+          <input
+            className={INPUT_CLS}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') play(); }}
+            placeholder="https://www.youtube.com/watch?v=…"
+          />
+          <button type="button" onClick={play} className="text-sm bg-amber-500 text-slate-950 font-semibold px-4 rounded-lg shrink-0">Watch</button>
+        </div>
+        {watch && (
+          <div className="mt-4">
+            <VideoEmbed id={watch.id} title={watch.title} />
+          </div>
+        )}
+      </Card>
+
+      {curatedCount === 0 ? (
+        <Card className="p-6">
+          <div className="text-sm text-slate-300 font-semibold mb-1">The curated library is empty</div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            The starter topics below are ready to fill in. Paste your picked YouTube links into the <span className="font-mono text-slate-300">VIDEO_RESOURCES</span> list in the code (any agent can do this in seconds), or use <span className="text-slate-300">Watch any link</span> above for one-offs. Topics queued up:
+          </p>
+          <div className="mt-3 space-y-3">
+            {VIDEO_RESOURCES.map((g) => (
+              <div key={g.category}>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-400 mb-1.5">{g.category}</div>
+                <ul className="space-y-1">
+                  {g.items.map((v) => (
+                    <li key={v.title} className="text-sm text-slate-300 flex gap-2"><span className="text-amber-400 shrink-0">•</span><span><span className="font-medium text-white">{v.title}</span> — <span className="text-slate-400">{v.note}</span></span></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : (
+        VIDEO_RESOURCES.map((g) => {
+          const items = g.items.filter((v) => youTubeId(v.id));
+          if (!items.length) return null;
+          return (
+            <div key={g.category} className="space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-400">{g.category}</div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                {items.map((v) => (
+                  <div key={v.title} className="space-y-2">
+                    <VideoEmbed id={v.id} title={v.title} />
+                    <div>
+                      <div className="text-sm font-semibold text-white">{v.title}</div>
+                      {v.by && <div className="text-[11px] text-slate-500">{v.by}</div>}
+                      {v.note && <div className="text-xs text-slate-400 mt-0.5">{v.note}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 function TrainingView() {
   const [tab, setTab] = useState('practice');
   const TABS = [
     ['practice', 'Practice & Quiz'],
     ['practice-call', 'Practice Broker Call'],
     ['course', '2-Week Crash Course'],
+    ['videos', 'Video Resources'],
     ['guided', 'Guided Mode'],
     ['glossary', 'Freight Glossary'],
     ['sops', 'SOPs'],
@@ -9096,6 +9275,8 @@ function TrainingView() {
           ))}
         </div>
       )}
+
+      {tab === 'videos' && <VideoResourcesView />}
 
       {tab === 'guided' && (
         <div className="space-y-4">
@@ -9282,6 +9463,34 @@ function AgreementText({ text }) {
 // change needed — a dispatcher may create a signed record for her own uid).
 const FMF_REVSHARE_PCT = 20;  // FMF's % of the dispatcher's dispatch-fee income
 const FMF_REVSHARE_MIN = 50;  // monthly floor in $ (raise as per-dispatcher cost firms up)
+
+// SaaS subscription tiers — the price each INDEPENDENT dispatcher workspace
+// pays per month. FMF dispatchers pay rev-share instead (see above), so their
+// plan is normally 'none'. Keys are stored on the org doc as `plan`; the
+// super-admin sets it in Workspaces. Prices mirror the locked pricing model
+// (Founder self-serve, Starter/Pro indie, Authority white-label, plus the
+// Founding-Graduate discounted variants). Level-1 Revenue = expected MRR.
+const PLAN_PRICES = {
+  none: 0,
+  founder: 29,
+  starter: 39,
+  pro: 99,
+  authority: 199,
+  grad_founder: 19,
+  grad_starter: 29,
+  grad_pro: 79,
+};
+const PLAN_LABELS = {
+  none: 'No plan / not billing',
+  founder: 'Founder — $29',
+  starter: 'Starter — $39',
+  pro: 'Pro — $99',
+  authority: 'Authority — $199+',
+  grad_founder: 'Founder · Grad — $19',
+  grad_starter: 'Starter · Grad — $29',
+  grad_pro: 'Pro · Grad — $79',
+};
+const planPrice = (plan) => PLAN_PRICES[plan] || 0;
 
 const DEFAULT_REVSHARE_TEXT = `**FORWARD MOTION FREIGHT — DISPATCHER REVENUE-SHARE AGREEMENT**
 
@@ -14239,6 +14448,153 @@ function FmfRevShareView() {
   );
 }
 
+// ---------- SUPER-ADMIN: REVENUE (Level 1 — expected MRR) ----------
+// The founder's money view. Level 1 = what you EXPECT to bill each month, built
+// from data already in Forward OS: each workspace's SaaS plan (set in
+// Workspaces) plus, for FMF dispatchers, the computed 20%/min rev-share on the
+// loads they booked this month. No Stripe needed. Level 2 (actual $ collected)
+// drops in later via the Stripe webhook → Firestore, and can slot beneath this
+// same view without disturbing it.
+function RevenueView() {
+  const [orgs, setOrgs] = useState([]);
+  const [loads, setLoads] = useState([]);
+  const [userMap, setUserMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [month, setMonth] = useState(() => {
+    try { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); } catch (_) { return ''; }
+  });
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    try {
+      const [oSnap, lSnap, uSnap] = await Promise.all([
+        getDocs(collection(db, 'orgs')),
+        getDocs(collection(db, 'loads')),
+        getDocs(collection(db, 'users')),
+      ]);
+      // Exclude the super-admin's own home workspace from the revenue roll-up —
+      // you don't bill yourself.
+      const myUid = auth.currentUser?.uid;
+      setOrgs(oSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((o) => o.ownerUid !== myUid));
+      setLoads(lSnap.docs.map((d) => d.data()));
+      const um = {}; uSnap.docs.forEach((d) => { um[d.id] = d.data(); });
+      setUserMap(um);
+    } catch (e) { console.error('revenue load failed', e); setErr('Could not load — check that the multi-tenant rules are published.'); }
+    finally { setLoading(false); }
+  })(); }, []);
+
+  const money = (n) => Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const inMonth = (dateStr) => !!dateStr && !!month && String(dateStr).slice(0, 7) === month;
+  const monthLabel = (m) => { try { const [y, mo] = m.split('-'); return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); } catch (_) { return m; } };
+  const monthOpts = (() => {
+    const out = []; try {
+      const d = new Date(); d.setDate(1);
+      for (let i = 0; i < 12; i++) { out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); d.setMonth(d.getMonth() - 1); }
+    } catch (_) {}
+    return out;
+  })();
+
+  const rows = orgs.map((o) => {
+    const saas = planPrice(o.plan);
+    // Rev-share only applies to FMF dispatchers — their fee income this month.
+    let feeIncome = 0, share = 0, revShare = 0;
+    if (o.orgType === 'fmf') {
+      const mine = loads.filter((l) => l.orgId === o.id && (l.status === 'Delivered' || l.status === 'Cleared') && inMonth(l.delivery_date));
+      feeIncome = mine.reduce((s, l) => s + (Number(l.gross_pay) || 0) * (feePctOf(l.feePct) / 100), 0);
+      share = feeIncome * (FMF_REVSHARE_PCT / 100);
+      revShare = Math.max(share, FMF_REVSHARE_MIN);
+    }
+    const u = userMap[o.ownerUid] || {};
+    const who = u.displayName || o.ownerEmail || o.name || '—';
+    const total = saas + revShare;
+    return { id: o.id, who, workspace: o.name, orgType: o.orgType, plan: o.plan || 'none', saas, revShare, feeIncome, total };
+  }).sort((a, b) => b.total - a.total);
+
+  const saasMrr = rows.reduce((s, r) => s + r.saas, 0);
+  const revShareMrr = rows.reduce((s, r) => s + r.revShare, 0);
+  const totalMrr = saasMrr + revShareMrr;
+  const payingCount = rows.filter((r) => r.total > 0).length;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h2 className="text-2xl font-bold">Revenue</h2>
+        <Badge tone="indigo" className="font-bold tracking-wide">SUPER-ADMIN</Badge>
+        <Badge tone="slate" className="text-[10px]">Level 1 · Expected</Badge>
+      </div>
+      <p className="text-slate-400">Your expected monthly recurring revenue — SaaS subscriptions from independent dispatchers plus the rev-share your FMF dispatchers owe on the loads they booked. Built from data already in Forward OS; no Stripe required.</p>
+
+      <div className="flex items-center gap-2">
+        <label className="text-sm text-slate-400">Rev-share month</label>
+        <select value={month} onChange={(e) => setMonth(e.target.value)} className={`${SELECT_CLS} w-52`}>
+          {monthOpts.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatTile label="Expected MRR" value={money(totalMrr)} accent="emerald" />
+        <StatTile label="Run-rate ARR" value={money(totalMrr * 12)} />
+        <StatTile label="SaaS MRR" value={money(saasMrr)} />
+        <StatTile label={`Rev-Share (${monthLabel(month)})`} value={money(revShareMrr)} />
+      </div>
+
+      {err && <p className="text-amber-400 text-sm">{err}</p>}
+      {loading ? <SkelRows rows={5} className="py-6" />
+        : rows.length === 0 ? <Card className="p-10 text-center text-slate-400">No workspaces yet. Provision a dispatcher in <span className="text-slate-200">Workspaces</span>, set their plan, and it’ll show up here.</Card>
+        : (
+          <Card className="p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-800">
+                  <th className="px-4 py-3">Workspace</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3 text-right">SaaS</th>
+                  <th className="px-4 py-3 text-right">Rev-share</th>
+                  <th className="px-4 py-3 text-right">Monthly total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-800/60 last:border-0">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-white">{r.who}</div>
+                      <div className="text-[11px] text-slate-500">{r.workspace}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.orgType === 'fmf' ? <Badge tone="amber" className="text-[10px]">FMF</Badge>
+                        : r.orgType === 'independent' ? <Badge tone="slate" className="text-[10px]">Independent</Badge>
+                        : <Badge tone="slate" className="text-[10px] text-amber-300">Unclassified</Badge>}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-300">
+                      {r.saas > 0 ? money(r.saas) : <span className="text-slate-600">—</span>}
+                      {r.plan !== 'none' && <div className="text-[10px] text-slate-500">{(PLAN_LABELS[r.plan] || r.plan).split(' — ')[0]}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-300">
+                      {r.orgType === 'fmf' ? money(r.revShare) : <span className="text-slate-600">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-400">{r.total > 0 ? money(r.total) : <span className="text-slate-600">—</span>}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-slate-700">
+                  <td className="px-4 py-3 font-bold text-white" colSpan={2}>Total expected MRR</td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-300">{money(saasMrr)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-300">{money(revShareMrr)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-emerald-400">{money(totalMrr)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </Card>
+        )}
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-500 leading-relaxed space-y-1.5">
+        <p><span className="text-slate-400 font-semibold">This is Level 1 — expected, not collected.</span> SaaS figures come from the plan you set on each workspace in <span className="text-slate-400">Workspaces</span>; set a plan to <span className="text-slate-400">“No plan / not billing”</span> to exclude it. Rev-share is the {FMF_REVSHARE_PCT}% / {money(FMF_REVSHARE_MIN)}-minimum on FMF loads Delivered/Cleared in the selected month — the same numbers as the FMF Rev-Share tab.</p>
+        <p><span className="text-slate-400 font-semibold">Level 2 (actual $)</span> arrives when Stripe goes live: a webhook writes each real payment into Firestore and this view will show collected vs. expected side by side. The spec is written and ready to drop in — it’s gated on the EIN, not on engineering.</p>
+      </div>
+    </div>
+  );
+}
+
 function WorkspacesView() {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14332,6 +14688,13 @@ function WorkspacesView() {
   const setOrgType = async (o, value) => {
     try { await updateDoc(doc(db, 'orgs', o.id), { orgType: value }); setOrgs((prev) => prev.map((x) => (x.id === o.id ? { ...x, orgType: value } : x))); }
     catch (e) { console.error('orgType update failed', e); alert('Could not update — check the console.'); }
+  };
+
+  // Set the SaaS plan a workspace is billed on — feeds the Level-1 Revenue
+  // dashboard's expected-MRR total. Stored as `plan` on the org doc.
+  const setOrgPlan = async (o, value) => {
+    try { await updateDoc(doc(db, 'orgs', o.id), { plan: value }); setOrgs((prev) => prev.map((x) => (x.id === o.id ? { ...x, plan: value } : x))); }
+    catch (e) { console.error('plan update failed', e); alert('Could not update — check the console.'); }
   };
 
   // Deactivate / reactivate a dispatcher's access (login can't be hard-deleted
@@ -14623,6 +14986,13 @@ function WorkspacesView() {
                           <option value="" disabled>Classify…</option>
                           <option value="independent">Independent</option>
                           <option value="fmf">Forward Motion Freight</option>
+                        </select>
+                      )}
+                      {!isMe && (
+                        <select value={o.plan || 'none'} onChange={(e) => setOrgPlan(o, e.target.value)}
+                          title="SaaS plan this workspace is billed on (feeds the Revenue dashboard)"
+                          className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-slate-300">
+                          {Object.keys(PLAN_LABELS).map((k) => <option key={k} value={k}>{PLAN_LABELS[k]}</option>)}
                         </select>
                       )}
                       {!isMe && (
@@ -15217,8 +15587,35 @@ function InvoicesView() {
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [open, setOpen] = useState(null); // expanded carrier uid
-  const [orgInfo, setOrgInfo] = useState({ name: '' });
+  const [orgInfo, setOrgInfo] = useState({ name: '', payLink: '', payNote: '' });
   const brandName = orgInfo.name || 'Forward Motion Freight';
+  // "Pay your dispatcher" link — the dispatcher's OWN external payment link
+  // (Stripe Payment Link, PayPal.me, Venmo, Cash App, etc.). We only surface
+  // it on the invoice the carrier receives; no money touches Forward OS or FMF,
+  // so this needs no EIN, no Stripe account, and no backend. Stored on the org
+  // doc (rules allow the dispatcher to write payLink/payNote on their own org).
+  const [payEdit, setPayEdit] = useState(false);
+  const [payForm, setPayForm] = useState({ payLink: '', payNote: '' });
+  const [paySaving, setPaySaving] = useState(false);
+  const normalizeLink = (s) => {
+    const t = String(s || '').trim();
+    if (!t) return '';
+    return /^https?:\/\//i.test(t) ? t : 'https://' + t;
+  };
+  const payLink = normalizeLink(orgInfo.payLink);
+  const savePayLink = async () => {
+    if (!ACTIVE_ORG) { toast('No workspace on file — can’t save the pay link.', 'error'); return; }
+    setPaySaving(true);
+    try {
+      const payLinkVal = payForm.payLink.trim();
+      const payNoteVal = payForm.payNote.trim();
+      await updateDoc(doc(db, 'orgs', ACTIVE_ORG), { payLink: payLinkVal, payNote: payNoteVal });
+      setOrgInfo((o) => ({ ...o, payLink: payLinkVal, payNote: payNoteVal }));
+      setPayEdit(false);
+      toast('Payment link saved — it’ll appear on every invoice you email or print.', 'success');
+    } catch (e) { console.error('save pay link failed', e); toast('Could not save — check the console.', 'error'); }
+    finally { setPaySaving(false); }
+  };
 
   useEffect(() => {
     (async () => {
@@ -15237,7 +15634,14 @@ function InvoicesView() {
   // Co-brand the invoice email/print to the workspace, not a hardcoded name.
   useEffect(() => { (async () => {
     if (!ACTIVE_ORG) return;
-    try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (o.exists()) setOrgInfo({ name: o.data().name || '' }); } catch (_) {}
+    try {
+      const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG));
+      if (o.exists()) {
+        const d = o.data();
+        setOrgInfo({ name: d.name || '', payLink: d.payLink || '', payNote: d.payNote || '' });
+        setPayForm({ payLink: d.payLink || '', payNote: d.payNote || '' });
+      }
+    } catch (_) {}
   })(); }, []);
 
   const weekRange = (offset) => {
@@ -15323,7 +15727,9 @@ ${lines}
 
 Total gross: ${money(inv.totalGross)}
 Dispatch fee due: ${money(inv.totalFee)}
-
+${payLink ? `
+Pay online: ${payLink}${orgInfo.payNote ? `\n(${orgInfo.payNote})` : ''}
+` : ''}
 Payable per your dispatch agreement. Reply here with any questions.
 
 Thank you,
@@ -15339,7 +15745,13 @@ ${brandName}`;
     const safeMc = escapeHtml(inv.mc);
     const safeBrand = escapeHtml(brandName);
     const rowsHtml = inv.lines.map((x) => `<tr><td>${escapeHtml(x.loadId)}</td><td>${escapeHtml(x.lane)}</td><td>${escapeHtml(x.date)}</td><td style="text-align:right">${money(x.gross)}</td><td style="text-align:right">${x.pct}%</td><td style="text-align:right">${money(x.fee)}</td></tr>`).join('');
-    w.document.write(`<!doctype html><html><head><title>Invoice — ${safeName}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>${safeBrand}</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${safeName}${inv.mc ? ' (' + safeMc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div><p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
+    // "Pay your dispatcher" — the dispatcher's own external pay link, surfaced
+    // as a big button on the printed/PDF invoice. escapeHtml on the href too:
+    // it's the dispatcher's own popup, but we escape at every write boundary.
+    const payHtml = payLink
+      ? `<div style="margin-top:22px;text-align:center"><a href="${escapeHtml(payLink)}" style="display:inline-block;background:#f59e0b;color:#0a0f1a;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px">Pay this invoice online →</a>${orgInfo.payNote ? `<div class="muted" style="margin-top:6px">${escapeHtml(orgInfo.payNote)}</div>` : ''}<div class="muted" style="margin-top:4px;word-break:break-all">${escapeHtml(payLink)}</div></div>`
+      : '';
+    w.document.write(`<!doctype html><html><head><title>Invoice — ${safeName}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px}th{background:#f4f4f4}.tot{font-weight:bold;font-size:15px;text-align:right;margin-top:10px}.muted{color:#666;font-size:12px}</style></head><body><h1>${safeBrand}</h1><div class="muted">Dispatch Invoice · Week of ${weekLabel}</div><h2>Bill to: ${safeName}${inv.mc ? ' (' + safeMc + ')' : ''}</h2><table><thead><tr><th>Load</th><th>Lane</th><th>Delivered</th><th>Gross</th><th>Fee %</th><th>Dispatch Fee</th></tr></thead><tbody>${rowsHtml}</tbody></table><div class="tot">Total gross: ${money(inv.totalGross)}</div><div class="tot">Dispatch fee due: ${money(inv.totalFee)}</div>${payHtml}<p class="muted">Generated by Forward OS. Payable per your dispatch agreement.</p></body></html>`);
     w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
   };
 
@@ -15351,6 +15763,48 @@ ${brandName}`;
       </div>
       <p className="text-slate-400">Auto-built from each carrier's delivered loads this week — ready to export and bill.</p>
       <GuidedHint>Pick a week, and the system totals each carrier's delivered loads × your dispatch fee. <strong>Email</strong> sends the invoice straight to the carrier, or export to CSV / Print-PDF for your records. This is your weekly billing, done.</GuidedHint>
+
+      {/* "Pay your dispatcher" — surface the dispatcher's own payment link on every invoice. */}
+      <Card className="p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="font-bold text-white flex items-center gap-2"><Wallet size={16} className="text-amber-400" /> Get paid faster — add your payment link</div>
+            <p className="text-xs text-slate-400 mt-1 max-w-xl">Drop in your own payment link (Stripe Payment Link, PayPal.me, Venmo, Cash App — whatever you already use). It shows up as a <span className="text-slate-300">“Pay this invoice online”</span> button on every invoice you email or print. The money goes straight to you — nothing routes through Forward OS, so there's nothing to set up on our end.</p>
+          </div>
+          {!payEdit && (
+            <button onClick={() => { setPayForm({ payLink: orgInfo.payLink || '', payNote: orgInfo.payNote || '' }); setPayEdit(true); }}
+              className="text-xs border border-slate-700 text-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-800 shrink-0">
+              {payLink ? 'Edit link' : 'Add link'}
+            </button>
+          )}
+        </div>
+
+        {payEdit ? (
+          <div className="mt-4 space-y-3">
+            <Field label="Payment link">
+              <input className={INPUT_CLS} value={payForm.payLink} onChange={(e) => setPayForm((f) => ({ ...f, payLink: e.target.value }))}
+                placeholder="https://buy.stripe.com/…  or  paypal.me/yourname  or  venmo.com/u/yourname" />
+            </Field>
+            <Field label="Short note (optional)">
+              <input className={INPUT_CLS} value={payForm.payNote} onChange={(e) => setPayForm((f) => ({ ...f, payNote: e.target.value }))}
+                placeholder="e.g. Zelle also accepted at 555-123-4567 — include the load # in the memo" />
+            </Field>
+            <div className="flex items-center gap-2">
+              <PrimaryButton onClick={savePayLink} disabled={paySaving} className="px-4 text-sm">{paySaving ? 'Saving…' : 'Save'}</PrimaryButton>
+              <button onClick={() => setPayEdit(false)} disabled={paySaving} className="text-xs text-slate-400 border border-slate-700 hover:bg-slate-800 px-3 py-2 rounded-lg">Cancel</button>
+            </div>
+          </div>
+        ) : payLink ? (
+          <div className="mt-3 flex items-center gap-2 flex-wrap text-sm">
+            <a href={payLink} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline break-all font-mono text-xs">{payLink}</a>
+            <button onClick={() => { try { navigator.clipboard.writeText(payLink); toast('Payment link copied.', 'success'); } catch (_) {} }}
+              className="text-[11px] border border-slate-700 text-slate-400 px-2 py-1 rounded hover:bg-slate-800">Copy</button>
+            {orgInfo.payNote && <span className="text-xs text-slate-500 w-full">{orgInfo.payNote}</span>}
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-slate-500">No payment link yet — add one and carriers can pay you in a tap, straight from the invoice.</div>
+        )}
+      </Card>
 
       <div className="flex items-center gap-3">
         <GhostButton onClick={() => setWeekOffset((w) => w - 1)} className="text-sm">← Prev</GhostButton>
