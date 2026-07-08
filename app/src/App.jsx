@@ -3553,6 +3553,280 @@ function LoadDocsPanel({ load, uploadedBy, onChanged }) {
   );
 }
 
+// ---------- BROKER PACKET (assemble & send docs to a broker) ----------
+// Two flavors, one modal:
+//  · mode="payment" — per-load delivery/payment package (signed RateCon, signed
+//    POD/BOL, invoice summary, lumper/detention receipts) so the broker or
+//    their factoring desk can release payment. Docs come off the load itself:
+//    rateConUrl/rateConName, the docs[] array (LoadDocsPanel types), plus
+//    deliveryReport.podUrl and detention.bolUrl.
+//  · mode="setup"   — once-per-broker carrier setup package (COI, Operating
+//    Authority, W-9, NOA) assembled from the carrier's Digital Vault
+//    (vault_docs) and the W-9 record on their user doc. The signed
+//    Carrier-Broker Agreement always comes FROM the broker, so the cover note
+//    asks for it rather than pretending we have it.
+// HONEST CONSTRAINT: the Trigger Email extension isn't deployed, so nothing
+// here auto-sends (no queueEmail). We produce a ready-to-send package instead:
+// a mailto: draft in the dispatcher's own mail client, a copy-to-clipboard of
+// the same text, and a printable cover sheet. Docs are Storage URLs, so the
+// email lists LINKS — real file attachments aren't possible from a mailto, and
+// the UI says so instead of hiding it.
+// brokerEmail/brokerName are remembered on the load doc (fields the dispatcher
+// already writes — no Firestore rules change).
+function BrokerPacketModal({ mode, load, carrier, users = {}, onClose, onLoadPatched }) {
+  const isPayment = mode === 'payment';
+  const [brokerName, setBrokerName] = useState((isPayment && load && load.brokerName) || '');
+  const [brokerEmail, setBrokerEmail] = useState((isPayment && load && load.brokerEmail) || '');
+  const [checked, setChecked] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [orgName, setOrgName] = useState('');
+  const [carrierRec, setCarrierRec] = useState(isPayment ? null : (carrier || null));
+  const [vaultDocs, setVaultDocs] = useState([]);
+  const [userW9, setUserW9] = useState(null);
+
+  // Everything is one-shot reads — no listeners to clean up, just a liveness flag.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        if (ACTIVE_ORG) {
+          try { const o = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (live && o.exists()) setOrgName(o.data().name || ''); } catch (_) {}
+        }
+        if (isPayment && load && load.uid) {
+          // Carrier record for the remit-to / factoring note on the invoice block.
+          const cSnap = await getDocs(orgScoped('carriers'));
+          if (live) setCarrierRec(cSnap.docs.map((d) => ({ id: d.id, ...d.data() })).find((c) => c.linkedDriverUid === load.uid) || null);
+        }
+        if (!isPayment && carrier) {
+          const uid = carrier.linkedDriverUid;
+          if (uid) {
+            const [vSnap, uSnap] = await Promise.all([
+              getDocs(query(collection(db, 'vault_docs'), where('uid', '==', uid))),
+              getDoc(doc(db, 'users', uid)),
+            ]);
+            if (live) {
+              setVaultDocs(vSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((d) => !d.archived));
+              setUserW9(uSnap.exists() && uSnap.data().w9 && uSnap.data().w9.legalName ? uSnap.data().w9 : null);
+            }
+          }
+        }
+      } catch (e) { console.error('broker packet load failed', e); }
+      finally { if (live) setLoading(false); }
+    })();
+    return () => { live = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Escape closes, like the command palette. Listener removed on unmount.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const money = (n) => '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // ---- Assemble the packet items from what actually exists ------------------
+  let items = [];
+  let invoiceBlock = '';
+  let subject = '';
+  let coverIntro = '';
+  let coverOutro = '';
+  const brandName = orgName || 'Forward Motion Freight';
+  const dispName = (auth.currentUser && (auth.currentUser.displayName || auth.currentUser.email)) || 'Dispatch';
+
+  if (isPayment && load) {
+    const docs = Array.isArray(load.docs) ? load.docs : [];
+    const byType = (t) => docs.filter((d) => d.type === t && d.url).map((d) => ({ name: `${d.type} — ${d.name}`, url: d.url }));
+    const podLinks = [
+      ...(load.deliveryReport && load.deliveryReport.podUrl ? [{ name: 'POD photo (delivery debrief)', url: load.deliveryReport.podUrl }] : []),
+      ...byType('POD (delivered)'),
+    ];
+    const bolLinks = [
+      ...(load.detention && load.detention.bolUrl ? [{ name: 'BOL photo (timestamped, from detention claim)', url: load.detention.bolUrl }] : []),
+      ...byType('BOL (pickup)'),
+    ];
+    items = [
+      { key: 'ratecon', label: 'Signed Rate Confirmation', links: load.rateConUrl ? [{ name: load.rateConName || 'Rate Confirmation', url: load.rateConUrl }] : [],
+        sub: load.rateConSigned ? `e-signed by ${load.rateConSigned.name || 'carrier'}` : (load.rateConUrl ? 'attached — signature not recorded yet' : ''),
+        missing: 'not on file — attach it in the Rate Confirmation panel on this load' },
+      { key: 'pod', label: 'Signed POD', links: podLinks, missing: 'not on file — attach it in the Proof Package on this load' },
+      { key: 'bol', label: 'Signed BOL', links: bolLinks, missing: 'not on file — attach it in the Proof Package (optional if the POD covers it)', optional: true },
+      { key: 'invoice', label: `Invoice summary — ${money(load.gross_pay)}`, virtual: true, sub: 'itemized in the email body (load, lane, delivered date, amount due, remit-to)' },
+      { key: 'lumper', label: 'Lumper receipts', links: byType('Lumper receipt'), missing: 'none on file — attach in the Proof Package if the broker owes lumper reimbursement', optional: true },
+      { key: 'detention', label: 'Detention / accessorial docs', links: byType('Detention / accessorial'),
+        sub: load.detention ? `detention claim on this load: ${money(load.detention.amount)} (${load.detention.billableHours || '?'}h)` : '',
+        missing: 'none on file — only needed if you’re billing accessorials', optional: true },
+    ];
+    const lane = `${load.origin || '?'} → ${load.destination || '?'}`;
+    subject = `Delivery package — Load ${load.loadId || load.id} · ${lane}`;
+    coverIntro = `Please find the delivery package for load ${load.loadId || load.id} (${lane}${load.delivery_date ? `, delivered ${load.delivery_date}` : ''}) below.`;
+    const factoring = carrierRec && carrierRec.factoringCompany && !/^(none|n\/a|no)$/i.test(carrierRec.factoringCompany.trim()) ? carrierRec.factoringCompany.trim() : '';
+    const carrierName = (carrierRec && carrierRec.name) || users[load.uid] || 'the carrier';
+    invoiceBlock =
+`Invoice:
+  Load ${load.loadId || load.id} · ${lane}${load.delivery_date ? ` · delivered ${load.delivery_date}` : ''}
+  Amount due: ${money(load.gross_pay)}
+  Remit to: ${factoring ? `${factoring} per the Notice of Assignment on file for ${carrierName}` : `${carrierName} directly (no factoring on file)`}`;
+    coverOutro = 'Please confirm receipt and let us know if anything else is needed to release payment.';
+  } else if (carrier) {
+    const latest = (pred) => vaultDocs.filter(pred).sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0))[0];
+    const asLink = (d, label) => (d ? [{ name: `${label} — ${d.name}`, url: d.url }] : []);
+    const coi = latest((d) => d.category === 'COI');
+    const authorityDoc = latest((d) => d.category === 'Authority');
+    const w9Doc = latest((d) => d.category === 'W-9');
+    const noaDoc = latest((d) => /noa|notice of assignment|voided check/i.test(d.name || '') || /noa|notice of assignment|voided check/i.test(d.loadId || ''));
+    const factoring = carrier.factoringCompany && !/^(none|n\/a|no)$/i.test(carrier.factoringCompany.trim()) ? carrier.factoringCompany.trim() : '';
+    const vaultHint = carrier.linkedDriverUid ? 'not on file — upload it in the carrier’s Digital Vault' : 'no linked portal login — link one (Carriers tab) or upload their docs to the Vault first';
+    items = [
+      { key: 'coi', label: 'Certificate of Insurance (COI)', links: asLink(coi, 'COI'), missing: vaultHint },
+      { key: 'authority', label: 'Operating Authority / MC certificate', links: asLink(authorityDoc, 'Authority'), missing: vaultHint },
+      { key: 'w9', label: 'W-9', links: asLink(w9Doc, 'W-9'),
+        virtual: !w9Doc && !!userW9, sub: !w9Doc && userW9 ? 'no PDF in the Vault — the portal W-9 record (legal name, EIN, classification, address) goes in the email body' : '',
+        missing: 'not on file — the carrier completes it under Agreements & W-9, or upload the signed PDF to the Vault' },
+      factoring
+        ? { key: 'noa', label: `Notice of Assignment (factoring: ${factoring})`, links: asLink(noaDoc, 'NOA'), missing: vaultHint }
+        : { key: 'noa', label: 'Notice of Assignment', info: 'no factoring company on this carrier’s profile — direct pay, NOA not required', optional: true },
+    ];
+    subject = `Carrier setup packet — ${carrier.name || 'carrier'}${carrier.mcNumber ? ` (${carrier.mcNumber})` : ''}`;
+    coverIntro = `We’d like to get ${carrier.name || 'our carrier'}${carrier.mcNumber ? ` (${carrier.mcNumber}${carrier.dotNumber ? `, DOT ${carrier.dotNumber}` : ''})` : ''} set up with you. Setup documents below.`;
+    coverOutro = `Please send over your carrier-broker agreement / setup packet and we’ll return it signed. ${factoring ? `This carrier factors with ${factoring} — please remit per the NOA.` : 'This carrier does not factor — payment goes directly to the carrier.'}`;
+  }
+
+  // Pre-check everything that actually exists (links or a virtual block), once
+  // per open. Missing items stay unchecked and disabled — shown, not hidden, so
+  // the dispatcher sees the gap instead of silently sending a thin packet.
+  useEffect(() => {
+    const init = {};
+    items.forEach((it) => { init[it.key] = !!(it.virtual || (it.links && it.links.length)); });
+    setChecked(init);
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasContent = (it) => !!(it.virtual || (it.links && it.links.length));
+  const selected = items.filter((it) => checked[it.key] && hasContent(it));
+
+  // ---- Cover note (shared by mailto / copy / print) --------------------------
+  const buildBody = () => {
+    const lines = [];
+    lines.push(`Hi ${brokerName.trim() || 'there'},`, '', coverIntro, '', 'Documents:');
+    selected.forEach((it) => {
+      if (it.links && it.links.length) {
+        it.links.forEach((l) => lines.push(`  • ${l.name}: ${l.url}`));
+      } else if (it.virtual && it.key === 'w9' && userW9) {
+        lines.push('  • W-9 (details below)');
+      }
+    });
+    if (isPayment && checked.invoice) lines.push('', invoiceBlock);
+    if (!isPayment && checked.w9 && userW9 && !selected.some((it) => it.key === 'w9' && it.links.length)) {
+      lines.push('', 'W-9 details:',
+        `  Legal name: ${userW9.legalName || ''}`,
+        userW9.businessName ? `  Business name: ${userW9.businessName}` : null,
+        `  Tax classification: ${userW9.classification || ''}`,
+        `  EIN / Tax ID: ${userW9.ein || ''}`,
+        `  Address: ${[userW9.address, userW9.city, userW9.state, userW9.zip].filter(Boolean).join(', ')}`
+      );
+    }
+    lines.push('', coverOutro, '', 'Thank you,', `${dispName}`, `${brandName}`);
+    return lines.filter((l) => l !== null).join('\n');
+  };
+
+  // Remember the broker on the load so the next packet is pre-filled. Fields the
+  // dispatcher already writes on loads — no rules change. Fire-and-forget.
+  const persistBroker = () => {
+    if (!isPayment || !load) return;
+    const patch = { brokerEmail: brokerEmail.trim(), brokerName: brokerName.trim() };
+    if (patch.brokerEmail === (load.brokerEmail || '') && patch.brokerName === (load.brokerName || '')) return;
+    updateDoc(doc(db, 'loads', load.id), patch).then(() => { if (onLoadPatched) onLoadPatched(patch); })
+      .catch((e) => console.error('broker save failed', e));
+  };
+
+  const openMailto = () => {
+    if (!brokerEmail.trim()) { toast('Add the broker’s email first — or use Copy and paste it into any thread.', 'info'); return; }
+    if (selected.length === 0) { toast('Nothing selected to send — check at least one document.', 'info'); return; }
+    persistBroker();
+    window.location.href = `mailto:${encodeURIComponent(brokerEmail.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildBody())}`;
+  };
+
+  const copyText = () => {
+    if (selected.length === 0) { toast('Nothing selected to copy — check at least one document.', 'info'); return; }
+    persistBroker();
+    const txt = `To: ${brokerEmail.trim() || '(broker email)'}\nSubject: ${subject}\n\n${buildBody()}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(txt).then(() => toast('Packet email copied — paste it into any email thread.', 'success')).catch(() => toast('Could not copy — your browser blocked clipboard access.', 'error'));
+    } else { toast('Clipboard unavailable in this browser — use the email button instead.', 'error'); }
+  };
+
+  const printCover = () => {
+    if (selected.length === 0) { toast('Nothing selected to print — check at least one document.', 'info'); return; }
+    persistBroker();
+    const w = window.open('', '_blank'); if (!w) { toast('Allow pop-ups to print the cover sheet.', 'info'); return; }
+    // Same rule as the printed invoices: escape at the document.write boundary.
+    const rows = selected.flatMap((it) => (it.links && it.links.length ? it.links.map((l) => `<tr><td>${escapeHtml(it.label)}</td><td>${escapeHtml(l.name)}</td><td style="word-break:break-all;font-size:11px">${escapeHtml(l.url)}</td></tr>`) : [`<tr><td>${escapeHtml(it.label)}</td><td colspan="2">${escapeHtml(it.sub || 'included in cover note')}</td></tr>`])).join('');
+    const bodyHtml = escapeHtml(buildBody()).replace(/\n/g, '<br/>');
+    w.document.write(`<!doctype html><html><head><title>Broker Packet — ${escapeHtml(subject)}</title><style>body{font-family:Arial,sans-serif;color:#111;max-width:720px;margin:30px auto;padding:0 16px}h1{color:#0a0f1a;margin-bottom:2px;font-size:22px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;font-size:13px;vertical-align:top}th{background:#f4f4f4}.muted{color:#666;font-size:12px}.note{margin-top:20px;font-size:13px;line-height:1.5}</style></head><body><h1>${escapeHtml(brandName)}</h1><div class="muted">Broker Packet Cover Sheet · ${escapeHtml(subject)}</div><table><thead><tr><th>Document</th><th>File</th><th>Link</th></tr></thead><tbody>${rows}</tbody></table><div class="note">${bodyHtml}</div><p class="muted">Generated by Forward OS.</p></body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (_) {} }, 300);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 overflow-y-auto" onClick={onClose} role="dialog" aria-modal="true" aria-label={isPayment ? 'Broker payment packet' : 'Broker setup packet'}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg self-start">
+        <Card className="p-5 sm:p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold">{isPayment ? '📤 Broker Packet — get this load paid' : '📤 Broker Setup Packet'}</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                {isPayment
+                  ? 'The delivery package the broker needs to release payment: signed RateCon, signed POD/BOL, invoice, and any receipts.'
+                  : 'The once-per-broker setup docs for this carrier. The signed Carrier-Broker Agreement comes from the broker — the cover note asks them to send it.'}
+              </p>
+            </div>
+            <button type="button" onClick={onClose} aria-label="Close broker packet" className="text-slate-400 hover:text-white text-2xl leading-none shrink-0">×</button>
+          </div>
+
+          {loading ? <SkelRows rows={4} /> : (
+            <>
+              <div className="space-y-2">
+                {items.map((it) => (
+                  <label key={it.key} className={`flex items-start gap-3 rounded-lg border p-3 ${hasContent(it) ? 'border-slate-700 bg-slate-800/40 cursor-pointer' : 'border-slate-800 bg-slate-900/40'}`}>
+                    <input type="checkbox" className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" checked={!!checked[it.key]} disabled={!hasContent(it)}
+                      onChange={(e) => setChecked((c) => ({ ...c, [it.key]: e.target.checked }))} />
+                    <span className="min-w-0">
+                      <span className={`text-sm font-medium block ${hasContent(it) ? 'text-slate-100' : 'text-slate-500'}`}>{it.label}</span>
+                      {hasContent(it) ? (
+                        <>
+                          {it.sub && <span className="text-[11px] text-slate-400 block mt-0.5">{it.sub}</span>}
+                          {it.links && it.links.map((l, i) => (
+                            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-amber-400 hover:underline block truncate mt-0.5">{l.name} ↗</a>
+                          ))}
+                        </>
+                      ) : (
+                        <span className={`text-[11px] block mt-0.5 ${it.optional || it.info ? 'text-slate-500' : 'text-amber-400/90'}`}>{it.info || it.missing}</span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Broker contact name"><input className={INPUT_CLS} value={brokerName} onChange={(e) => setBrokerName(e.target.value)} placeholder="e.g. Sarah at TQL" /></Field>
+                <Field label="Broker email" hint={isPayment ? 'remembered on this load' : undefined}><input className={INPUT_CLS} type="email" value={brokerEmail} onChange={(e) => setBrokerEmail(e.target.value)} placeholder="ap@brokerage.com" /></Field>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <PrimaryButton type="button" onClick={openMailto} className="px-4 py-2 text-sm">Open in your email</PrimaryButton>
+                <GhostButton type="button" onClick={copyText} className="text-sm">Copy email text</GhostButton>
+                <GhostButton type="button" onClick={printCover} className="text-sm">Print cover sheet</GhostButton>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Opens a pre-filled draft in <strong className="text-slate-400">your own email client</strong> — nothing sends automatically. Document <strong className="text-slate-400">links</strong> are included in the body; if your broker requires the actual PDFs attached, open each link{isPayment ? '' : ' (or the Digital Vault)'} and attach the files to the draft before sending.
+              </p>
+            </>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // `isAdmin` — a dispatcher opened this OUTSIDE "View As" (their own uid owns no
 // loads, so the old behavior was a dead-end empty state). Dispatcher mode adds
 // a carrier picker and runs the SAME live lane view against that carrier's
@@ -4717,6 +4991,7 @@ function AllLoadsView({ onNavigate }) {
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [rcBusy, setRcBusy] = useState(false);
+  const [packetOpen, setPacketOpen] = useState(false); // Broker Packet modal on the open load
 
   // Dispatcher attaches the broker's Rate Confirmation to the load (into the
   // driver's Storage folder so the carrier can view & e-sign it).
@@ -4878,7 +5153,7 @@ function AllLoadsView({ onNavigate }) {
     });
   };
 
-  const closeEdit = () => { setEditing(null); setForm(null); };
+  const closeEdit = () => { setEditing(null); setForm(null); setPacketOpen(false); };
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const saveEdit = async (e) => {
@@ -5083,6 +5358,16 @@ function AllLoadsView({ onNavigate }) {
               }}
             />
 
+            {/* Broker Packet — bundle this load's paperwork into a ready-to-send
+                email (mailto/copy/print; nothing auto-sends — see BrokerPacketModal). */}
+            <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white">📤 Broker Packet {editing.brokerEmail && <span className="text-[11px] font-normal text-slate-500">· {editing.brokerEmail}</span>}</div>
+                <p className="text-[11px] text-slate-500 mt-0.5">Bundle the signed RateCon, POD/BOL, invoice and receipts into one broker-ready email so payment gets released.</p>
+              </div>
+              <GhostButton type="button" onClick={() => setPacketOpen(true)} className="text-sm shrink-0">Assemble packet</GhostButton>
+            </div>
+
             <div className="flex items-center justify-between gap-3 border-t border-slate-800 mt-1 pt-4 flex-wrap">
               <button type="button" onClick={deleteLoad} disabled={saving} className="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                 Delete Load
@@ -5096,6 +5381,19 @@ function AllLoadsView({ onNavigate }) {
             </div>
           </form>
         </Card>
+
+        {packetOpen && (
+          <BrokerPacketModal
+            mode="payment"
+            load={editing}
+            users={users}
+            onClose={() => setPacketOpen(false)}
+            onLoadPatched={(patch) => {
+              setEditing((ed) => (ed ? { ...ed, ...patch } : ed));
+              setLoads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...patch } : l)));
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -6608,6 +6906,7 @@ function CarriersView({ onNavigate }) {
   const toggleField = (k) => () => setForm((f) => ({ ...f, [k]: !f[k] }));
   const [createdLogin, setCreatedLogin] = useState(null);
   const [carrierSearch, setCarrierSearch] = useState('');
+  const [setupPacketFor, setSetupPacketFor] = useState(null); // carrier whose Broker Setup Packet modal is open
   const [orgInfo, setOrgInfo] = useState({ name: '', dispatchPhone: '' });
   useEffect(() => { (async () => {
     if (!ACTIVE_ORG) return;
@@ -7059,7 +7358,9 @@ function CarriersView({ onNavigate }) {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <button onClick={() => setSetupPacketFor(c)} title="Assemble this carrier's broker setup packet — COI, Authority, W-9, NOA"
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2.5 py-1.5 rounded-lg">Broker Setup</button>
                       {c.linkedDriverUid && driverEmail(c.linkedDriverUid) && (
                         <button onClick={() => sendReset(driverEmail(c.linkedDriverUid))} title="Email this carrier a password-reset link"
                           className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg">Reset PW</button>
@@ -7097,6 +7398,14 @@ function CarriersView({ onNavigate }) {
           );
         })()}
       </Card>
+
+      {setupPacketFor && (
+        <BrokerPacketModal
+          mode="setup"
+          carrier={setupPacketFor}
+          onClose={() => setSetupPacketFor(null)}
+        />
+      )}
     </div>
   );
 }
