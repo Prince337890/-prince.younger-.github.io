@@ -2548,6 +2548,20 @@ function PendingOfferScreen({ offer, onResolved }) {
   }
   const hosCls = { emerald: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300', amber: 'bg-amber-500/10 border-amber-500/30 text-amber-200', slate: 'bg-slate-800/60 border-slate-700 text-slate-300' };
 
+  // "Protect Your Carrier" terms the dispatcher stamped on this offer — shown in
+  // plain language so the carrier sees their back was covered before accepting.
+  const pr = offer.protections || {};
+  const protLines = [];
+  if (pr.detentionFreeHrs || pr.detentionPerHr) {
+    const free = pr.detentionFreeHrs ? `${pr.detentionFreeHrs} hr${Number(pr.detentionFreeHrs) === 1 ? '' : 's'} free` : '';
+    const then = pr.detentionPerHr ? `${free ? 'then ' : ''}$${pr.detentionPerHr}/hr` : '';
+    protLines.push(`Detention: ${[free, then].filter(Boolean).join(', ')}`);
+  }
+  if (pr.lumperReimbursed) protLines.push('Lumper: reimbursed by the broker — not out of your rate');
+  if (pr.reeferSetPoint) protLines.push(`Reefer: ${pr.reeferSetPoint}°F, ${pr.reeferMode === 'cycle' ? 'Cycle Sentry' : 'continuous run'} — in writing on the RateCon`);
+  if (pr.weightInWriting) protLines.push('Weight: confirmed in writing');
+  if (pr.otherTerms) protLines.push(`Also secured: ${pr.otherTerms}`);
+
   return (
     <div className="max-w-xl mx-auto">
       <div className="text-center mb-5">
@@ -2594,6 +2608,19 @@ function PendingOfferScreen({ offer, onResolved }) {
             <div><div className="text-[11px] text-slate-400">DELIVERY</div><div className="text-sm text-slate-200">{offer.delivery_date || offer.delivery_time || '—'}</div></div>
           </div>
         </div>
+        {protLines.length > 0 && (
+          <div className="mx-6 mb-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300 mb-1.5">
+              <ShieldCheck size={13} className="shrink-0" /> What your dispatcher secured for you
+            </div>
+            <ul className="space-y-1">
+              {protLines.map((l) => (
+                <li key={l} className="text-xs text-slate-300 flex gap-1.5"><span className="text-emerald-500 shrink-0">✓</span><span>{l}</span></li>
+              ))}
+            </ul>
+            <p className="text-[10px] text-slate-500 mt-1.5">These terms ride on the RateCon — call your dispatcher if anything looks off.</p>
+          </div>
+        )}
         {hos && (
           <div className={`mx-6 mb-2 rounded-lg border px-3 py-2.5 text-xs font-medium ${hosCls[hos.tone]}`}>
             <span className="font-semibold">Hours of Service:</span> {hos.text}
@@ -5351,6 +5378,26 @@ function FleetView() {
   );
 }
 // ---------- ADMIN: FREIGHT NEGOTIATION CALCULATOR ----------
+// Build the "Protect Your Carrier" stamp from the calculator's protection
+// inputs — only non-empty/true values, so the load doc stays clean. These are
+// terms the dispatcher is securing with the broker (they ride on the RateCon);
+// the carrier sees them on the offer screen before accepting.
+function buildProtections(prot, isReefer) {
+  const p = {};
+  const dFree = parseFloat(prot.detentionFreeHrs);
+  const dRate = parseFloat(prot.detentionPerHr);
+  if (dFree > 0) p.detentionFreeHrs = dFree;
+  if (dRate > 0) p.detentionPerHr = dRate;
+  if (prot.lumperReimbursed) p.lumperReimbursed = true;
+  if (isReefer && String(prot.reeferSetPoint || '').trim() !== '') {
+    p.reeferSetPoint = String(prot.reeferSetPoint).trim();
+    p.reeferMode = prot.reeferMode === 'cycle' ? 'cycle' : 'continuous';
+  }
+  if (prot.weightInWriting) p.weightInWriting = true;
+  if (String(prot.otherTerms || '').trim()) p.otherTerms = String(prot.otherTerms).trim();
+  return p;
+}
+
 function NegotiationCalcView() {
   const guided = useGuided();
   const { data: market } = useMarketData(); // live per-commodity rates + asOf (builtin fallback)
@@ -5365,16 +5412,26 @@ function NegotiationCalcView() {
   const STORAGE_KEY = 'fm_ratecalc_v1';
   const loadSaved = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (_) { return {}; } };
 
+  // "Protect Your Carrier" — the negotiated terms the rate math doesn't capture
+  // (detention, lumper, temp-in-writing…). Stamped onto the load when sent.
+  const PROT_DEFAULTS = {
+    detentionFreeHrs: '2', detentionPerHr: '50', lumperReimbursed: false,
+    reeferSetPoint: '', reeferMode: 'continuous', weightInWriting: false, otherTerms: '',
+  };
+
   const [v, setV] = useState(() => ({ ...DEFAULTS, ...(loadSaved().v || {}) }));
   const [stops, setStops] = useState(() => loadSaved().stops || []);
+  const [prot, setProt] = useState(() => ({ ...PROT_DEFAULTS, ...(loadSaved().prot || {}) }));
+  const [protOpen, setProtOpen] = useState(false);
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
+  const setP = (k, val) => setProt((s) => ({ ...s, [k]: val }));
   const n = (x) => parseFloat(x) || 0;
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v, stops })); } catch (_) {}
-  }, [v, stops]);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v, stops, prot })); } catch (_) {}
+  }, [v, stops, prot]);
 
-  const clearAll = () => { setV(DEFAULTS); setStops([]); try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} };
+  const clearAll = () => { setV(DEFAULTS); setStops([]); setProt(PROT_DEFAULTS); try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} };
   const clearCarrier = () => setV((s) => ({ ...s, selectedCarrier: '' }));
 
   const addStop = () => setStops((s) => (s.length < 2 ? [...s, { city: '', zip: '' }] : s));
@@ -5551,6 +5608,8 @@ function NegotiationCalcView() {
         delivery_date: v.deliveryAt ? v.deliveryAt.slice(0, 10) : '',
         status: asOffer ? 'Offered' : 'Dispatched',
         ...(asOffer ? { offerStatus: 'pending', offerSentAt: serverTimestamp() } : {}),
+        // "Protect Your Carrier" terms — plain fields on the load, only when set.
+        ...(Object.keys(protStamp).length ? { protections: protStamp } : {}),
         createdAt: serverTimestamp(),
       }));
       if (asOffer) {
@@ -5587,6 +5646,10 @@ function NegotiationCalcView() {
   };
   const commodityInfo = COMMODITIES[v.commodity] || COMMODITIES['General Dry Freight'];
   const surcharge = commodityInfo.surcharge;
+  // Reefer commodities (Fresh Produce, Frozen Seafood/Poultry) unlock the temp-instructions fields.
+  const isReefer = /reefer/i.test(commodityInfo.equip || '');
+  const protStamp = buildProtections(prot, isReefer);
+  const protCount = Object.keys(protStamp).filter((k) => k !== 'reeferMode').length; // mode rides with the set point — count them as one term
 
   const brokerOffer = n(v.brokerOffer);
   const tolls = n(v.tolls);
@@ -5612,6 +5675,19 @@ function NegotiationCalcView() {
   const marketGap = marketTarget > 0 ? marketTarget - brokerOffer : 0;
 
   const ready = brokerOffer > 0 && totalMiles > 0 && minRpm > 0;
+
+  // Market-gap promotion: when the effective rate sits MEANINGFULLY below
+  // market, the loudest number on the panel should be the MARKET target, not
+  // the floor — a rookie who counters just past the floor on an underpriced
+  // load "wins" and still leaves four figures on the table. "Meaningful" =
+  // worse than −$0.15/mi vs market OR under 92% of the market trip value
+  // (catches short trips where the per-mile gap looks small but the dollars
+  // don't). At/above market the floor goes back to being the primary anchor.
+  const MARKET_GAP_RPM = 0.15;
+  const MARKET_GAP_RATIO = 0.92;
+  const pushToMarket = ready && marketRpm > 0 && marketTarget > 0 && effRate > 0
+    && (vsMarket < -MARKET_GAP_RPM || effRate < MARKET_GAP_RATIO * marketTarget);
+  const underMarketAmt = marketTarget - effRate;
 
   // The dispatcher's own cut on this load — the number they most want to see.
   const dispFeePct = feePctOf(selectedCarrierObj?.feePct);
@@ -5646,13 +5722,19 @@ function NegotiationCalcView() {
 
   const field = INPUT_CLS;
 
-  const Metric = ({ label, value, guide, accent, highlight }) => (
+  const Metric = ({ label, value, guide, accent, highlight, action }) => (
     <div className={`border rounded-sm p-4 transition-colors ${highlight ? 'bg-amber-500/10 border-amber-500/40 border-l-2 border-l-amber-500' : 'bg-slate-800/50 border-slate-700'}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className={`text-xs ${highlight ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>{label}</span>
         <span className={`font-data font-semibold ${highlight ? 'text-2xl' : 'text-lg'} ${accent || 'text-white'}`}>{value}</span>
       </div>
       <p className="text-[11px] text-slate-500 mt-2 leading-snug">{guide}</p>
+      {action && (
+        <button type="button" onClick={action.onClick}
+          className="text-[10px] text-amber-400 hover:text-amber-300 mt-1.5 underline decoration-amber-500/40 underline-offset-2">
+          {action.label}
+        </button>
+      )}
     </div>
   );
 
@@ -5665,7 +5747,7 @@ function NegotiationCalcView() {
       <p className="text-slate-400">Punch in the broker's numbers live on the call — see instantly if the load works and exactly what to counter.</p>
 
       <GuidedHint>
-        <strong>Negotiation tip:</strong> never accept the broker's first number. Counter toward your <strong>Target Offer (floor)</strong> below. If they're ~20¢/mi under the carrier's minimum, anchor to a real number: <em>"My carrier's floor on this lane is $___/mi; after deadhead I can do it at $____ all-in and keep your pickup on time."</em> See the <strong>Training → Negotiation Scripts</strong> tab for full talk-tracks.
+        <strong>Negotiation tip:</strong> never accept the broker's first number. Counter toward the highlighted target below — when the offer is well under market, that's the <strong>Market Target</strong> (don't stop at your floor); otherwise it's your <strong>Target Offer (floor)</strong>. If they're ~20¢/mi under the carrier's minimum, anchor to a real number: <em>"My carrier's floor on this lane is $___/mi; after deadhead I can do it at $____ all-in and keep your pickup on time."</em> See the <strong>Training → Negotiation Scripts</strong> tab for full talk-tracks.
       </GuidedHint>
 
       <div className="flex flex-wrap gap-2 items-center">
@@ -5780,8 +5862,19 @@ function NegotiationCalcView() {
             guide="What the truck actually earns per mile — on your Final Agreed Rate once you set it, otherwise the broker's offer. Compare to Carrier Min; if it's lower, negotiate." />
           <Metric label="Trip Cost" value={money(tripCost)}
             guide={`Hard cash to move the truck — fuel + tolls${surcharge > 0 ? ` + ${money(surcharge)} equipment accessorial` : ''}. The offer must cover this plus profit.`} />
-          <Metric label="Target Offer (Floor)" value={money(targetOffer)} accent="text-amber-400" highlight
-            guide="Your negotiation floor. Don't accept below this — counter the broker slightly higher than this number." />
+          {pushToMarket ? (
+            <>
+              {/* Real market gap → the MARKET target takes the glow; the floor demotes to a quiet walk-away line. */}
+              <Metric label="Market Target — Push Toward This" value={money(marketTarget)} accent="text-amber-400" highlight
+                guide={`Market is ${rpm(marketRpm)}/mi. You're ${money(Math.abs(underMarketAmt))} under market (${rpm(Math.abs(vsMarket))}/mi below). Counter toward this number — the floor is your walk-away, not your ask.`}
+                action={{ label: `Tap to set the Final Agreed Rate to ${money(marketTarget)} (anchor your ask above it)`, onClick: () => setV((s) => ({ ...s, finalOffer: marketTarget.toFixed(2) })) }} />
+              <Metric label="Target Offer (Floor)" value={money(targetOffer)} accent="text-amber-400"
+                guide="Your walk-away number — never below this. But with market this far above, don't settle just past the floor." />
+            </>
+          ) : (
+            <Metric label="Target Offer (Floor)" value={money(targetOffer)} accent="text-amber-400" highlight
+              guide="Your negotiation floor. Don't accept below this — counter the broker slightly higher than this number." />
+          )}
           {effRate > 0 && (
             <Metric label={`Your Dispatch Fee (${dispFeePct}%)`} value={money(yourFee)} accent="text-emerald-400" highlight
               guide={`What YOU keep on this load — ${dispFeePct}% of the gross${selectedCarrierObj ? `, ${selectedCarrierObj.name}'s rate` : ''}. Updates the moment you set the Final Agreed Rate.`} />
@@ -5809,6 +5902,55 @@ function NegotiationCalcView() {
               <input className={`${field} text-base font-semibold`} type="number" inputMode="decimal" value={v.finalOffer} onChange={set('finalOffer')} placeholder={v.brokerOffer ? `${v.brokerOffer} (broker offer)` : 'e.g. 2200'} />
               <p className="text-[10px] text-slate-500 mt-1">What the load actually pays the carrier. Leave blank to use the broker offer.</p>
             </div>
+
+            {/* Protect Your Carrier — terms the rate math doesn't capture. Rides on the load + shows on the carrier's offer screen. */}
+            <div className="border border-slate-700 rounded-xl bg-slate-800/40">
+              <button type="button" onClick={() => setProtOpen((o) => !o)} aria-expanded={protOpen}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
+                <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                  <ShieldCheck size={14} className="text-emerald-400 shrink-0" /> Protect Your Carrier
+                  {protCount > 0 && <span className="text-[10px] font-normal text-emerald-400">{protCount} term{protCount === 1 ? '' : 's'} ride with this load</span>}
+                </span>
+                <ChevronDown size={14} className={`text-slate-500 shrink-0 transition-transform ${protOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {protOpen && (
+                <div className="px-3 pb-3 pt-3 space-y-3 border-t border-slate-700/60">
+                  <p className="text-[11px] text-slate-500 leading-snug">
+                    Terms you're securing with the broker — they're stamped on the load, shown to your carrier before they accept, and should match the RateCon. Blank a field to leave it off.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="block text-[11px] text-slate-400 mb-1">Detention — free hrs</label><input className={field} type="number" inputMode="decimal" value={prot.detentionFreeHrs} onChange={(e) => setP('detentionFreeHrs', e.target.value)} placeholder="2" /></div>
+                    <div><label className="block text-[11px] text-slate-400 mb-1">Then $/hr</label><input className={field} type="number" inputMode="decimal" value={prot.detentionPerHr} onChange={(e) => setP('detentionPerHr', e.target.value)} placeholder="50" /></div>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={prot.lumperReimbursed} onChange={(e) => setP('lumperReimbursed', e.target.checked)} className="accent-amber-500" />
+                    <span>Lumper on the broker — reimbursed, not out of the carrier's rate</span>
+                  </label>
+                  {isReefer && (
+                    <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-2.5 space-y-2">
+                      <div className="text-[11px] font-semibold text-sky-300">Reefer temp — get it IN WRITING on the RateCon (claims protection)</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input className={`${field} max-w-[100px]`} type="number" inputMode="decimal" value={prot.reeferSetPoint} onChange={(e) => setP('reeferSetPoint', e.target.value)} placeholder="34" aria-label="Reefer set point (°F)" />
+                        <span className="text-xs text-slate-400">°F set point</span>
+                        <div className="flex rounded-lg overflow-hidden border border-slate-700 ml-auto" role="group" aria-label="Reefer run mode">
+                          <button type="button" onClick={() => setP('reeferMode', 'continuous')} className={`px-2.5 py-1.5 text-[11px] transition-colors ${prot.reeferMode !== 'cycle' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>Continuous</button>
+                          <button type="button" onClick={() => setP('reeferMode', 'cycle')} className={`px-2.5 py-1.5 text-[11px] transition-colors ${prot.reeferMode === 'cycle' ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'bg-slate-800 text-slate-400 hover:text-slate-200'}`}>Cycle Sentry</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={prot.weightInWriting} onChange={(e) => setP('weightInWriting', e.target.checked)} className="accent-amber-500" />
+                    <span>Weight confirmed in writing (scale-ticket protection)</span>
+                  </label>
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">Other terms (optional)</label>
+                    <input className={field} value={prot.otherTerms} onChange={(e) => setP('otherTerms', e.target.value)} placeholder="e.g. TONU $250 if canceled after dispatch" />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <PrimaryButton type="button" onClick={() => assignLoad(true)} disabled={assigning || !selectedCarrierObj} className="w-full px-4 py-2.5">
               {assigning ? 'Working…' : '📣 Send as Offer (carrier accepts/declines)'}
             </PrimaryButton>
