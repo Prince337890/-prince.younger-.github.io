@@ -1140,6 +1140,7 @@ export default function App() {
         { tab: 'carriercheck', label: 'Carrier Check', icon: <ShieldCheck size={16} />, keywords: ['vet', 'carrier', 'insurance'] },
         { tab: 'assign', label: 'Assign Load', icon: <Plus size={16} />, keywords: ['new load', 'dispatch'] },
         { tab: 'allloads', label: 'All Loads', icon: <Navigation size={16} />, keywords: ['loads', 'board'] },
+        { tab: 'lanes', label: 'Lane Management', icon: <Map size={16} />, keywords: ['active load', 'carrier lane', 'status'] },
         { tab: 'carriers', label: 'Carriers', icon: <Building size={16} />, keywords: ['fleet', 'owner operator'] },
         { tab: 'crm', label: 'CRM / Network', icon: <BookOpen size={16} />, keywords: ['leads', 'brokers'] },
         { tab: 'drivers', label: 'Logins & Access', icon: <User size={16} />, keywords: ['accounts', 'password'] },
@@ -1263,7 +1264,7 @@ export default function App() {
       case 'newauthority': return <NewAuthorityView />;
       case 'profile': return <ProfileView key={'prof-' + viewUid} uid={viewUid} displayName={viewName} />;
       case 'schedule': return <ScheduleView key={'sched-' + viewUid} uid={viewUid} />;
-      case 'lanes': return <LaneManagementView key={'lane-' + viewUid} uid={viewUid} />;
+      case 'lanes': return <LaneManagementView key={'lane-' + viewUid} uid={viewUid} isAdmin={isAdmin && !viewAs} />;
       case 'parking': return <SafeParkingView />;
       case 'compliance': return <ComplianceView key={'comp-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
       case 'agreements': return <CarrierAgreementsView key={'agr-' + viewUid} uid={viewUid} isAdmin={isAdmin && !!viewAs} />;
@@ -1391,6 +1392,7 @@ export default function App() {
               <NavItem icon={<ShieldCheck size={18} />} label="Broker Check" isActive={activeTab === 'brokercheck'} onClick={() => go('brokercheck')} />
               <NavItem icon={<Plus size={18} />} label="Assign Load" isActive={activeTab === 'assign'} onClick={() => go('assign')} />
               <NavItem icon={<Navigation size={18} />} label="All Loads" isActive={activeTab === 'allloads'} onClick={() => go('allloads')} />
+              <NavItem icon={<Map size={18} />} label="Lane Management" isActive={activeTab === 'lanes'} onClick={() => go('lanes')} />
 
               <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 tracking-wider">CARRIERS &amp; ACCESS</div>
               <NavItem icon={<Building size={18} />} label="Carriers" isActive={activeTab === 'carriers'} onClick={() => go('carriers')} />
@@ -1501,7 +1503,7 @@ export default function App() {
                 value={viewAs ? viewAs.id : ''}
                 onChange={(e) => {
                   const c = carrierOpts.find((x) => x.id === e.target.value);
-                  if (c) { setViewAs({ id: c.id, uid: c.linkedDriverUid, name: c.name }); setActiveTab('dashboard'); }
+                  if (c) { setViewAs({ id: c.id, uid: c.linkedDriverUid, name: c.name }); go('dashboard'); }
                   else setViewAs(null);
                 }}
                 className="text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 max-w-[150px]"
@@ -1545,7 +1547,9 @@ export default function App() {
         {viewAs && (
           <div className="bg-indigo-600 text-white px-4 md:px-8 py-2 flex items-center justify-between gap-3">
             <div className="text-sm font-semibold truncate">👁 CARRIER VIEW — {viewAs.name}<span className="font-normal opacity-80 hidden sm:inline"> · you're seeing their portal</span></div>
-            <button onClick={() => { setViewAs(null); setActiveTab('dashboard'); }} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg shrink-0">Return to Admin</button>
+            {/* go() (not bare setActiveTab) keeps the URL hash in sync — otherwise a
+                refresh/back after leaving View-As resurrects the carrier-only tab. */}
+            <button onClick={() => { setViewAs(null); go('dashboard'); }} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg shrink-0">Return to Admin</button>
           </div>
         )}
 
@@ -1960,6 +1964,170 @@ function AdminGettingStarted({ onNavigate }) {
   );
 }
 
+// ---------- ADMIN: ACTIVE LOADS AT A GLANCE (live, collapsible) ----------
+// Compact list of everything currently moving — same collapse pattern as
+// Market Pulse / My Corner (whole header toggles, chevron flips, choice
+// persists) but COLLAPSED by default so it never dominates: the header always
+// shows the live count (and pending-offer badge), which is the glanceable bit.
+const AL_COLLAPSED_KEY = 'fm_activeloads_collapsed'; // display pref — deliberately global, NOT per-uid
+
+function AdminActiveLoads({ onNavigate }) {
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(AL_COLLAPSED_KEY) === '0'; } catch (_) { return false; }
+  });
+  const toggleOpen = () => {
+    setOpen((o) => {
+      const next = !o;
+      try { localStorage.setItem(AL_COLLAPSED_KEY, next ? '0' : '1'); } catch (_) {}
+      return next;
+    });
+  };
+  const [loads, setLoads] = useState(null); // null = loading
+  const [names, setNames] = useState({}); // uid → carrier name (else login email)
+
+  // One-shot name map — carrier profile names read nicer than raw emails.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const [uSnap, cSnap] = await Promise.all([getDocs(orgScoped('users')), getDocs(orgScoped('carriers'))]);
+        if (!live) return;
+        const map = {};
+        uSnap.docs.forEach((d) => { map[d.id] = d.data().email || d.id; });
+        cSnap.docs.forEach((d) => { const c = d.data(); if (c.linkedDriverUid && c.name) map[c.linkedDriverUid] = c.name; });
+        setNames(map);
+      } catch (_) { /* names are best-effort — rows fall back to "Carrier" */ }
+    })();
+    return () => { live = false; };
+  }, []);
+
+  // LIVE loads — an accept/decline/status change updates the count and rows
+  // without a refresh (getDocs fallback if the listener errors).
+  useEffect(() => {
+    const unsub = onSnapshot(
+      orgScoped('loads'),
+      (snap) => setLoads(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      async (e) => {
+        console.error('active-loads live listener failed', e);
+        try { const snap = await getDocs(orgScoped('loads')); setLoads(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); } catch (_) { setLoads([]); }
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  const rows = (loads || [])
+    .filter((l) => l.status !== 'Delivered' && l.status !== 'Cleared' && l.offerStatus !== 'declined')
+    .sort((a, b) => (a.delivery_date || '9999').localeCompare(b.delivery_date || '9999'));
+  const offersOut = rows.filter((l) => l.offerStatus === 'pending').length;
+
+  // Nothing moving (and not still loading) — skip the card entirely; the
+  // "Get your first load out" checklist covers the true zero state.
+  if (loads !== null && rows.length === 0) return null;
+
+  const stateBadge = (l) => {
+    if (l.offerStatus === 'pending') return <Badge tone="amber">Offer out</Badge>;
+    if (l.status === 'In Transit') return <Badge tone="blue">In Transit</Badge>;
+    if (l.status === 'Dispatched') return <Badge tone="amber">Dispatched</Badge>;
+    return <Badge tone="slate">{l.status || '—'}</Badge>;
+  };
+  const shown = rows.slice(0, 8);
+
+  return (
+    <Card className="p-0 overflow-hidden">
+      <button type="button" onClick={toggleOpen} aria-expanded={open} className="w-full flex items-center justify-between gap-3 px-6 py-4 text-left hover:bg-white/[0.02] transition-colors">
+        <h3 className="text-base font-semibold text-white flex items-center gap-2.5 min-w-0 flex-wrap">
+          <span className="w-1 h-4 shrink-0 bg-amber-500" />
+          <Navigation size={20} className="text-amber-500 shrink-0" />
+          <span>Active Loads{loads === null ? '' : ` (${rows.length})`}</span>
+          {offersOut > 0 && <Badge tone="amber" className="font-semibold">{offersOut} offer{offersOut === 1 ? '' : 's'} awaiting</Badge>}
+        </h3>
+        <ChevronDown size={16} className={`text-slate-500 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-6 pb-6">
+          {loads === null ? (
+            <SkelRows rows={2} />
+          ) : (
+            <div className="space-y-2">
+              {shown.map((l) => (
+                <button key={l.id} type="button" onClick={() => onNavigate && onNavigate('allloads')}
+                  className="w-full flex items-center gap-3 text-left rounded-lg border border-slate-800 hover:border-amber-500/40 hover:bg-slate-800/40 px-3 py-2.5 transition-colors"
+                  title="Open in All Loads">
+                  <span className="font-mono text-amber-500 text-xs font-bold shrink-0">{l.loadId || '—'}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm text-slate-200 truncate">{l.origin || '—'} → {l.destination || '—'}</span>
+                    <span className="block text-[11px] text-slate-500 truncate">{names[l.uid] || 'Carrier'}{l.delivery_date ? ` · del ${l.delivery_date}` : ''}</span>
+                  </span>
+                  <span className="shrink-0">{stateBadge(l)}</span>
+                </button>
+              ))}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                {rows.length > shown.length ? <span className="text-xs text-slate-500">+{rows.length - shown.length} more</span> : <span />}
+                <button type="button" onClick={() => onNavigate && onNavigate('allloads')} className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">Open All Loads →</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ---------- ADMIN: INDEPENDENT WORKSPACE "MAKE IT YOURS" NUDGE ----------
+// Soft, dismissible checklist for INDEPENDENT dispatchers (never FMF — they
+// run under FMF branding — and never super-admin, gated at the call site):
+// company name, dispatch phone, and the carrier agreement/LPOA text are what
+// make their carrier-facing docs and emails theirs. Modeled on the carrier
+// setup checklist — a nudge, not a gate; independents are never blocked.
+function IndieBrandingSetup({ onNavigate }) {
+  const dismissKey = 'fm_brandsetup_dismissed_' + (ACTIVE_ORG || 'org');
+  const [dismissed, setDismissed] = useState(() => { try { return localStorage.getItem(dismissKey) === '1'; } catch (_) { return false; } });
+  const [org, setOrg] = useState(null);
+  useEffect(() => {
+    if (!ACTIVE_ORG) return;
+    let live = true;
+    (async () => {
+      try { const s = await getDoc(doc(db, 'orgs', ACTIVE_ORG)); if (live && s.exists()) setOrg(s.data()); }
+      catch (_) { /* nudge is best-effort */ }
+    })();
+    return () => { live = false; };
+  }, []);
+  if (dismissed || !ACTIVE_ORG || !org || org.orgType === 'fmf') return null;
+
+  const items = [
+    { key: 'name', done: !!(org.name || '').trim(), label: 'Set your company / legal business name', desc: 'The "Dispatcher" party on every carrier agreement, offer email, and login invite.' },
+    { key: 'phone', done: !!(org.dispatchPhone || '').trim(), label: 'Add your dispatch phone', desc: 'What carriers dial when they tap "Call Dispatcher" on a load offer.' },
+    { key: 'agr', done: !!((org.agreementText || '').trim() || (org.lpoaText || '').trim()), label: 'Review your carrier Dispatch Agreement & LPOA', desc: 'Carriers e-sign these under your name — amend the built-in text or paste your own.' },
+  ];
+  if (items.every((i) => i.done)) return null;
+  const dismiss = () => { setDismissed(true); try { localStorage.setItem(dismissKey, '1'); } catch (_) {} };
+
+  return (
+    <Card className="p-6 border-amber-500/30">
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div className="flex items-center gap-2"><span className="text-amber-400">🏷</span><h3 className="font-bold text-white">Make this workspace yours</h3></div>
+        <button type="button" onClick={dismiss} aria-label="Dismiss this checklist" title="Dismiss — you can finish these in Settings anytime"
+          className="text-slate-500 hover:text-slate-300 transition-colors -mt-1 -mr-1 p-1">✕</button>
+      </div>
+      <p className="text-sm text-slate-400 mb-4">Your carriers see <em>your</em> business on their agreements, offers, and emails — a few one-time settings put your name on all of it. This card disappears once they're set (or dismiss it and finish in Settings anytime).</p>
+      <div className="space-y-3">
+        {items.map((s, i) => (
+          <button key={s.key} type="button" onClick={() => onNavigate && onNavigate('settings')}
+            className="w-full flex items-start gap-3 text-left rounded-lg border border-slate-800 hover:border-amber-500/40 hover:bg-slate-800/40 p-3 transition-colors">
+            <span className={`mt-0.5 shrink-0 w-5 h-5 rounded-full border flex items-center justify-center text-[11px] ${s.done ? 'bg-emerald-500 border-emerald-500 text-slate-950' : 'border-slate-600 text-slate-500'}`}>{s.done ? '✓' : i + 1}</span>
+            <span className="min-w-0">
+              <span className={`text-sm font-semibold ${s.done ? 'text-slate-400 line-through' : 'text-white'}`}>{s.label}</span>
+              <span className="block text-xs text-slate-500 mt-0.5">{s.desc}</span>
+            </span>
+            <span className="ml-auto shrink-0 text-xs text-amber-400 self-center">Settings →</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-slate-500 mt-4">Want your logo across the portal and carrier emails instead of your name? That's the Authority tier — message Forward OS and we'll attach it to your workspace.</p>
+    </Card>
+  );
+}
+
 // ---------- DASHBOARD ----------
 function DashboardView({ uid, displayName, isAdmin, isSuper = false, vipOn = true, onNavigate, myStatus = 'Available', onSetStatus, vipRequested = false, onRequestVip, onCancelVip, showAgreementGate = false }) {
   const u = auth.currentUser;
@@ -2105,7 +2273,11 @@ function DashboardView({ uid, displayName, isAdmin, isSuper = false, vipOn = tru
       )}
       {isAdmin && <MyCornerStrip />}
       {isAdmin && <AdminGettingStarted onNavigate={onNavigate} />}
+      {/* Independent-workspace branding nudge — never FMF (checked inside via
+          orgType) and never super-admin (gated here). */}
+      {isAdmin && !isSuper && <IndieBrandingSetup onNavigate={onNavigate} />}
       {isAdmin && <AdminWeeklyGross />}
+      {isAdmin && <AdminActiveLoads onNavigate={onNavigate} />}
       {isAdmin && <MarketPulse />}
       {isAdmin && <CoachCorner />}
 
@@ -3108,7 +3280,10 @@ function DeliveryDebriefModal({ load, onClose }) {
 }
 
 // ---------- RATE CONFIRMATION E-SIGN (carrier accepts the binding terms) ----------
-function RateConCard({ load, onSigned }) {
+// `dispatcherMode` — the dispatcher is driving this lane (not the carrier):
+// an unsigned RateCon records as signed ON THE CARRIER'S BEHALF (byDispatcher,
+// under their LPOA), matching AllLoadsView's signRateConOnBehalf record shape.
+function RateConCard({ load, onSigned, dispatcherMode = false }) {
   const [name, setName] = useState('');
   const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -3119,7 +3294,10 @@ function RateConCard({ load, onSigned }) {
     if (!name.trim() || !agree) return;
     setBusy(true);
     try {
-      await updateDoc(doc(db, 'loads', load.id), { rateConSigned: { name: name.trim(), at: serverTimestamp() } });
+      const rec = dispatcherMode
+        ? { name: name.trim(), at: serverTimestamp(), byDispatcher: true }
+        : { name: name.trim(), at: serverTimestamp() };
+      await updateDoc(doc(db, 'loads', load.id), { rateConSigned: rec });
       if (onSigned) await onSigned();
     } catch (e) { console.error('ratecon sign failed', e); toast('Could not save your signature — try again.', 'error'); }
     finally { setBusy(false); }
@@ -3128,7 +3306,7 @@ function RateConCard({ load, onSigned }) {
   return (
     <Card className="p-6">
       <PanelHeader icon={<FileText size={20} />} title="Rate Confirmation" badge={signed ? <Badge tone="emerald"><CheckCircle2 size={11} /> Signed</Badge> : <Badge tone="amber">Needs signature</Badge>} />
-      <p className="text-sm text-slate-400 mt-1">Your binding acceptance of this load. Review the terms, then e-sign before you roll.</p>
+      <p className="text-sm text-slate-400 mt-1">{dispatcherMode ? 'The carrier’s binding acceptance of this load.' : 'Your binding acceptance of this load. Review the terms, then e-sign before you roll.'}</p>
       <div className="grid grid-cols-2 gap-3 mt-4 text-sm bg-slate-800/40 border border-slate-700 rounded-xl p-4">
         <div><span className="text-slate-500 text-[11px] uppercase">Load</span><div className="font-mono text-amber-500">{load.loadId || '—'}</div></div>
         <div><span className="text-slate-500 text-[11px] uppercase">Rate</span><div className="font-semibold text-emerald-400">{money(load.gross_pay)}</div></div>
@@ -3142,19 +3320,37 @@ function RateConCard({ load, onSigned }) {
       )}
       {signed ? (
         signed.byDispatcher ? (
-          <div className="mt-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-200 text-sm px-4 py-3">✓ Signed <strong>by your dispatcher on your behalf</strong>, under your Limited Power of Attorney{signed.name ? <> — recorded as “{signed.name}”</> : ''}. If this doesn’t look right, contact your dispatcher.</div>
+          <div className="mt-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-200 text-sm px-4 py-3">
+            {dispatcherMode
+              ? <>✓ Recorded as signed <strong>on the carrier’s behalf</strong> under their Limited Power of Attorney{signed.name ? <> — “{signed.name}”</> : ''}.</>
+              : <>✓ Signed <strong>by your dispatcher on your behalf</strong>, under your Limited Power of Attorney{signed.name ? <> — recorded as “{signed.name}”</> : ''}. If this doesn’t look right, contact your dispatcher.</>}
+          </div>
         ) : (
-          <div className="mt-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3">✓ E-signed by <strong>{signed.name}</strong>. Your dispatcher has been notified.</div>
+          <div className="mt-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3">✓ E-signed by <strong>{signed.name}</strong>.{dispatcherMode ? '' : ' Your dispatcher has been notified.'}</div>
         )
       ) : (
         <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
-          <p className="text-xs text-slate-400">Confirm the rate, stops, and times match what you agreed. Typing your name below is a legal electronic signature accepting these terms.</p>
-          <input className={INPUT_CLS} value={name} onChange={(e) => setName(e.target.value)} placeholder="Type your full legal name to sign" />
-          <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
-            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
-            <span>I confirm these terms are correct and I accept this Rate Confirmation.</span>
-          </label>
-          <PrimaryButton onClick={sign} disabled={busy || !name.trim() || !agree} className="px-5">{busy ? 'Signing…' : '✍️ E-sign Rate Confirmation'}</PrimaryButton>
+          {dispatcherMode ? (
+            <>
+              <p className="text-xs text-slate-400">Carrier not in the app? Once they’ve confirmed by phone or text, record the RateCon as signed on their behalf — their LPOA authorizes it. Note how it was authorized (shown on the permanent record).</p>
+              <input className={INPUT_CLS} value={name} onChange={(e) => setName(e.target.value)} placeholder={`How it was authorized — e.g. "Verbal OK — J. Smith, ${new Date().toLocaleDateString()}"`} />
+              <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
+                <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
+                <span>The carrier confirmed these terms and their LPOA authorizes me to sign.</span>
+              </label>
+              <PrimaryButton onClick={sign} disabled={busy || !name.trim() || !agree} className="px-5">{busy ? 'Recording…' : '✍️ Record signature on carrier’s behalf'}</PrimaryButton>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-slate-400">Confirm the rate, stops, and times match what you agreed. Typing your name below is a legal electronic signature accepting these terms.</p>
+              <input className={INPUT_CLS} value={name} onChange={(e) => setName(e.target.value)} placeholder="Type your full legal name to sign" />
+              <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
+                <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="w-4 h-4 mt-0.5 rounded accent-amber-500 shrink-0" />
+                <span>I confirm these terms are correct and I accept this Rate Confirmation.</span>
+              </label>
+              <PrimaryButton onClick={sign} disabled={busy || !name.trim() || !agree} className="px-5">{busy ? 'Signing…' : '✍️ E-sign Rate Confirmation'}</PrimaryButton>
+            </>
+          )}
         </div>
       )}
     </Card>
@@ -3354,8 +3550,30 @@ function LoadDocsPanel({ load, uploadedBy, onChanged }) {
   );
 }
 
-function LaneManagementView({ uid }) {
-  const targetUid = uid || auth.currentUser?.uid;
+// `isAdmin` — a dispatcher opened this OUTSIDE "View As" (their own uid owns no
+// loads, so the old behavior was a dead-end empty state). Dispatcher mode adds
+// a carrier picker and runs the SAME live lane view against that carrier's
+// linkedDriverUid — status advance, RateCon (recorded on-behalf), and docs all
+// work; loads are assigned with uid = linkedDriverUid, so the query matches.
+function LaneManagementView({ uid, isAdmin = false }) {
+  const [carriers, setCarriers] = useState(null); // dispatcher mode: null = loading
+  const [carrierUid, setCarrierUid] = useState('');
+  useEffect(() => {
+    if (!isAdmin) return;
+    let live = true;
+    getDocs(orgScoped('carriers'))
+      .then((snap) => {
+        if (!live) return;
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((c) => c.linkedDriverUid);
+        rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setCarriers(rows);
+        setCarrierUid((cur) => cur || (rows[0] ? rows[0].linkedDriverUid : ''));
+      })
+      .catch((e) => { console.error('lane carriers load failed', e); if (live) setCarriers([]); });
+    return () => { live = false; };
+  }, [isAdmin]);
+
+  const targetUid = isAdmin ? carrierUid : (uid || auth.currentUser?.uid);
   const [loads, setLoads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -3376,9 +3594,10 @@ function LaneManagementView({ uid }) {
   };
 
   // LIVE: a RateCon your dispatcher just attached, or a status they advanced,
-  // shows up here instantly.
+  // shows up here instantly. Re-subscribes when the dispatcher switches carriers.
   useEffect(() => {
     if (!targetUid) return;
+    setLoading(true);
     const unsub = onSnapshot(
       query(collection(db, 'loads'), where('uid', '==', targetUid)),
       (snap) => applyRows(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -3405,8 +3624,9 @@ function LaneManagementView({ uid }) {
       if (justDelivered && !active.delivery_date) {
         toast("No delivery date — this load won't appear on any invoice or monthly statement until one is set.", 'error');
       }
-      // Capture a quick debrief before the active load disappears from the screen.
-      if (deliveredLoad) setDebriefLoad(deliveredLoad);
+      // Capture a quick debrief before the active load disappears from the
+      // screen — the debrief is the CARRIER's voice, so skip it in dispatcher mode.
+      if (deliveredLoad && !isAdmin) setDebriefLoad(deliveredLoad);
       await fetchLoads();
     } catch (err) {
       console.error('Error updating status:', err);
@@ -3415,7 +3635,37 @@ function LaneManagementView({ uid }) {
     }
   };
 
-  if (loading) return <div className="max-w-4xl mx-auto text-slate-400">Loading lane…</div>;
+  // Dispatcher mode: pick whose lane you're running. Rendered above every
+  // state (empty included) so switching carriers is always one tap away.
+  const selectedCarrier = isAdmin && Array.isArray(carriers) ? carriers.find((c) => c.linkedDriverUid === carrierUid) : null;
+  const adminPicker = isAdmin && Array.isArray(carriers) && carriers.length > 0 ? (
+    <Card className="p-4 flex flex-wrap items-center gap-3">
+      <label htmlFor="lane-carrier-picker" className="text-sm text-slate-400 shrink-0">Carrier’s lane:</label>
+      <select
+        id="lane-carrier-picker"
+        className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-amber-500 min-w-0 flex-1 max-w-xs"
+        value={carrierUid}
+        onChange={(e) => setCarrierUid(e.target.value)}
+      >
+        {carriers.map((c) => <option key={c.id} value={c.linkedDriverUid}>{c.name || c.linkedDriverUid}</option>)}
+      </select>
+      <Badge tone="amber" className="font-bold tracking-wide shrink-0">ADMIN</Badge>
+    </Card>
+  ) : null;
+
+  // Dispatcher with no linked carriers yet — nothing to manage.
+  if (isAdmin && Array.isArray(carriers) && carriers.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-4">
+        <h2 className="text-2xl font-bold">Lane Management</h2>
+        <Card className="p-10 text-center text-slate-400">
+          No carriers with a portal login yet — add one in <strong className="text-slate-200">Carriers</strong> and link their driver login, then manage their active lane here.
+        </Card>
+      </div>
+    );
+  }
+
+  if (loading || (isAdmin && carriers === null)) return <div className="max-w-4xl mx-auto text-slate-400">Loading lane…</div>;
 
   // Delivery debrief takes priority — collect feedback right after delivery.
   if (debriefLoad) {
@@ -3426,8 +3676,11 @@ function LaneManagementView({ uid }) {
     return (
       <div className="max-w-4xl mx-auto space-y-4">
         <h2 className="text-2xl font-bold">Lane Management</h2>
+        {adminPicker}
         <Card className="p-10 text-center text-slate-400">
-          No active load right now. Your dispatcher will assign one shortly.
+          {isAdmin
+            ? <>No active load for {selectedCarrier ? <strong className="text-slate-200">{selectedCarrier.name || 'this carrier'}</strong> : 'this carrier'} right now. Price one in the <strong className="text-slate-200">Rate Calculator</strong> and send it as an offer, or use <strong className="text-slate-200">Assign Load</strong>.</>
+            : 'No active load right now. Your dispatcher will assign one shortly.'}
         </Card>
       </div>
     );
@@ -3440,14 +3693,16 @@ function LaneManagementView({ uid }) {
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">Lane Management</h2>
-        <p className="text-slate-400">Everything you need to execute your current load.</p>
+        <p className="text-slate-400">{isAdmin ? 'Run the carrier’s active load — advance the status, handle the RateCon, and keep the proof package tight.' : 'Everything you need to execute your current load.'}</p>
         <div className="mt-3"><GuidedHint>The carrier’s execution screen for the active load — status updates, route, the paperwork checklist, and VIP stops. Walk a new driver through advancing the status as the load moves.</GuidedHint></div>
       </div>
+
+      {adminPicker}
 
       {(active.status === 'Delivered' || active.status === 'Cleared') && !active.delivery_date && (
         <div className="rounded-lg border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-200 flex items-start gap-2.5">
           <span className="shrink-0">⚠️</span>
-          <span>This load has no delivery date — tell your dispatcher so it lands on the invoice.</span>
+          <span>{isAdmin ? 'This load has no delivery date — set one in All Loads so it lands on the invoice.' : 'This load has no delivery date — tell your dispatcher so it lands on the invoice.'}</span>
         </div>
       )}
 
@@ -3511,9 +3766,9 @@ function LaneManagementView({ uid }) {
         </div>
       </Card>
 
-      <RateConCard load={active} onSigned={fetchLoads} />
+      <RateConCard load={active} onSigned={fetchLoads} dispatcherMode={isAdmin} />
 
-      <LoadDocsPanel load={active} uploadedBy="carrier" onChanged={() => fetchLoads()} />
+      <LoadDocsPanel load={active} uploadedBy={isAdmin ? 'dispatcher' : 'carrier'} onChanged={() => fetchLoads()} />
 
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
@@ -4506,6 +4761,24 @@ function AllLoadsView({ onNavigate }) {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  // LIVE: a carrier accepting/declining an offer, e-signing a RateCon, or
+  // advancing a status hits this board instantly — same onSnapshot pattern as
+  // the bell and Lane Management. fetchAll() above stays as the initial paint
+  // (it also builds the user map) and the fallback if the listener errors.
+  useEffect(() => {
+    const unsub = onSnapshot(
+      orgScoped('loads'),
+      (snap) => {
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        rows.sort((a, b) => (b.delivery_date || '').localeCompare(a.delivery_date || ''));
+        setLoads(rows);
+        setLoading(false);
+      },
+      (e) => console.error('all-loads live listener failed', e) // one-shot data from fetchAll still stands
+    );
+    return () => unsub();
+  }, []);
 
   const changeStatus = async (loadDocId, newStatus) => {
     if (!newStatus) return;
@@ -14444,10 +14717,18 @@ function NotificationsBell({ isAdmin, uid, onNavigate }) {
         loads.filter((l) => l.offerStatus === 'declined').forEach((l) => {
           out.push({ id: 'declined-' + l.id, tone: 'red', icon: '✕', text: `${emailByUid[l.uid] || 'Carrier'} declined ${l.loadId || ''}${l.declineReason ? ' — ' + l.declineReason : ''}`, tab: 'allloads' });
         });
+        // The good news too — a carrier accepting an offer is the alert
+        // dispatchers most want. Skip loads already Delivered/Cleared so old
+        // wins don't linger (and each id is dismissible like the rest).
+        loads.filter((l) => l.offerStatus === 'accepted' && l.status !== 'Delivered' && l.status !== 'Cleared').forEach((l) => {
+          out.push({ id: 'accepted-' + l.id, tone: 'emerald', icon: '🚚', text: `${emailByUid[l.uid] || 'Carrier'} accepted offer ${l.loadId || ''}${l.offerAcceptedBy === 'dispatcher' ? ' (recorded on their behalf)' : ''}`, tab: 'allloads' });
+        });
         loads.filter((l) => l.detention && l.detention.status === 'filed').forEach((l) => {
           out.push({ id: 'det-' + l.id, tone: 'amber', icon: '⏱', text: `Detention filed on ${l.loadId || 'a load'} — $${Number(l.detention.amount || 0).toLocaleString()} (${emailByUid[l.uid] || 'carrier'})`, tab: 'allloads' });
         });
-        loads.filter((l) => l.rateConUrl && l.rateConSigned).forEach((l) => {
+        // Any recorded RateCon signature counts — signed in-app by the carrier,
+        // or recorded on their behalf (LPOA), with or without a broker PDF attached.
+        loads.filter((l) => l.rateConSigned).forEach((l) => {
           out.push({ id: 'rcsign-' + l.id, tone: 'emerald', icon: '✍️', text: `${l.rateConSigned.name || emailByUid[l.uid] || 'Carrier'} e-signed the RateCon on ${l.loadId || 'a load'}`, tab: 'allloads' });
         });
         compSnap.docs.forEach((d) => { complianceItems(d.data(), (emailByUid[d.id] || 'Carrier') + ':', 'comp-' + d.id).forEach((x) => out.push(x)); });
