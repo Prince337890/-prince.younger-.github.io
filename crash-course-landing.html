@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#0a0f1a">
     <meta name="color-scheme" content="dark">
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="fm-tracking.js"></script>
     <link rel="stylesheet" href="site.css?v=1">
     <style>body{background:#070b14}</style>
 </head>
@@ -87,7 +88,8 @@
         if (!email) return;
         btn.disabled = true; btn.textContent = 'Starting…'; msg.textContent = '';
         try {
-          await addDoc(collection(db, 'course_leads'), { email, name, source: 'crash-course-landing', createdAt: serverTimestamp() });
+          await addDoc(collection(db, 'course_leads'), { email, name, source: (window.fmSource ? window.fmSource('crash-course-landing') : 'crash-course-landing'), createdAt: serverTimestamp() });
+          try { window.fmTrack && window.fmTrack('course_lead'); } catch (_) {}
           try { localStorage.setItem('fm_course_unlocked', '1'); localStorage.setItem('fm_course_name', name); } catch (_) {}
           window.location.href = 'crash-course.html';
         } catch (err) {
