@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forward Motion Freight | Veteran-Owned Dispatch, Free Dispatcher Course &amp; Forward OS</title>
+<meta name="description" content="Veteran-owned truck dispatch for owner-operators, a free 14-day dispatcher crash course, and Forward OS — the software that runs the whole operation. One outfit. Every rung of the ladder.">
+<meta name="theme-color" content="#0A1020">
+<meta property="og:title" content="Forward Motion Freight | Veteran-Owned Dispatch &amp; Forward OS">
+<meta property="og:description" content="A free 14-day dispatcher course, the Forward OS software, and dispatch under our own authority — the whole ladder, run by a veteran-owned dispatch company.">
+<meta property="og:type" content="website">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;0,900;1,500;1,600&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="fm-tracking.js"></script>
+<style>
+
+/* =====================================================================
+   FORWARD MOTION FREIGHT — HOMEPAGE REDESIGN "DIRECTION 2 / THE HIGH BEAM"
+   Self-contained. No build step. No external CSS framework.
+   Fusion of "The Manifest" (case-file DNA, mono data labels, the
+   course->software->authority ladder, the veteran seal) with a premium
+   navy + antique-gold concierge language, elegant serif display type,
+   and a bespoke "headlights cutting the dark" signature motif that
+   anchors the hero and echoes through the rest of the page as a
+   recurring light-trail accent. No truck art, no stock imagery —
+   every visual is CSS/SVG, built by hand.
+   ===================================================================== */
+
+:root {
+  /* navy base */
+  --navy:       #0A1020;
+  --navy-2:     #0D1526;
+  --navy-3:     #111C33;
+  --navy-4:     #16213B;
+  --navy-deep:  #060910;
+
+  /* gold accent */
+  --gold:       #C9A24B;
+  --gold-hi:    #E3C27B;
+  --gold-pale:  #F5E3B3;
+  --gold-deep:  #8A6A2E;
+  --gold-text:  #D9B876; /* AA-safe on navy */
+
+  /* headlight-only warm ember, used sparingly */
+  --ember:      #FF9452;
+  --ember-soft: rgba(255,148,82,0.35);
+
+  /* secondary — trend / positive, used sparingly for money-up signals */
+  --sage:       #93C48A;
+
+  /* text */
+  --cream:      #F4EFE2;
+  --cream-mut:  rgba(244,239,226,0.66);
+  --cream-faint:rgba(244,239,226,0.42);
+
+  /* lines */
+  --line-gold:      rgba(212,179,106,0.24);
+  --line-gold-soft: rgba(212,179,106,0.12);
+  --line-navy:      rgba(244,239,226,0.10);
+  --line-navy-soft: rgba(244,239,226,0.06);
+
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --serif: 'Playfair Display', Georgia, serif;
+
+  --maxw: 1180px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  background: var(--navy);
+  color: var(--cream);
+  font-family: var(--sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+img, svg { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+::selection { background: rgba(212,179,106,0.32); color: var(--navy-deep); }
+
+a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute; left: 12px; top: -60px; z-index: 1000;
+  background: var(--gold); color: var(--navy-deep);
+  font-family: var(--mono); font-weight: 700; font-size: 0.8rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 10px 18px; text-decoration: none; transition: top 0.2s ease;
+}
+.skip-link:focus { top: 12px; }
+.vh { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+@media (min-width: 640px) { .wrap { padding: 0 32px; } }
+
+/* ---------- generic scroll reveal ---------- */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+.reveal.in-view { opacity: 1; transform: none; }
+
+/* ---------- kickers / small labels ---------- */
+.kicker {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-text);
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.kicker .idx { color: var(--cream-faint); }
+
+h1, h2, h3, h4 { font-family: var(--serif); font-weight: 700; letter-spacing: -0.005em; color: var(--cream); }
+
+.section-head { max-width: 720px; }
+.section-head h2 { font-size: clamp(1.9rem, 1.4rem + 2.2vw, 2.85rem); line-height: 1.1; margin-top: 14px; }
+.section-head p.lead { font-family: var(--sans); font-size: 1.02rem; line-height: 1.68; color: var(--cream-mut); margin-top: 16px; max-width: 640px; }
+
+/* ---------- divider beam (recurring headlight-echo divider) ---------- */
+.divider-beam { position: relative; height: 1px; background: linear-gradient(90deg, transparent, var(--line-gold) 18%, var(--line-gold) 82%, transparent); overflow: hidden; }
+.divider-beam::after {
+  content: ''; position: absolute; top: 50%; left: -12%; width: 160px; height: 3px; transform: translateY(-50%);
+  background: linear-gradient(90deg, transparent, rgba(255,236,205,0.95), rgba(212,179,106,0.9), transparent);
+  filter: blur(1.5px); opacity: 0.85;
+  animation: beamTravel 6s linear infinite;
+}
+@keyframes beamTravel { 0% { left: -14%; } 100% { left: 108%; } }
+
+/* ---------- subtle network / light-node texture (ambient, on select sections) ---------- */
+.network-veil { position: relative; }
+.network-veil::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle at 10% 18%, rgba(212,179,106,0.55) 0 2px, transparent 3px),
+    radial-gradient(circle at 80% 12%, rgba(212,179,106,0.4) 0 2px, transparent 3px),
+    radial-gradient(circle at 46% 78%, rgba(212,179,106,0.35) 0 2px, transparent 3px),
+    radial-gradient(circle at 90% 68%, rgba(212,179,106,0.3) 0 2px, transparent 3px),
+    radial-gradient(circle at 22% 88%, rgba(212,179,106,0.3) 0 2px, transparent 3px),
+    linear-gradient(115deg, transparent 48%, rgba(212,179,106,0.06) 49%, rgba(212,179,106,0.06) 50%, transparent 51%),
+    linear-gradient(35deg, transparent 68%, rgba(212,179,106,0.05) 69%, rgba(212,179,106,0.05) 70%, transparent 71%);
+  opacity: 0.6;
+}
+.network-veil > .wrap { position: relative; z-index: 1; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--sans); font-weight: 700; font-size: 0.95rem;
+  padding: 15px 28px; border: 1.5px solid transparent; white-space: nowrap; border-radius: 3px;
+  transition: transform .15s ease, background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .2s ease, filter .15s ease;
+}
+.btn svg { width: 18px; height: 18px; flex-shrink: 0; transition: transform .2s ease; }
+.btn:hover svg { transform: translateX(3px); }
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: linear-gradient(135deg, var(--gold-hi), var(--gold) 55%, var(--gold-deep)); color: var(--navy-deep); box-shadow: 0 10px 24px -10px rgba(212,179,106,0.45); }
+.btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.btn-outline { border-color: var(--line-gold); color: var(--cream); }
+.btn-outline:hover { border-color: var(--gold); color: var(--gold-hi); background: rgba(212,179,106,0.06); }
+.btn-sm { padding: 11px 20px; font-size: 0.85rem; }
+
+/* ---------- gold-outlined feature card ---------- */
+.gold-card {
+  background: linear-gradient(160deg, var(--navy-3), var(--navy-2));
+  border: 1px solid var(--line-gold);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.gold-card:hover { border-color: rgba(212,179,106,0.5); box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 32px -18px rgba(212,179,106,0.35); transform: translateY(-2px); }
+
+/* ============================================================= */
+/* HEADER                                                         */
+/* ============================================================= */
+.site-header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,16,32,0.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-navy);
+}
+.header-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; }
+.brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.brand-mark { width: 34px; height: 34px; flex-shrink: 0; }
+.brand-word { font-family: var(--serif); font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em; line-height: 1; color: var(--cream); }
+.brand-word .sub { color: var(--gold-text); font-style: italic; }
+
+.tabnav { display: none; align-items: center; gap: 2px; }
+@media (min-width: 900px) { .tabnav { display: flex; } }
+.tab {
+  font-family: var(--mono); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--cream-mut); padding: 10px 16px; border: 1px solid transparent; border-radius: 4px;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.tab:hover { color: var(--cream); background: var(--navy-3); border-color: var(--line-navy); }
+.tab.tab-accent { color: var(--gold-text); }
+.tab.tab-accent:hover { background: rgba(212,179,106,0.1); border-color: var(--line-gold); color: var(--gold-hi); }
+
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.header-cta { display: none; }
+@media (min-width: 900px) { .header-cta { display: inline-flex; } }
+
+.menu-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: 1.5px solid var(--line-gold); color: var(--cream);
+  padding: 9px 14px; font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; border-radius: 3px;
+}
+@media (min-width: 900px) { .menu-btn { display: none; } }
+.menu-btn svg { width: 15px; height: 15px; }
+
+.mobile-menu { display: none; border-top: 1px solid var(--line-navy); background: var(--navy-2); }
+.mobile-menu.open { display: block; }
+.mobile-menu .wrap { padding-top: 10px; padding-bottom: 18px; }
+.mobile-menu a {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 4px; border-bottom: 1px solid var(--line-navy-soft);
+  font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cream);
+}
+.mobile-menu a.accent { color: var(--gold-text); }
+.mobile-menu a:last-child { border-bottom: none; }
+
+/* ============================================================= */
+/* HERO — the headlights                                          */
+/* ============================================================= */
+.hero { position: relative; background: radial-gradient(ellipse 80% 60% at 50% 112%, #101B32 0%, var(--navy) 60%); padding: 44px 0 66px; overflow: hidden; }
+
+.hero-lights { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.hl-glow {
+  position: absolute; left: 50%; top: 34%; width: 900px; height: 900px; max-width: 140vw; max-height: 140vw;
+  transform: translate(-50%,-50%);
+  background: radial-gradient(circle, rgba(212,179,106,0.16), transparent 65%);
+  animation: hlPulse 6s ease-in-out infinite;
+}
+@keyframes hlPulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
+
+.hl-road { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hl-line { stroke: rgba(212,179,106,0.22); stroke-width: 1.4; fill: none; }
+.hl-center { stroke: rgba(212,179,106,0.38); stroke-dasharray: 5 16; animation: hlDash 3.4s linear infinite; }
+@keyframes hlDash { to { stroke-dashoffset: -42; } }
+
+.hl-beam {
+  position: absolute; bottom: -18%; width: 48vw; max-width: 640px; height: 145%;
+  background: linear-gradient(to top, rgba(255,180,110,0.6) 0%, rgba(212,179,106,0.22) 42%, transparent 76%);
+  filter: blur(26px); mix-blend-mode: screen; opacity: 0;
+  clip-path: polygon(40% 100%, 60% 100%, 100% 0%, 0% 0%);
+}
+.hl-beam-l { left: -10%; transform: rotate(10deg); transform-origin: bottom left; }
+.hl-beam-r { right: -10%; transform: rotate(-10deg); transform-origin: bottom right; }
+.hl-lamp {
+  position: absolute; bottom: -3%; width: 64px; height: 64px; border-radius: 50%;
+  background: radial-gradient(circle, #fff6e6 0%, rgba(255,203,140,0.95) 22%, rgba(212,179,106,0.45) 52%, transparent 74%);
+  filter: blur(2px); opacity: 0;
+}
+.hl-lamp-l { left: 15%; }
+.hl-lamp-r { right: 15%; }
+
+.hero-lights.lit .hl-beam,
+.hero-lights.lit .hl-lamp { animation: hlSwitchOn 1.7s cubic-bezier(.2,.7,.3,1) .25s both, hlBreathe 6s ease-in-out 2s infinite; }
+@keyframes hlSwitchOn {
+  0% { opacity: 0; }
+  9% { opacity: 1; }
+  15% { opacity: 0.18; }
+  22% { opacity: 1; }
+  30% { opacity: 0.32; }
+  40% { opacity: 1; }
+  100% { opacity: 1; }
+}
+@keyframes hlBreathe { 0%,100% { opacity: 1; } 50% { opacity: 0.86; } }
+
+.hl-dust { position: absolute; inset: 0; }
+.mote {
+  position: absolute; bottom: 6%; width: 4px; height: 4px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,222,180,0.9), transparent 70%);
+  filter: blur(0.5px); opacity: 0;
+  animation: moteFloat 7s ease-in infinite;
+}
+@keyframes moteFloat { 0% { opacity: 0; transform: translateY(0) scale(0.8); } 12% { opacity: 0.7; } 70% { opacity: 0.35; } 100% { opacity: 0; transform: translateY(-220px) scale(1.1); } }
+
+.case-meta {
+  position: relative; z-index: 1;
+  display: flex; flex-wrap: wrap; gap: 10px 26px;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--cream-faint); padding-bottom: 22px; margin-bottom: 34px; border-bottom: 1px dashed var(--line-navy);
+}
+.case-meta span b { color: var(--cream-mut); font-weight: 700; }
+
+.hero-inner { position: relative; z-index: 1; display: grid; gap: 40px; align-items: start; }
+@media (min-width: 980px) { .hero-inner { grid-template-columns: 1fr 300px; gap: 56px; } }
+
+.hero-h1 { font-size: clamp(2.5rem, 1.85rem + 3.2vw, 4.1rem); line-height: 1.08; font-weight: 800; }
+.hero-h1 .accent-serif {
+  display: block; font-style: italic; font-weight: 600;
+  background: linear-gradient(100deg, #9C7C3C 0%, var(--gold-hi) 25%, var(--gold-pale) 45%, var(--gold) 65%, var(--gold-deep) 85%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: goldShine 7s ease-in-out infinite;
+}
+@keyframes goldShine { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+.hero-fade { opacity: 0; transform: translateY(10px); animation: heroFadeIn .8s ease forwards; }
+.hero-fade.d1 { animation-delay: .05s; }
+.hero-fade.d2 { animation-delay: .18s; }
+.hero-fade.d3 { animation-delay: .3s; }
+.hero-fade.d4 { animation-delay: .42s; }
+@keyframes heroFadeIn { to { opacity: 1; transform: none; } }
+
+.hero-sub { margin-top: 22px; max-width: 46ch; font-size: 1.06rem; line-height: 1.68; color: var(--cream-mut); }
+.hero-ctas { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 14px; }
+
+.hero-stamps { margin-top: 36px; display: flex; flex-wrap: wrap; gap: 10px 30px; padding-top: 20px; border-top: 1px solid var(--line-navy); }
+.hero-stamp { display: flex; align-items: center; gap: 9px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cream-mut); }
+.hero-stamp .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+.dot-live { animation: blink 2s steps(1) infinite; }
+@keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: .25; } }
+
+/* seal — premium gold foil */
+.seal-col { display: flex; justify-content: flex-start; }
+@media (min-width: 980px) { .seal-col { justify-content: flex-end; } }
+.seal {
+  width: 168px; height: 168px;
+  opacity: 0; transform: scale(0.55) rotate(-24deg);
+  transition: opacity .55s cubic-bezier(.34,1.56,.64,1), transform .55s cubic-bezier(.34,1.56,.64,1);
+}
+.seal.in-view { opacity: 1; transform: scale(1) rotate(-9deg); }
+
+/* ============================================================= */
+/* THE LADDER / PIPELINE                                          */
+/* ============================================================= */
+.road { margin-top: 52px; position: relative; }
+.road-track { display: grid; gap: 26px; position: relative; }
+@media (min-width: 900px) { .road-track { grid-template-columns: repeat(3, 1fr); gap: 22px; } }
+.road-track::before {
+  content: ''; position: absolute; z-index: 0;
+  background: linear-gradient(90deg, transparent, var(--gold) 8%, var(--gold) 92%, transparent);
+  opacity: 0.35;
+  transform: scaleX(0); transform-origin: left center; transition: transform 1.1s cubic-bezier(.4,.1,.2,1) .1s;
+}
+@media (min-width: 900px) { .road-track::before { top: 46px; left: 6%; right: 6%; height: 2px; } }
+.road-track.in-view::before { transform: scaleX(1); }
+.road-track::after {
+  content: ''; position: absolute; z-index: 0; display: none;
+  width: 10px; height: 10px; border-radius: 50%; top: 42px; left: 6%;
+  background: radial-gradient(circle, #fff6e6, rgba(212,179,106,0.7) 45%, transparent 75%);
+  filter: blur(1px);
+}
+@media (min-width: 900px) { .road-track.in-view::after { display: block; animation: travelLight 3.4s ease-in-out .6s infinite; } }
+@keyframes travelLight { 0% { left: 6%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { left: 92%; opacity: 0; } }
+
+.stop { position: relative; z-index: 1; padding: 26px 22px 24px; }
+.stop-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-hi), var(--gold-deep));
+  color: var(--navy-deep);
+  font-family: var(--mono); font-weight: 700; font-size: 13px; margin-bottom: 16px;
+}
+.stop h3 { color: var(--cream); font-size: 1.25rem; margin-bottom: 8px; }
+.stop p { color: var(--cream-mut); font-size: 0.92rem; line-height: 1.62; margin-bottom: 16px; }
+.stop .tag { display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-text); border: 1px solid var(--line-gold); padding: 3px 9px; border-radius: 4px; margin-bottom: 14px; }
+.stop a.stop-link { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold-text); }
+.stop a.stop-link svg { width: 14px; height: 14px; transition: transform .18s ease; }
+.stop a.stop-link:hover svg { transform: translateX(3px); }
+.stop a.stop-link:hover { color: var(--gold-hi); }
+
+.road-foot { margin-top: 26px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-family: var(--mono); font-size: 12.5px; color: var(--cream-mut); }
+.road-foot a { color: var(--gold-text); font-weight: 700; }
+.road-foot a:hover { color: var(--gold-hi); }
+
+/* ============================================================= */
+/* VETERAN-OWNED TRUST PILLAR                                    */
+/* ============================================================= */
+.pillar { text-align: center; }
+.pillar .section-head { max-width: 640px; margin: 0 auto; }
+.pillar .seal-lg { width: 108px; height: 108px; margin: 0 auto 22px; }
+.pillar-badges { margin-top: 40px; display: grid; gap: 16px; }
+@media (min-width: 720px) { .pillar-badges { grid-template-columns: repeat(3,1fr); } }
+.pillar-badge { padding: 24px 20px; text-align: left; }
+.pillar-badge svg { width: 26px; height: 26px; color: var(--gold-text); margin-bottom: 14px; }
+.pillar-badge h4 { font-size: 1.05rem; margin-bottom: 8px; }
+.pillar-badge p { font-size: 0.88rem; color: var(--cream-mut); line-height: 1.58; }
+
+/* ============================================================= */
+/* FOUNDER FIELD NOTE                                             */
+/* ============================================================= */
+.memo { background: linear-gradient(160deg, var(--navy-3), var(--navy-2)); border: 1px solid var(--line-gold); border-radius: 10px; padding: 34px 26px; position: relative; }
+@media (min-width: 640px) { .memo { padding: 46px 56px; } }
+.memo::before { content: ''; position: absolute; top: 18px; right: 18px; bottom: 18px; left: 18px; border: 1px dashed var(--line-navy); border-radius: 6px; pointer-events: none; }
+.memo-head { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.monogram {
+  width: 54px; height: 54px; border-radius: 50%; background: var(--navy-deep); color: var(--gold-hi);
+  display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 800; font-size: 1.1rem; flex-shrink: 0;
+  border: 2px solid var(--gold);
+}
+.memo-head-text { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cream-faint); }
+.memo-head-text b { display: block; font-family: var(--serif); font-size: 1.05rem; letter-spacing: 0; text-transform: none; color: var(--cream); margin-top: 2px; font-weight: 700; }
+.memo blockquote { font-family: var(--serif); font-style: italic; font-size: clamp(1.15rem, 1rem + 0.8vw, 1.5rem); line-height: 1.58; color: var(--cream); }
+.memo blockquote p + p { margin-top: 16px; }
+.memo-sign { margin-top: 26px; font-family: var(--serif); font-style: italic; font-size: 1.1rem; color: var(--gold-text); }
+.memo-sign span { display: block; font-family: var(--mono); font-style: normal; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream-faint); margin-top: 4px; }
+
+/* ============================================================= */
+/* MARKET LEDGER (manifest data grid — stays flat & mono)         */
+/* ============================================================= */
+.ledger-grid { margin-top: 44px; display: grid; gap: 1px; background: var(--line-navy); border: 1px solid var(--line-navy); border-radius: 8px; overflow: hidden; }
+@media (min-width: 720px) { .ledger-grid { grid-template-columns: repeat(3,1fr); } }
+.ledger-cell { background: var(--navy-2); padding: 26px 24px; }
+.ledger-cell .stat { font-family: var(--mono); font-size: 2.1rem; font-weight: 600; color: var(--cream); line-height: 1; }
+.ledger-cell .stat small { font-size: 1rem; color: var(--cream-mut); font-weight: 500; }
+.ledger-cell .stat.accent { color: var(--gold-text); }
+.ledger-cell p { margin-top: 12px; font-size: 0.87rem; color: var(--cream-mut); line-height: 1.5; }
+
+.rate-rows { margin-top: 1px; display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--line-navy); border: 1px solid var(--line-navy); border-top: 0; border-radius: 0 0 8px 8px; overflow: hidden; }
+@media (min-width: 720px) { .rate-rows { grid-template-columns: repeat(5,1fr); } }
+.rate-cell { background: var(--navy); padding: 16px 14px; }
+.rate-cell .lbl { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream-mut); }
+.rate-cell .val { margin-top: 8px; font-family: var(--mono); font-size: 0.95rem; font-weight: 600; color: var(--cream); }
+.rate-cell .chg { margin-top: 3px; font-family: var(--mono); font-size: 10.5px; color: var(--sage); }
+
+.ledger-note { margin-top: 22px; max-width: 720px; font-family: var(--mono); font-size: 11px; line-height: 1.6; color: var(--cream-mut); }
+
+/* ============================================================= */
+/* THE DESK — value props + anti-fraud as ledger rows              */
+/* ============================================================= */
+.deskrow-group { margin-top: 40px; }
+.deskrow-group + .deskrow-group { margin-top: 54px; }
+.deskrow-group h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gold-text); font-family: var(--mono); font-weight: 700; margin-bottom: 4px; }
+.deskrows { margin-top: 18px; border-top: 1px solid var(--line-navy); }
+.deskrow { display: grid; grid-template-columns: 46px 1fr; gap: 18px; padding: 22px 4px; border-bottom: 1px solid var(--line-navy); }
+@media (min-width: 720px) { .deskrow { grid-template-columns: 60px 220px 1fr; align-items: start; } }
+.deskrow:nth-child(odd) { background: rgba(212,179,106,0.03); }
+.deskrow .num { font-family: var(--mono); font-weight: 700; font-size: 0.85rem; color: var(--gold-text); }
+.deskrow h4 { font-family: var(--serif); font-weight: 700; font-size: 1.18rem; letter-spacing: 0; margin-bottom: 4px; }
+@media (min-width: 720px) { .deskrow h4 { margin-bottom: 0; } }
+.deskrow p { font-size: 0.92rem; color: var(--cream-mut); line-height: 1.62; grid-column: 2 / -1; }
+@media (min-width: 720px) { .deskrow p { grid-column: 3; } }
+
+/* ============================================================= */
+/* THE PLATFORM (ops console — gold-outlined)                    */
+/* ============================================================= */
+.console-grid { margin-top: 44px; display: grid; gap: 22px; }
+@media (min-width: 900px) { .console-grid { grid-template-columns: 1fr 1fr; } }
+.console-panel { padding: 30px 26px; }
+.console-panel .eyebrow { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold-text); }
+.console-panel h3 { margin-top: 8px; font-size: 1.55rem; color: var(--cream); }
+.console-list { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
+.console-list li { display: flex; gap: 12px; font-size: 0.92rem; color: var(--cream-mut); line-height: 1.58; list-style: none; }
+.console-list li .bullet { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); margin-top: 8px; }
+.console-list li strong { color: var(--cream); font-weight: 700; }
+.console-cta { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 20px 24px; align-items: center; }
+.console-cta .link { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--gold-text); }
+.console-cta .link svg { width: 14px; height: 14px; transition: transform .18s ease; }
+.console-cta .link:hover svg { transform: translateX(3px); }
+.console-cta .link:hover { color: var(--gold-hi); }
+
+.console-band-cta { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 14px; }
+
+/* ============================================================= */
+/* EARNINGS SNAPSHOT                                              */
+/* ============================================================= */
+.dashcard { margin-top: 44px; background: var(--navy-2); border: 1px solid var(--line-gold); border-radius: 10px; overflow: hidden; }
+.dashcard-top { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid var(--line-navy); }
+.dashcard-top .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: blink 2s steps(1) infinite; }
+.dashcard-top span.label { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cream-mut); }
+.dashcard-body { padding: 26px 22px 30px; }
+@media (min-width: 640px) { .dashcard-body { padding: 34px 40px 38px; } }
+.dash-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.dash-head .lbl { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cream-mut); }
+.dash-head .amt { margin-top: 8px; font-family: var(--mono); font-size: 2.6rem; font-weight: 600; color: var(--cream); line-height: 1; }
+.dash-badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(147,196,138,0.3); background: rgba(147,196,138,0.08); color: var(--sage); font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 7px 12px; border-radius: 5px; }
+.dash-badge svg { width: 14px; height: 14px; }
+
+.chart { margin-top: 36px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; height: 170px; }
+@media (min-width: 640px) { .chart { gap: 16px; } }
+.chart .col { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; }
+.chart .col .amt { font-family: var(--mono); font-size: 10.5px; color: var(--cream-mut); }
+.chart .col.peak .amt { color: var(--cream); font-weight: 600; }
+.chart .bar { width: 100%; border-radius: 3px 3px 0 0; background: linear-gradient(to top, rgba(201,162,75,0.35), var(--gold)); transform-origin: bottom; transform: scaleY(0); }
+.chart.in-view .bar { animation: growBar .85s cubic-bezier(.2,.8,.2,1) forwards; }
+.chart .col:nth-child(1) .bar { animation-delay: 0s; }
+.chart .col:nth-child(2) .bar { animation-delay: .07s; }
+.chart .col:nth-child(3) .bar { animation-delay: .14s; }
+.chart .col:nth-child(4) .bar { animation-delay: .21s; }
+.chart .col:nth-child(5) .bar { animation-delay: .28s; }
+.chart .col:nth-child(6) .bar { animation-delay: .35s; }
+.chart .col:nth-child(7) .bar { animation-delay: .42s; }
+.chart .col.peak .bar { background: linear-gradient(to top, rgba(227,194,123,0.6), var(--gold-hi)); }
+.chart .col.reset .bar { background: var(--line-navy); }
+@keyframes growBar { to { transform: scaleY(1); } }
+.chart .col .day { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; color: var(--cream-mut); letter-spacing: 0.06em; }
+
+.dash-stats { margin-top: 34px; display: grid; grid-template-columns: repeat(2,1fr); gap: 1px; background: var(--line-navy); border: 1px solid var(--line-navy); border-radius: 8px; overflow: hidden; }
+@media (min-width: 640px) { .dash-stats { grid-template-columns: repeat(4,1fr); } }
+.dash-stats div { background: var(--navy-3); padding: 16px 16px; }
+.dash-stats .lbl { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream-mut); }
+.dash-stats .val { margin-top: 8px; font-family: var(--mono); font-size: 1.15rem; font-weight: 600; color: var(--cream); }
+.dash-stats .val.accent { color: var(--gold-text); }
+.dash-foot { margin-top: 16px; font-family: var(--mono); font-size: 11px; color: var(--cream-faint); }
+
+/* ============================================================= */
+/* VIP CONCIERGE CARDS                                            */
+/* ============================================================= */
+.ration-grid { margin-top: 44px; display: grid; gap: 20px; }
+@media (min-width: 720px) { .ration-grid { grid-template-columns: repeat(2,1fr); } }
+@media (min-width: 1024px) { .ration-grid { grid-template-columns: repeat(3,1fr); } }
+.ration-card { padding: 26px 22px; position: relative; }
+.ration-card .top { display: flex; align-items: flex-start; justify-content: space-between; }
+.ration-card svg.icon { width: 30px; height: 30px; color: var(--gold-text); }
+.ration-tag { font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sage); border: 1px solid rgba(147,196,138,0.35); padding: 3px 8px; border-radius: 4px; }
+.ration-card h4 { margin-top: 20px; font-size: 1.2rem; }
+.ration-card p { margin-top: 10px; font-size: 0.9rem; color: var(--cream-mut); line-height: 1.6; }
+
+/* ============================================================= */
+/* PARTNERSHIP BAND                                               */
+/* ============================================================= */
+.band { border-radius: 10px; padding: 34px 26px; }
+@media (min-width: 640px) { .band { padding: 48px 52px; } }
+.band-dark { background: linear-gradient(150deg, var(--navy-3), var(--navy-2)); border: 1px solid var(--line-gold); border-left: 3px solid var(--gold); }
+.band-grid { display: grid; gap: 26px; align-items: center; }
+@media (min-width: 900px) { .band-grid { grid-template-columns: 1.3fr 1fr; } }
+.band h2 { font-size: clamp(1.5rem, 1.2rem + 1.4vw, 2.15rem); }
+.band p { margin-top: 12px; max-width: 46ch; color: var(--cream-mut); font-size: 0.98rem; line-height: 1.62; }
+.band-cta { display: flex; }
+@media (min-width: 900px) { .band-cta { justify-content: flex-end; } }
+
+/* ============================================================= */
+/* FAQ — manifest accordion                                       */
+/* ============================================================= */
+.faq-list { margin-top: 40px; border-top: 1px solid var(--line-navy); }
+.faq-item { border-bottom: 1px solid var(--line-navy); }
+.faq-item summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 20px 4px; font-family: var(--serif); font-weight: 700; font-size: 1.05rem; letter-spacing: 0; color: var(--cream);
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary .plus { font-family: var(--mono); font-size: 1.3rem; color: var(--gold-text); flex-shrink: 0; transition: transform .2s ease; }
+.faq-item[open] summary .plus { transform: rotate(45deg); }
+.faq-item .a { padding: 0 4px 22px; max-width: 68ch; font-size: 0.94rem; line-height: 1.65; color: var(--cream-mut); }
+
+/* ============================================================= */
+/* FOOTER                                                         */
+/* ============================================================= */
+.footer { background: var(--navy-deep); padding: 60px 0 40px; border-top: 1px solid var(--line-navy); }
+.footer .wrap > .fgrid { display: grid; gap: 40px; }
+@media (min-width: 720px) { .footer .wrap > .fgrid { grid-template-columns: 1.4fr 1fr; align-items: start; } }
+.footer .brand-word { color: var(--cream); }
+.footer h2 { margin-top: 22px; font-size: 1.75rem; color: var(--cream); }
+.footer p.desc { margin-top: 10px; max-width: 42ch; font-size: 0.95rem; color: var(--cream-mut); line-height: 1.6; }
+.footer .mail { margin-top: 14px; font-family: var(--mono); font-size: 0.9rem; color: var(--cream-mut); }
+.footer .mail a { color: var(--gold-text); }
+.footer .mail a:hover { color: var(--gold-hi); }
+.fnav { display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 720px) { .fnav { align-items: flex-end; } }
+.fnav a { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cream-mut); }
+.fnav a:hover { color: var(--cream); }
+.fnav a.accent { color: var(--gold-text); }
+.footer-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line-navy); display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 640px) { .footer-bottom { flex-direction: row; align-items: center; justify-content: space-between; } }
+.footer-bottom .tagline { font-family: var(--serif); font-style: italic; font-weight: 700; font-size: 1.1rem; letter-spacing: 0.01em; color: var(--gold-text); }
+.footer-bottom .rights { font-family: var(--mono); font-size: 10.5px; color: var(--cream-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .hero-fade { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .seal { transition: none !important; opacity: 1 !important; transform: scale(1) rotate(-9deg) !important; }
+  .seal-lg { transition: none !important; }
+  .road-track::before { transition: none !important; transform: scaleX(1) !important; }
+  .road-track::after { animation: none !important; display: none !important; }
+  .chart .bar { animation: none !important; transform: scaleY(1) !important; }
+  .dashcard-top .dot, .dot-live { animation: none !important; opacity: 1 !important; }
+  .hl-glow, .hl-center, .divider-beam::after, .mote { animation: none !important; }
+  .hero-lights.lit .hl-beam, .hero-lights.lit .hl-lamp { animation: none !important; opacity: 0.9 !important; }
+  .accent-serif { animation: none !important; background-position: 40% 50% !important; }
+}
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<!-- ============================================================= -->
+<!-- HEADER                                                        -->
+<!-- ============================================================= -->
+<header class="site-header">
+  <div class="wrap header-row">
+    <a href="index.redesign-v2.html" class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="#D9B876" stroke-width="1.4" opacity="0.85"/>
+        <circle cx="20" cy="20" r="14.5" fill="none" stroke="#D9B876" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.5"/>
+        <path d="M13 20 L21 20 M21 20 L17 15 M21 20 L17 25" stroke="#E3C27B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M23 20 L27 20 M27 20 L24.4 17 M27 20 L24.4 23" stroke="#E3C27B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <span class="brand-word">Forward Motion <span class="sub">Freight</span></span>
+    </a>
+
+    <nav class="tabnav" aria-label="Primary">
+      <a class="tab" href="dispatcher-portal.html">Dispatcher</a>
+      <a class="tab" href="driver-portal.html">Driver</a>
+      <a class="tab" href="partnership.html">Partnership</a>
+      <a class="tab" href="dispatch-walkthrough.html">Walkthrough</a>
+      <a class="tab tab-accent" href="crash-course-landing.html">Free Course</a>
+    </nav>
+
+    <div class="header-actions">
+      <a class="btn btn-outline btn-sm header-cta" href="https://portal.forwardmotionfreight.com">
+        Open Portal
+      </a>
+      <button class="menu-btn" id="menuToggle" aria-controls="mobileMenu" aria-expanded="false" aria-label="Open menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        Menu
+      </button>
+    </div>
+  </div>
+
+  <div class="mobile-menu" id="mobileMenu">
+    <div class="wrap">
+      <a href="dispatcher-portal.html">Dispatcher Portal</a>
+      <a href="driver-portal.html">Driver Portal</a>
+      <a href="partnership.html">Partnership</a>
+      <a href="dispatch-walkthrough.html">Product Walkthrough</a>
+      <a href="crash-course-landing.html" class="accent">Free Dispatcher Course</a>
+      <a href="https://portal.forwardmotionfreight.com">Open Portal →</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============================================================= -->
+  <!-- HERO — headlights cutting the dark                            -->
+  <!-- ============================================================= -->
+  <section class="hero">
+    <div class="hero-lights" id="heroLights" aria-hidden="true">
+      <div class="hl-glow"></div>
+      <svg class="hl-road" viewBox="0 0 1440 640" preserveAspectRatio="xMidYMax slice">
+        <line class="hl-line" x1="720" y1="640" x2="140" y2="0"/>
+        <line class="hl-line" x1="720" y1="640" x2="1300" y2="0"/>
+        <line class="hl-line hl-center" x1="720" y1="640" x2="720" y2="0"/>
+      </svg>
+      <div class="hl-beam hl-beam-l"></div>
+      <div class="hl-beam hl-beam-r"></div>
+      <div class="hl-lamp hl-lamp-l"></div>
+      <div class="hl-lamp hl-lamp-r"></div>
+      <div class="hl-dust">
+        <span class="mote" style="left:22%; animation-delay:.2s;"></span>
+        <span class="mote" style="left:38%; animation-delay:1.6s;"></span>
+        <span class="mote" style="left:50%; animation-delay:3s;"></span>
+        <span class="mote" style="left:63%; animation-delay:.9s;"></span>
+        <span class="mote" style="left:78%; animation-delay:2.4s;"></span>
+        <span class="mote" style="left:46%; animation-delay:4.2s;"></span>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="case-meta">
+        <span>FILE <b>FMF-2026</b></span>
+        <span>STATUS <b>ACTIVE / BETA</b></span>
+        <span>CLASS <b>OWNER-OPERATOR &middot; DISPATCHER</b></span>
+        <span>ISSUED BY <b>FORWARD MOTION FREIGHT</b></span>
+      </div>
+
+      <div class="hero-inner">
+        <div>
+          <p class="kicker hero-fade d1">
+            <span class="dot-live" style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block;"></span>
+            Veteran-Owned &middot; Founder-Led &middot; Dispatching Every Day
+          </p>
+
+          <h1 class="hero-h1 hero-fade d2">
+            Keep the Wheels Turning.
+            <span class="accent-serif">We'll Handle the Rest.</span>
+          </h1>
+
+          <p class="hero-sub hero-fade d3">
+            A free 14-day course for people who want to become dispatchers. Forward OS — the software
+            that runs the deal desk. And the option to dispatch under our own authority for rev-share.
+            One outfit built the whole ladder — not just one rung of it.
+          </p>
+
+          <div class="hero-ctas hero-fade d3">
+            <a href="crash-course-landing.html" class="btn btn-primary">
+              Start the Free Course
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+            <a href="https://portal.forwardmotionfreight.com/?intake=0vj86fpdGpW6e5WYk0m8" class="btn btn-outline">
+              Become a Carrier
+            </a>
+          </div>
+
+          <div class="hero-stamps hero-fade d4">
+            <span class="hero-stamp"><span class="dot"></span> Veteran-Owned Small Business</span>
+            <span class="hero-stamp"><span class="dot"></span> Carriers Never Pay a Dime</span>
+            <span class="hero-stamp"><span class="dot"></span> Course + Software + Authority</span>
+          </div>
+        </div>
+
+        <div class="seal-col">
+          <svg class="seal" id="heroSeal" viewBox="0 0 200 200" aria-hidden="true">
+            <defs>
+              <linearGradient id="goldFoil" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#F5E3B3"/>
+                <stop offset="35%" stop-color="#E3C27B"/>
+                <stop offset="65%" stop-color="#C9A24B"/>
+                <stop offset="100%" stop-color="#8A6A2E"/>
+              </linearGradient>
+            </defs>
+            <circle cx="100" cy="100" r="93" fill="none" stroke="#050810" stroke-width="4"/>
+            <circle cx="100" cy="100" r="92" fill="none" stroke="url(#goldFoil)" stroke-width="2.4"/>
+            <circle cx="100" cy="100" r="78" fill="none" stroke="url(#goldFoil)" stroke-width="1.2" stroke-dasharray="3 5" opacity="0.85"/>
+            <path d="M100 55 l9.5 19.5 21.5 3 -15.5 15.2 3.7 21.4 -19.2 -10 -19.2 10 3.7 -21.4 -15.5 -15.2 21.5 -3 z" fill="url(#goldFoil)" stroke="#050810" stroke-width="0.6"/>
+            <path id="sealArcTop" d="M 32 100 A 68 68 0 0 1 168 100" fill="none"/>
+            <path id="sealArcBot" d="M 168 108 A 68 68 0 0 1 32 108" fill="none"/>
+            <text font-family="IBM Plex Mono, monospace" font-size="11.5" font-weight="600" letter-spacing="2.5" fill="url(#goldFoil)">
+              <textPath href="#sealArcTop" startOffset="50%" text-anchor="middle">VETERAN &#8226; OWNED</textPath>
+            </text>
+            <text font-family="IBM Plex Mono, monospace" font-size="11.5" font-weight="600" letter-spacing="2.5" fill="url(#goldFoil)">
+              <textPath href="#sealArcBot" startOffset="50%" text-anchor="middle">SMALL &#8226; BUSINESS</textPath>
+            </text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-beam"></div>
+
+  <!-- ============================================================= -->
+  <!-- THE PIPELINE / LADDER                                         -->
+  <!-- ============================================================= -->
+  <section class="network-veil" style="background:var(--navy-2); padding:76px 0;" aria-labelledby="ladder-heading">
+    <div class="wrap">
+      <p class="kicker"><span class="idx">01 /</span> The Pipeline</p>
+      <div class="section-head">
+        <h2 id="ladder-heading">We Didn't Build One Rung. We Built The Whole Ladder.</h2>
+        <p class="lead">Most dispatch-software companies sell you a login. Most dispatcher "gurus" sell you a course. We're a working dispatch company that built both — plus a seat at our own table when you're ready for it.</p>
+      </div>
+
+      <div class="road reveal">
+        <div class="road-track">
+          <div class="stop gold-card">
+            <span class="stop-badge">01</span>
+            <span class="tag">Free</span>
+            <h3>The Crash Course</h3>
+            <p>Fourteen short, guided lessons — zero to booking your first load. No experience required, no card required.</p>
+            <a class="stop-link" href="crash-course-landing.html">Start the course <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          </div>
+          <div class="stop gold-card">
+            <span class="stop-badge">02</span>
+            <span class="tag">Software</span>
+            <h3>Run It On Forward OS</h3>
+            <p>The deal-desk software that prices the load, checks the broker, and runs the paperwork — for dispatchers and the carriers they book.</p>
+            <a class="stop-link" href="request-dispatcher-access.html">Request access <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          </div>
+          <div class="stop gold-card">
+            <span class="stop-badge">03</span>
+            <span class="tag">Rev-Share</span>
+            <h3>Dispatch Under Our Authority</h3>
+            <p>Not ready to go it alone? Dispatch under Forward Motion Freight's own authority and split the revenue while you build your book.</p>
+            <a class="stop-link" href="request-dispatcher-access.html">Ask about rev-share <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="road-foot">
+        <span>Own a dispatching business already?</span>
+        <a href="partnership.html">White-label the platform under your own brand →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= -->
+  <!-- VETERAN-OWNED TRUST PILLAR                                    -->
+  <!-- ============================================================= -->
+  <section class="pillar" style="padding:76px 0;" aria-labelledby="vosb-heading">
+    <div class="wrap">
+      <svg class="seal-lg" id="pillarSeal" viewBox="0 0 200 200" aria-hidden="true">
+        <defs>
+          <linearGradient id="goldFoil2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#F5E3B3"/>
+            <stop offset="35%" stop-color="#E3C27B"/>
+            <stop offset="65%" stop-color="#C9A24B"/>
+            <stop offset="100%" stop-color="#8A6A2E"/>
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="93" fill="none" stroke="#050810" stroke-width="4"/>
+        <circle cx="100" cy="100" r="92" fill="none" stroke="url(#goldFoil2)" stroke-width="2.4"/>
+        <circle cx="100" cy="100" r="78" fill="none" stroke="url(#goldFoil2)" stroke-width="1.2" stroke-dasharray="3 5" opacity="0.85"/>
+        <path d="M100 55 l9.5 19.5 21.5 3 -15.5 15.2 3.7 21.4 -19.2 -10 -19.2 10 3.7 -21.4 -15.5 -15.2 21.5 -3 z" fill="url(#goldFoil2)" stroke="#050810" stroke-width="0.6"/>
+      </svg>
+      <p class="kicker"><span class="idx">02 /</span> Who's Behind This</p>
+      <div class="section-head">
+        <h2 id="vosb-heading">Veteran-Owned. Built Like It.</h2>
+        <p class="lead">Discipline isn't a marketing word here — it's the standard. Signed rate cons, timestamped check calls, a documented chain of custody on every load. That's how you run an operation when the mission actually matters.</p>
+      </div>
+
+      <div class="pillar-badges reveal">
+        <div class="pillar-badge gold-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.8 7.2 17l.9-5.4L4.2 7.7l5.4-.8z"/></svg>
+          <h4>Veteran-Owned Small Business</h4>
+          <p>A real trust signal, not a badge slapped on a template — this is a veteran-owned company from the ground up.</p>
+        </div>
+        <div class="pillar-badge gold-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+          <h4>Founder-Led, Not a Call Center</h4>
+          <p>A real dispatch company behind the software — not a guru selling a course and disappearing.</p>
+        </div>
+        <div class="pillar-badge gold-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
+          <h4>The Whole Pipeline, One Outfit</h4>
+          <p>Course, software, and dispatch-under-authority — competitors usually sell you one of the three.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= -->
+  <!-- FOUNDER FIELD NOTE                                            -->
+  <!-- ============================================================= -->
+  <section style="padding:0 0 76px;">
+    <div class="wrap">
+      <div class="memo reveal">
+        <div class="memo-head">
+          <div class="monogram" aria-hidden="true">PY</div>
+          <div class="memo-head-text">Field Note<b>From the Founder's Desk</b></div>
+        </div>
+        <blockquote>
+          <p>"I built Forward Motion Freight because the dispatch industry is full of two extremes — bloated software nobody can afford, or a $2,000 course with no support after the sale. I wanted the whole ladder to exist in one place: learn it for free, run it on real software, and if you want backup, dispatch under our authority until you're ready to go on your own."</p>
+        </blockquote>
+        <p class="memo-sign">— Prince Younger<span>Founder, Forward Motion Freight</span></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-beam"></div>
+
+  <!-- ============================================================= -->
+  <!-- MARKET INTELLIGENCE LEDGER                                    -->
+  <!-- ============================================================= -->
+  <section style="background:var(--navy-2); padding:76px 0;" aria-labelledby="market-heading">
+    <div class="wrap">
+      <p class="kicker"><span class="idx">03 /</span> 2026 Market Intelligence</p>
+      <div class="section-head">
+        <h2 id="market-heading">We Read The Market So You Don't Leave Money On The Table</h2>
+        <p class="lead">The freight market flipped in 2026 — driver shortages, equipment attrition, and tighter enforcement pushed rates to record highs. That leverage belongs to carriers. We make sure you capture it.</p>
+      </div>
+
+      <div class="ledger-grid reveal">
+        <div class="ledger-cell">
+          <div class="stat">$3.83<small>/mi</small></div>
+          <p>National truckload spot rate — an all-time record.</p>
+        </div>
+        <div class="ledger-cell">
+          <div class="stat">$5.35<small>/gal</small></div>
+          <p>Avg diesel — why your fuel surcharge strategy matters now.</p>
+        </div>
+        <div class="ledger-cell">
+          <div class="stat accent">TIGHT</div>
+          <p>Capacity &amp; driver availability — leverage sits with carriers.</p>
+        </div>
+      </div>
+      <div class="rate-rows">
+        <div class="rate-cell"><div class="lbl">Dry Van</div><div class="val">$2.47&ndash;2.80</div><div class="chg">+18&ndash;23%</div></div>
+        <div class="rate-cell"><div class="lbl">Reefer</div><div class="val">$3.11&ndash;3.31</div><div class="chg">+13&ndash;18%</div></div>
+        <div class="rate-cell"><div class="lbl">Flatbed</div><div class="val">$3.46&ndash;3.57</div><div class="chg">+14&ndash;20%</div></div>
+        <div class="rate-cell"><div class="lbl">LTL</div><div class="val">+12.5%</div><div class="chg">GRI</div></div>
+        <div class="rate-cell"><div class="lbl">Intermodal</div><div class="val">$1.39</div><div class="chg">base</div></div>
+      </div>
+      <p class="ledger-note">Spot-rate estimates as of Q2 2026 (Cass, DAT &amp; industry synthesis). Our dispatchers anchor every broker call to live market data — so the rate you get reflects what the lane is actually paying.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================= -->
+  <!-- THE DESK — value props + anti-fraud ledger rows                -->
+  <!-- ============================================================= -->
+  <section style="padding:76px 0;" aria-labelledby="desk-heading">
+    <div class="wrap">
+      <p class="kicker"><span class="idx">04 /</span> Working The Desk</p>
+      <div class="section-head">
+        <h2 id="desk-heading">Discipline On The Road. Leverage At The Desk.</h2>
+        <p class="lead">The core of what a dispatcher owes you, laid out plainly — plus how we keep your money safe from the fraud that's hit the industry hard in 2026.</p>
+      </div>
+
+      <div class="deskrow-group">
+        <h3>What We Do On Every Load</h3>
+        <div class="deskrows reveal">
+          <div class="deskrow">
+            <span class="num">01</span>
+            <h4>Aggressive Negotiation</h4>
+            <p>We don't settle for the broker's first offer. We calculate your break-even RPM and fight for every cent your truck deserves.</p>
+          </div>
+          <div class="deskrow">
+            <span class="num">02</span>
+            <h4>Strategic Routing</h4>
+            <p>No more getting stuck in dead zones. We use the triangle method to book high-paying headhauls and keep your profit margins wide.</p>
+          </div>
+          <div class="deskrow">
+            <span class="num">03</span>
+            <h4>Total Back-Office</h4>
+            <p>Check calls, Rate Cons, TONUs, and detention tracking. We handle the brokers so you can focus on the road and getting home.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="deskrow-group">
+        <h3>How We Guard Your Money</h3>
+        <div class="deskrows reveal">
+          <div class="deskrow">
+            <span class="num">04</span>
+            <h4>Double-Brokering Defense</h4>
+            <p>We screen every broker for red flags — spoofed domains, suspicious urgency, last-minute swaps — so your load isn't re-brokered out from under you and left unpaid.</p>
+          </div>
+          <div class="deskrow">
+            <span class="num">05</span>
+            <h4>Bond &amp; Authority Checks</h4>
+            <p>We verify the broker's $75k FMCSA bond is active and they're not on the suspended list — before your truck rolls.</p>
+          </div>
+          <div class="deskrow">
+            <span class="num">06</span>
+            <h4>Airtight Proof Packages</h4>
+            <p>Signed Rate Con, timestamped check-calls, signed BOL/POD, and lumper receipts on every load — the documentation that gets you paid and wins a claim if a broker defaults.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-beam"></div>
+
+  <!-- ============================================================= -->
+  <!-- THE PLATFORM (ops console)                                    -->
+  <!-- ============================================================= -->
+  <section class="network-veil" style="background:var(--navy-2); padding:76px 0;" aria-labelledby="platform-heading">
+    <div class="wrap">
+      <p class="kicker"><span class="idx">05 /</span> One Platform, Two Logins</p>
+      <div class="section-head">
+        <h2 id="platform-heading">Forward OS Runs The Whole Operation</h2>
+        <p class="lead">A custom dispatch &amp; carrier portal — the dispatcher works the deal desk while the driver sees only what matters to them. Same system, two views.</p>
+      </div>
+
+      <div class="console-grid reveal">
+        <div class="console-panel gold-card">
+          <p class="eyebrow">For the Dispatcher</p>
+          <h3>The Deal Desk</h3>
+          <ul class="console-list">
+            <li><span class="bullet"></span><span><strong>Rate &amp; profit calculator</strong> — break-even RPM, broker target, and final agreed rate in seconds.</span></li>
+            <li><span class="bullet"></span><span><strong>HOS feasibility check</strong> — confirm a load is legal on the driver's clock before booking it.</span></li>
+            <li><span class="bullet"></span><span><strong>Live mileage &amp; multi-stop routing</strong> — distance, deadhead, and lane intel.</span></li>
+            <li><span class="bullet"></span><span><strong>Carrier management</strong> — profiles, packet import, and one-click load assignment.</span></li>
+            <li><span class="bullet"></span><span><strong>Financials dashboard</strong> — gross, dispatch fee, and net across every load.</span></li>
+          </ul>
+          <div class="console-cta">
+            <a class="link" href="dispatcher-portal.html">Explore the dispatcher portal <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+            <a class="link" href="request-dispatcher-access.html">Request access <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          </div>
+        </div>
+
+        <div class="console-panel gold-card">
+          <p class="eyebrow">For the Carrier &amp; Driver</p>
+          <h3>The Driver Portal</h3>
+          <ul class="console-list">
+            <li><span class="bullet"></span><span><strong>Secure invite-only login</strong> — your loads, your numbers, no one else's.</span></li>
+            <li><span class="bullet"></span><span><strong>Assigned loads &amp; live status</strong> — pickup, delivery, and pay on one clean dashboard.</span></li>
+            <li><span class="bullet"></span><span><strong>Compliance vault</strong> — CDL, medical card, and insurance dates tracked so nothing lapses.</span></li>
+            <li><span class="bullet"></span><span><strong>Earnings at a glance</strong> — what you grossed, the fee, and your net per load.</span></li>
+            <li><span class="bullet"></span><span><strong>VIP concierge</strong> — provisions, safe-parking scouting, and layover guides on every run.</span></li>
+          </ul>
+          <div class="console-cta">
+            <a class="link" href="driver-portal.html">Explore the driver portal <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="console-band-cta">
+        <a href="https://portal.forwardmotionfreight.com" class="btn btn-primary">
+          Open the Driver Portal
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+        <a href="dispatch-walkthrough.html" class="btn btn-outline">
+          Watch the 5-Minute Walkthrough
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= -->
+  <!-- EARNINGS SNAPSHOT                                              -->
+  <!-- ============================================================= -->
+  <section style="padding:76px 0;" aria-labelledby="earnings-heading">
+    <div class="wrap">
+      <p class="kicker"><span class="idx">06 /</span> See Your Money, Not Just Your Miles</p>
+      <div class="section-head">
+        <h2 id="earnings-heading">Drivers See Every Dollar, Every Week</h2>
+      </div>
+
+      <div class="dashcard reveal">
+        <div class="dashcard-top">
+          <span class="dot"></span>
+          <span class="label">Forward OS — Driver Portal / Earnings</span>
+        </div>
+        <div class="dashcard-body">
+          <div class="dash-head">
+            <div>
+              <p class="lbl">Net Pay &middot; This Week</p>
+              <p class="amt">$4,820</p>
+            </div>
+            <span class="dash-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              +12% vs last week
+            </span>
+          </div>
+
+          <div class="chart" id="earningsChart">
+            <div class="col"><span class="amt">$760</span><div class="bar" style="height:64%"></div><span class="day">Mon</span></div>
+            <div class="col"><span class="amt">$890</span><div class="bar" style="height:75%"></div><span class="day">Tue</span></div>
+            <div class="col"><span class="amt">$705</span><div class="bar" style="height:60%"></div><span class="day">Wed</span></div>
+            <div class="col peak"><span class="amt">$1,180</span><div class="bar" style="height:100%"></div><span class="day">Thu</span></div>
+            <div class="col"><span class="amt">$980</span><div class="bar" style="height:83%"></div><span class="day">Fri</span></div>
+            <div class="col"><span class="amt">$840</span><div class="bar" style="height:71%"></div><span class="day">Sat</span></div>
+            <div class="col reset"><span class="amt">Reset</span><div class="bar" style="height:5%"></div><span class="day">Sun</span></div>
+          </div>
+
+          <div class="dash-stats">
+            <div><p class="lbl">Gross</p><p class="val">$5,355</p></div>
+            <div><p class="lbl">Dispatch Fee</p><p class="val">$535</p></div>
+            <div><p class="lbl">Miles</p><p class="val">2,940</p></div>
+            <div><p class="lbl">Avg RPM</p><p class="val accent">$1.82</p></div>
+          </div>
+        </div>
+      </div>
+      <p class="dash-foot">Illustrative example. Each driver's dashboard reflects their real loads and pay.</p>
+    </div>
+  </section>
+
+  <div class="divider-beam"></div>
+
+  <!-- ============================================================= -->
+  <!-- VIP CONCIERGE SUITE                                            -->
+  <!-- ============================================================= -->
+  <section class="network-veil" style="background:var(--navy-2); padding:76px 0;" aria-labelledby="vip-heading">
+    <div class="wrap">
+      <p class="kicker"><span class="idx">07 /</span> The Forward Motion VIP Concierge Suite</p>
+      <div class="section-head">
+        <h2 id="vip-heading">We Handle The Freight. We Watch Out For The Driver.</h2>
+        <p class="lead">Most dispatchers stop caring the moment a load is covered. We don't. These three services are free — because a driver who's looked after runs safer, stronger, and longer.</p>
+      </div>
+
+      <div class="ration-grid reveal">
+        <div class="ration-card gold-card">
+          <div class="top">
+            <svg class="icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12 h22 l-2.2 13.5 a2 2 0 0 1 -2 1.7 H9.2 a2 2 0 0 1 -2 -1.7 z"/><path d="M11 12 l4.5 -7 M21 12 l-4.5 -7"/><path d="M13 17 v5 M19 17 v5"/></svg>
+            <span class="ration-tag">Free</span>
+          </div>
+          <h4>The "Provisions &amp; Wellness" Drop</h4>
+          <p>We scan your route for grocery stores and fresh markets that can actually fit a truck — real food, real parking, no circling a lot with 53 feet behind you.</p>
+        </div>
+        <div class="ration-card gold-card">
+          <div class="top">
+            <svg class="icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="22" height="24" rx="4"/><path d="M12.5 23 V9 h5.5 a4 4 0 0 1 0 8 H12.5"/></svg>
+            <span class="ration-tag">Free</span>
+          </div>
+          <h4>The "Sunset Parking Scout"</h4>
+          <p>We track your hours and scout safe, legal parking ahead of you — so you shut down on time, in a real space, never on a sketchy off-ramp.</p>
+        </div>
+        <div class="ration-card gold-card">
+          <div class="top">
+            <svg class="icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 28 C16 28 25 19.5 25 12 a9 9 0 0 0 -18 0 c0 7.5 9 16 9 16 z"/><circle cx="16" cy="12" r="3.4"/></svg>
+            <span class="ration-tag">Free</span>
+          </div>
+          <h4>The "Layover Local Guide"</h4>
+          <p>The moment you're down for a reset, we map what's within reach — gyms, laundromats, and a solid meal — so your downtime actually feels like downtime.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= -->
+  <!-- PARTNERSHIP BAND                                               -->
+  <!-- ============================================================= -->
+  <section style="padding:64px 0;">
+    <div class="wrap">
+      <div class="band band-dark reveal">
+        <div class="band-grid">
+          <div>
+            <p class="kicker"><span class="idx">08 /</span> For Dispatch Owners</p>
+            <h2>Want This Platform Under Your Own Brand?</h2>
+            <p>Run your own dispatch service? Get a fully white-labeled dispatcher &amp; driver portal — your logo, your drivers, your data — powered by Forward Motion Freight. We built it. You put your name on it.</p>
+          </div>
+          <div class="band-cta">
+            <a href="partnership.html" class="btn btn-primary">
+              Explore the Partnership
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= -->
+  <!-- FAQ                                                            -->
+  <!-- ============================================================= -->
+  <section id="faq" style="padding:20px 0 84px;" aria-labelledby="faq-heading">
+    <div class="wrap" style="max-width:820px;">
+      <p class="kicker"><span class="idx">09 /</span> Questions, Answered</p>
+      <div class="section-head">
+        <h2 id="faq-heading">The Honest FAQ</h2>
+        <p class="lead">Straight answers — no fine print.</p>
+      </div>
+
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>How is this different from a load board like DAT?<span class="plus">+</span></summary>
+          <p class="a">A load board shows you freight to bid on — that's it. It won't tell you if the rate is profitable, whether the broker pays, or how to route to kill deadhead. Forward OS is the layer on top: source loads wherever you do now, then we price them against a rate floor, vet the broker, plan the triangle, and run the paperwork.</p>
+        </details>
+        <details class="faq-item">
+          <summary>How is it different from a big TMS like McLeod or AscendTMS?<span class="plus">+</span></summary>
+          <p class="a">Those are heavy record-keeping systems built for fleets with a back office — powerful, pricey, and a steep climb. Forward OS is dispatcher- and owner-operator-first: opinionated tools that coach the deal, Guided Mode that teaches a new dispatcher, and a driver portal carriers actually like.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Is my data private — can other dispatchers see my carriers?<span class="plus">+</span></summary>
+          <p class="a">No. Every dispatcher gets a fully isolated workspace. You only ever see your own carriers, loads, and notes — separation is built into the foundation, not bolted on.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Do I get paid through the app?<span class="plus">+</span></summary>
+          <p class="a">The app calculates your dispatch fee on every load and rolls it into a weekly total, so billing is exact. You collect from the carrier the way dispatchers do today (Zelle/ACH, or have the factoring company remit your fee). Automated split-pay is on the roadmap.</p>
+        </details>
+        <details class="faq-item">
+          <summary>There's no ELD or live load-board feed yet — does that matter?<span class="plus">+</span></summary>
+          <p class="a">Not for what this does today. Carriers self-report hours with one tap so every offer gets checked against their clock, and you source freight however you already do. ELD and load-board integrations are on the roadmap.</p>
+        </details>
+        <details class="faq-item">
+          <summary>I'm not techy — is it hard to use?<span class="plus">+</span></summary>
+          <p class="a">If you can use a load board, you can use this. Guided Mode walks you through every screen, there's a first-login tour, and carriers onboard themselves with a link you send them.</p>
+        </details>
+        <details class="faq-item">
+          <summary>What does it cost?<span class="plus">+</span></summary>
+          <p class="a">It's free during the beta. Right now we want your feedback more than your money.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============================================================= -->
+<!-- FOOTER                                                        -->
+<!-- ============================================================= -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="fgrid">
+      <div>
+        <div class="brand" style="color:var(--cream);">
+          <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="#D9B876" stroke-width="1.4" opacity="0.85"/>
+            <circle cx="20" cy="20" r="14.5" fill="none" stroke="#D9B876" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.5"/>
+            <path d="M13 20 L21 20 M21 20 L17 15 M21 20 L17 25" stroke="#E3C27B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M23 20 L27 20 M27 20 L24.4 17 M27 20 L24.4 23" stroke="#E3C27B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+          <span class="brand-word">Forward Motion <span class="sub" style="color:var(--gold-text);">Freight</span></span>
+        </div>
+        <h2>Ready to upgrade your freight?</h2>
+        <p class="desc">Contact Prince today to partner with a disciplined, veteran-owned dispatch agency.</p>
+        <p class="mail">Email: <a href="mailto:prince@forwardmotionfreight.com">prince@forwardmotionfreight.com</a></p>
+      </div>
+      <nav class="fnav" aria-label="Footer">
+        <a href="dispatcher-portal.html">Dispatcher Portal</a>
+        <a href="driver-portal.html">Driver Portal</a>
+        <a href="partnership.html">Partnership</a>
+        <a href="dispatch-walkthrough.html">Product Walkthrough</a>
+        <a href="crash-course-landing.html" class="accent">Free Course</a>
+        <a href="https://portal.forwardmotionfreight.com">Open Portal</a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <p class="tagline">Keep Moving Forward.</p>
+      <p class="rights">&copy; 2026 Forward Motion Freight. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // mobile menu toggle
+  var btn = document.getElementById('menuToggle');
+  var menu = document.getElementById('mobileMenu');
+  if (btn && menu) {
+    btn.addEventListener('click', function () {
+      var open = menu.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    menu.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () {
+        menu.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  }
+
+  // switch the headlights on shortly after load, like a truck's beams coming on
+  var lights = document.getElementById('heroLights');
+  if (lights) {
+    window.requestAnimationFrame(function () {
+      setTimeout(function () { lights.classList.add('lit'); }, 120);
+    });
+  }
+
+  // generic scroll reveal + seal stamp + road line + chart bars, all via one observer
+  var targets = document.querySelectorAll('.reveal, .seal, .seal-lg, .road-track, .chart');
+  if (!('IntersectionObserver' in window) || !targets.length) {
+    targets.forEach(function (t) { t.classList.add('in-view'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in-view');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.25 });
+  targets.forEach(function (t) { io.observe(t); });
+})();
+</script>
+
+</body>
+</html>
