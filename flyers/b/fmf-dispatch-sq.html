@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FMF Flyer — Style B</title>
+<style>
+
+  :root{
+    --cream:#F1E6C8; --cherry:#B3221A; --cherry-dark:#7F160F;
+    --navy:#1B2A4A; --navy-dark:#0F1A30;
+    --sans-black:'Arial Black','Arial Bold',Arial,Helvetica,sans-serif;
+    --sans:Arial,Helvetica,sans-serif;
+    --mono:'Courier New',ui-monospace,Courier,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:#000;}
+  .canvas{
+    width:1080px;height:1080px;position:relative;overflow:hidden;
+    background:var(--cream); color:var(--navy); font-family:var(--sans);
+    display:flex;flex-direction:column;
+    -webkit-font-smoothing:antialiased;
+    border:14px solid var(--navy);
+  }
+  .canvas::before{content:'';position:absolute;inset:23px;border:3px solid var(--cherry);pointer-events:none;z-index:1;}
+
+  .halftone{position:absolute;z-index:0;}
+  .grain{position:absolute;inset:-30px;z-index:6;pointer-events:none;
+    background-image:url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNjAnIGhlaWdodD0nMjYwJz4KPGZpbHRlciBpZD0nbic+CjxmZVR1cmJ1bGVuY2UgdHlwZT0nZnJhY3RhbE5vaXNlJyBiYXNlRnJlcXVlbmN5PScwLjknIG51bU9jdGF2ZXM9JzInIHN0aXRjaFRpbGVzPSdzdGl0Y2gnIHJlc3VsdD0nbm9pc2UnLz4KPGZlQ29sb3JNYXRyaXggaW49J25vaXNlJyB0eXBlPSdtYXRyaXgnIHZhbHVlcz0nMCAwIDAgMCAwICAwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMC4zMyAwLjMzIDAuMzQgMCAwJyByZXN1bHQ9J2dyYXknLz4KPGZlQ29tcG9uZW50VHJhbnNmZXIgaW49J2dyYXknIHJlc3VsdD0nc3BhcnNlJz48ZmVGdW5jQSB0eXBlPSdnYW1tYScgYW1wbGl0dWRlPScxJyBleHBvbmVudD0nNCcgb2Zmc2V0PScwJy8+PC9mZUNvbXBvbmVudFRyYW5zZmVyPgo8L2ZpbHRlcj4KPHJlY3Qgd2lkdGg9JzEwMCUnIGhlaWdodD0nMTAwJScgZmlsdGVyPSd1cmwoI24pJy8+Cjwvc3ZnPgo=');
+    background-size:150px 150px; mix-blend-mode:multiply; opacity:.8;}
+
+  .hdr{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:56px 66px 0 60px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand svg{width:38px;height:38px;flex-shrink:0;transform:rotate(-4deg);}
+  .brand-word{font-family:var(--sans-black);font-weight:900;font-size:20px;letter-spacing:.01em;color:var(--navy);text-transform:uppercase;}
+  .brand-word span{color:var(--cherry);}
+  .stars{display:flex;gap:7px;transform:rotate(3deg);}
+  .stars svg{width:16px;height:16px;}
+  .stars svg:nth-child(2){transform:translateY(-3px) scale(1.15);}
+
+  .main{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 66px 0 62px;gap:0;}
+
+  .kicker-row{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:16px;margin-left:2px;}
+  .kicker{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--cherry);}
+  .kicker.alt{color:var(--navy);}
+
+  .headwrap{position:relative;margin-bottom:6px;}
+  .ghost{position:absolute;z-index:1;top:3px;left:4px;font-family:var(--sans-black);font-weight:900;
+    line-height:0.92;letter-spacing:-.01em;color:var(--cherry);text-transform:uppercase;opacity:.3;}
+  .headline{position:relative;z-index:2;font-family:var(--sans-black);font-weight:900;line-height:0.92;letter-spacing:-.01em;
+    color:var(--navy);text-transform:uppercase;}
+  .l2{display:block;}
+  .l3{display:block;}
+  .headline .l2{color:var(--cherry);}
+
+  .stripe2{position:relative;z-index:2;height:13px;margin:26px 68px 0 60px;background:var(--cherry);
+    box-shadow:6px 6px 0 var(--navy-dark);transform:skewY(-.5deg);}
+
+  .banner{position:relative;display:inline-flex;align-items:center;width:fit-content;background:var(--navy);color:var(--cream);
+    padding:15px 30px 14px 24px;margin:6px 0 22px -6px;box-shadow:8px 8px 0 var(--cherry-dark);z-index:3;}
+  .banner span{display:inline-block;font-family:var(--sans-black);font-weight:900;font-size:25px;letter-spacing:.005em;}
+
+  .trust{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--cherry-dark);
+    margin:16px 0 20px 4px;text-transform:uppercase;}
+
+  .story{font-family:Georgia,'Times New Roman',serif;font-size:23px;line-height:1.52;color:var(--navy);
+    padding:4px 4px 4px 22px;border-left:4px solid var(--cherry);margin:10px 0 26px 2px;max-width:920px;}
+  .story b{color:var(--cherry-dark);}
+
+  .torn{width:100%;height:14px;margin:2px 0 20px;}
+
+  .benefits{display:flex;flex-direction:column;gap:0;}
+  .benefit{display:flex;align-items:center;gap:18px;}
+  .benefit .badge{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    background:var(--cherry);border:2px solid var(--navy);}
+  .badge.round{border-radius:50%;}
+  .badge.sq{border-radius:7px;}
+  .benefit .badge svg{width:16px;height:16px;}
+  .benefit .txt{font-size:23px;line-height:1.32;color:var(--navy);font-weight:700;}
+
+  .ladder{position:relative;margin:6px 0 22px;}
+  .stop{display:flex;align-items:flex-start;gap:22px;position:relative;z-index:2;padding:13px 0;}
+  .stop .num{width:54px;height:54px;flex-shrink:0;border-radius:50%;background:var(--navy);border:3px solid var(--cherry);
+    display:flex;align-items:center;justify-content:center;font-family:var(--sans-black);font-weight:900;font-size:17px;color:var(--cream);}
+  .stop .stxt{padding-top:2px;}
+  .stop .label{font-family:var(--sans-black);font-weight:900;font-size:27px;color:var(--cherry);text-transform:uppercase;letter-spacing:.01em;line-height:1.05;}
+  .stop .desc{font-family:var(--sans);font-size:17px;color:var(--navy);font-weight:700;margin-top:3px;line-height:1.3;}
+  .roadsvg{position:absolute;left:16px;top:6px;bottom:6px;z-index:1;}
+
+  .bottom{display:flex;align-items:center;justify-content:space-between;padding-top:14px;margin-left:2px;flex-wrap:wrap;gap:16px;}
+  .cta{display:inline-flex;align-items:center;gap:12px;font-family:var(--sans-black);font-weight:900;font-size:22px;
+    padding:19px 36px;width:fit-content;background:var(--cherry);color:var(--cream);
+    border:3px solid var(--navy);box-shadow:8px 8px 0 var(--navy);text-transform:uppercase;letter-spacing:.02em;}
+  .cta svg{width:19px;height:19px;}
+
+  .ftr{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;
+    padding:26px 66px 44px 60px;}
+  .ftr .site{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.02em;color:var(--navy);}
+  .ftr .micro{width:20px;height:20px;opacity:.55;transform:rotate(-4deg);}
+
+  .stamp{position:absolute;z-index:7;opacity:.92;}
+  
+.headwrap .ghost, .headwrap .headline{font-size:66px;}
+
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="halftone" style="top:-88.4px;right:-88.4px;width:520px;height:520px;opacity:0.5;
+    background-image:radial-gradient(circle,var(--cherry) 0 3.4px,transparent 3.6px);
+    background-size:17px 17px;
+    -webkit-mask-image:radial-gradient(circle at 64% 36%, black 0%, black 18%, transparent 68%);
+    mask-image:radial-gradient(circle at 64% 36%, black 0%, black 18%, transparent 68%);"></div>
+  <div class="halftone" style="bottom:-61.2px;left:-61.2px;width:360px;height:360px;opacity:0.38;
+    background-image:radial-gradient(circle,var(--navy) 0 2.6px,transparent 2.8000000000000003px);
+    background-size:13px 13px;
+    -webkit-mask-image:radial-gradient(circle at 28% 60%, black 0%, black 18%, transparent 62%);
+    mask-image:radial-gradient(circle at 28% 60%, black 0%, black 18%, transparent 62%);"></div>
+  
+    <div class="hdr">
+      <div class="brand">
+        <svg viewBox="0 0 40 40" aria-hidden="true">
+          <polygon points="20,2 37,10 37,22 20,38 3,22 3,10" fill="var(--navy)" stroke="var(--cherry)" stroke-width="1.6"/>
+          <path d="M12 20 L22 20 M22 20 L17 15 M22 20 L17 25" stroke="#F1E6C8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span class="brand-word">Forward Motion <span>Freight</span></span>
+      </div>
+      <div class="stars">
+        <svg viewBox="0 0 24 24" fill="#B3221A"><path d="M12 1l2.9 7.6L23 9.3l-6 5.2 1.9 7.9L12 18l-6.9 4.4L7 14.5l-6-5.2 8.1-.7z"/></svg>
+        <svg viewBox="0 0 24 24" fill="#1B2A4A"><path d="M12 1l2.9 7.6L23 9.3l-6 5.2 1.9 7.9L12 18l-6.9 4.4L7 14.5l-6-5.2 8.1-.7z"/></svg>
+        <svg viewBox="0 0 24 24" fill="#B3221A"><path d="M12 1l2.9 7.6L23 9.3l-6 5.2 1.9 7.9L12 18l-6.9 4.4L7 14.5l-6-5.2 8.1-.7z"/></svg>
+      </div>
+    </div>
+  <div class="stripe2" aria-hidden="true"></div>
+  <div class="main">
+    <div class="kicker-row"><span class="kicker">Full-Service Dispatching</span><span class="kicker alt">&middot; $0 Subscription</span></div>
+    <div class="headwrap">
+      <h1 class="ghost" aria-hidden="true">Full-Service Truck<span class="l2" style="margin-left:34px;">Dispatching, Handled.</span></h1>
+      <h1 class="headline">Full-Service Truck<span class="l2" style="margin-left:34px;">Dispatching, Handled.</span></h1>
+    </div>
+    
+    <div class="banner" style="transform:rotate(-2.2deg);margin-top:6px;"><span>You drive. We run the desk.</span></div>
+    <svg class="torn" viewBox="0 0 1000 14" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 7 L40 4 L78 9 L120 3 L162 8 L205 5 L248 10 L290 4 L333 7 L376 3 L418 9 L461 5 L504 8 L547 4 L590 9 L632 3 L675 7 L718 5 L760 9 L803 4 L846 8 L888 3 L931 9 L974 5 L1000 7"
+        fill="none" stroke="#1B2A4A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="benefits">
+      <div class="benefit" style="padding:9px 0 13px 4px;"><span class="badge round" style="transform:rotate(0deg);"><svg viewBox="0 0 24 24" fill="none" stroke="#F1E6C8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span><span class="txt">We source &amp; negotiate your loads</span></div>
+      <div class="benefit" style="padding:13px 0 13px 30px;"><span class="badge round" style="transform:rotate(-7deg);"><svg viewBox="0 0 24 24" fill="none" stroke="#F1E6C8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span><span class="txt">Fewer deadhead miles, better lanes</span></div>
+      <div class="benefit" style="padding:13px 0 13px 10px;"><span class="badge round" style="transform:rotate(5deg);"><svg viewBox="0 0 24 24" fill="none" stroke="#F1E6C8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span><span class="txt">RateCons, broker setups &amp; paperwork &mdash; done</span></div>
+      <div class="benefit" style="padding:13px 0 6px 26px;"><span class="badge round" style="transform:rotate(-4deg);"><svg viewBox="0 0 24 24" fill="none" stroke="#F1E6C8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span><span class="txt">VIP concierge support on the road</span></div></div>
+    <div class="trust">Veteran-owned. You only pay when you&rsquo;re loaded.</div>
+  
+    <div class="bottom">
+      <a class="cta" href="#" style="transform:rotate(0.9deg);">
+        Get Dispatched
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </div>
+  </div>
+  
+  <div class="ftr">
+    <span class="site">forwardmotionfreight.com</span>
+    <svg class="micro" viewBox="0 0 40 40" aria-hidden="true">
+      <polygon points="20,2 37,10 37,22 20,38 3,22 3,10" fill="none" stroke="var(--navy)" stroke-width="2.4"/>
+    </svg>
+  </div>
+  <svg class="stamp" viewBox="0 0 140 140" style="bottom:170px;right:40px;width:118px;height:118px;transform:rotate(10deg);" aria-hidden="true">
+    <circle cx="70" cy="70" r="62" fill="none" stroke="#7F160F" stroke-width="4.5"
+      stroke-dasharray="9 3 4 3 11 4 3 5 8 3 5 4 10 3" opacity="0.85"/>
+    <circle cx="70" cy="70" r="50" fill="none" stroke="#7F160F" stroke-width="1.6"
+      stroke-dasharray="2 3" opacity="0.7"/>
+    <path id="sa74196a" d="M 70,20 A 50,50 0 0 1 120,70" fill="none"/>
+    <text font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="12.5" letter-spacing="2.5" fill="#7F160F" opacity="0.9">
+      <textPath href="#sa74196a" startOffset="2">VETERAN&#8226;</textPath>
+    </text>
+    <path id="sa74196b" d="M 20,70 A 50,50 0 0 1 70,120" fill="none"/>
+    <text font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="12.5" letter-spacing="2.5" fill="#7F160F" opacity="0.9">
+      <textPath href="#sa74196b" startOffset="2">&#8226;OWNED</textPath>
+    </text>
+    <path d="M55 74 l10 10 22 -24" fill="none" stroke="#7F160F" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  </svg>
+  <div class="grain"></div>
+</div>
+</body>
+</html>
