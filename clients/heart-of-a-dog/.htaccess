@@ -1,0 +1,19 @@
+# Heart of a Dog: redirects from the old WordPress URLs to the new pages.
+# The old contact page held the intake form; it now points to the contact section on the homepage.
+RewriteEngine On
+RewriteRule ^contact/?$ /#contact [R=301,NE,L]
+RewriteRule ^reviews/?$ /#reviews [R=301,NE,L]
+RewriteRule ^gallery/?$ /#gallery [R=301,NE,L]
+RewriteRule ^home/?$ / [R=301,L]
+RewriteRule ^404-2/?$ / [R=301,L]
+
+# Serve /about/ and /services/ (folders with index.html)
+DirectoryIndex index.html
+
+# Cache images and CSS for a week
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg "access plus 7 days"
+  ExpiresByType image/png "access plus 7 days"
+  ExpiresByType text/css "access plus 7 days"
+</IfModule>

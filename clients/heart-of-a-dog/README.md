@@ -1,45 +1,66 @@
-# Heart of a Dog Training — Website Redesign
+# Heart of a Dog Dog Training: Website Redesign
 
-Static 4-page site: `index.html`, `services.html`, `about.html`, `contact.html`.
-No intake form page. Visitors book by call, text or email.
+Replaces the current WordPress + Elementor site at heartofadogtrainingatl.com
+(designed by Bleuprint Media, 2021) with a fast static site in her logo colors.
 
-## 1. Collect from the client before launch
+## What's here
 
-- [x] **Brand colors**: taken from her logo (blue `#5B9BE6`, green `#66BD95`) and set at the top of `styles.css`. If she has official hex codes, paste them over `--logo-blue` / `--logo-green` there.
-- [ ] **Logo file**: ask for the original transparent PNG (not a screenshot) and save it as `images/logo.png`. It shows up in the header on every page automatically.
-- [ ] **Photos**: `images/hero.jpg` (landscape), `images/trainer.jpg` (portrait), `images/og-image.jpg` (1200×630, used for social shares). On each placeholder `div class="… ph"`, add `style="background-image:url(images/hero.jpg)"`.
-- [ ] Phone, email, hours, Facebook/Instagram URLs
-- [ ] Trainer name, bio, certifications
-- [ ] Program names, session counts, starting prices (or remove the price lines)
-- [ ] 3 real reviews (first name + city)
-- [ ] Stats: years training, dogs trained
-- [ ] Confirm the service-area cities
+| File | URL | Notes |
+|---|---|---|
+| `index.html` | `/` | Hero, programs, about Jaila, how it works, gallery, reviews, FAQ, contact |
+| `services/index.html` | `/services/` | Board and train tiers and prices, private and virtual lessons, boarding |
+| `about/index.html` | `/about/` | Jaila's bio, goal, values, reviews |
+| `.htaccess` | n/a | 301 redirects from old URLs, including the old intake form page |
+| `images/` | n/a | Her own photos (resized), cleaned-up logo, favicon, social share image |
 
-Find/replace these placeholders across all files:
-`[PHONE]`, `[PHONE_DIGITS]` (e.g. `+16785550123`), `[EMAIL]`, `[FACEBOOK_URL]`, `[INSTAGRAM_URL]`, `[Trainer Name]`, `[X]`, and any other `[…]`.
+**Intake form removed.** The old `/contact/` page held the form (name, breed, dog's age, captcha),
+and every "Get Started" button linked there. The page is gone. `/contact/` now 301-redirects to the
+contact section on the homepage, which has call, text and email buttons. `/reviews/` and `/gallery/`
+redirect to their sections on the homepage. `/about/` and `/services/` keep their old URLs, so
+Google rankings carry over.
 
-## 2. Deploy on MochaHost (cPanel)
+## Confirm with Jaila before launch
 
-1. cPanel → **Backup Wizard** → download a full backup of the current site first.
-2. If the current site is WordPress: move it out of the way instead of deleting it. In File Manager, create `public_html/old-site/` and move the WordPress files into it (or use a staging subdomain first).
-3. Upload everything in this folder into `public_html/`.
-4. Visit the site, test every link and the phone/email buttons on a phone.
-5. **Remove the old intake form URL**: in cPanel → **Redirects**, add a 301 redirect from the old intake page path (e.g. `/intake-form`) to `/contact.html` so Google and old links don't hit a 404.
-6. Add 301s from the old WordPress page URLs (e.g. `/services/`, `/about/`) to the new `.html` pages.
+- [ ] **Phone number.** Her old site lists two: **(770) 954-6084** (contact page and footer) and
+      **(470) 288-4848** (homepage). The new site uses (770) 954-6084 everywhere. Which one is right?
+- [ ] **Prices.** Copied from her current site, which dates from 2022: board and train $1,550 / $2,200 / $2,800,
+      private lessons $800, virtual lessons $600, boarding $60 a night. Still current?
+- [ ] **Location.** Her Thumbtack listing says Powder Springs, GA. The site's visible text says "Metro Atlanta",
+      and the Google structured data says Powder Springs. Confirm her city and the areas she serves.
+- [ ] **"Balanced trainer".** Her old bio said "groomed-balanced trainer", which reads like a typo. The new text says
+      "balanced trainer". Does she hold a certification to list instead?
+- [ ] **Photos.** Picked from her old gallery. Swap any she doesn't like; files are in `images/`.
+- [ ] **Logo.** `images/logo.png` was cleaned up from a screenshot. If she has the original file, replace it.
+- [ ] **Old site bits.** Her WordPress has WooCommerce installed, but no shop pages are linked. Check that she isn't selling anything.
 
-## 3. SEO after launch (this does most of the "better keywords" work)
+## Deploy on MochaHost (cPanel)
 
-- **Google Search Console**: add the domain, submit `sitemap.xml`.
-- **Google Business Profile**: category "Dog trainer", same name/phone/city as the site, link to the website, ask happy clients for reviews. For local searches this matters more than anything on the site itself.
-- Keep name, phone and city identical everywhere (site, Google, Thumbtack, Facebook, Yelp).
+1. cPanel → **Backup Wizard** → download a full backup, or run a JetBackup 5 snapshot.
+2. **File Manager** → `public_html` → create a folder `old-wordpress` and move all the WordPress
+   files and folders into it (`wp-admin`, `wp-content`, `wp-includes`, `index.php`, `wp-*.php`, and the
+   old `.htaccess`). Leave `.well-known` and `cgi-bin` where they are.
+3. Upload the contents of this folder (including `.htaccess`, `about/`, `services/` and `images/`) into `public_html`.
+4. Visit the site on a phone and a laptop. Tap the call, text and email buttons, and open
+   `/contact/`, `/reviews/` and `/gallery/` to check that they redirect.
+5. Once it's all confirmed working (give it a week or two), delete `old-wordpress` and its database
+   in cPanel → **MySQL Databases** so the old WordPress install can't be hacked.
+
+## SEO after launch
+
+- **Google Search Console**: add the domain, submit `https://heartofadogtrainingatl.com/sitemap.xml`,
+  and request indexing for the homepage.
+- **Google Business Profile**: category "Dog trainer" (add "Pet boarding service"), the same name, phone and
+  website as the site, photos, and ask every client for a Google review. This does more for local search than anything else.
+- Keep the name, phone and city identical on Google, Thumbtack, Facebook, Instagram and TikTok.
 
 Keywords the pages are written around:
 
-| Page | Primary keywords |
+| Page | Target searches |
 |---|---|
-| Home | dog trainer Powder Springs GA, in-home dog training, dog training Metro Atlanta |
-| Programs | puppy training Marietta, obedience training West Cobb, reactive dog training Atlanta, dog behavior modification |
-| About | Powder Springs dog trainer, private dog trainer |
-| Contact | dog training consultation Powder Springs |
+| Home | dog training Atlanta, board and train Atlanta, dog trainer near me |
+| Programs | board and train prices, private dog training lessons, virtual dog training, dog boarding Atlanta |
+| About | Atlanta dog trainer, balanced dog trainer |
 
-Already included: unique title and meta description per page, LocalBusiness and FAQ structured data (schema.org), canonical URLs, Open Graph tags, sitemap.xml, robots.txt, and one H1 per page.
+Built in: unique titles and descriptions, LocalBusiness schema with prices and reviews, FAQ schema,
+canonical URLs, social share image, descriptive photo alt text, sitemap and robots.txt, and fast load
+(no WordPress, 12 optimized photos).
