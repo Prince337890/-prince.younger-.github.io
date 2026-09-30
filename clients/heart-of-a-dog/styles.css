@@ -6,18 +6,23 @@
    ========================================================================== */
 
 :root {
-  /* Brand — REPLACE WITH CLIENT HEX CODES */
-  --brand:        #1F3A34;  /* primary (deep evergreen)      */
-  --brand-dark:   #142723;  /* darker shade of primary        */
-  --accent:       #B08D57;  /* accent (antique gold)          */
-  --accent-soft:  #E9DFCC;  /* light tint of accent           */
+  /* Brand — taken from the Heart of a Dog logo.
+     Logo blue #5B9BE6 and logo green #66BD95 are used as-is for decorative
+     touches; text and buttons use deeper shades of the same hues so they
+     stay readable (WCAG AA contrast on white). */
+  --logo-blue:    #5B9BE6;
+  --logo-green:   #66BD95;
+  --brand:        #2F6DB5;  /* primary: deepened logo blue    */
+  --brand-dark:   #1B3A5C;  /* navy for dark sections          */
+  --accent:       #2F8A62;  /* deepened logo green (text-safe) */
+  --accent-soft:  #DCEFE5;  /* light tint of logo green        */
 
   /* Neutrals */
-  --ink:          #1C1C1A;
-  --ink-soft:     #55534E;
-  --line:         #E4E0D8;
-  --paper:        #FBFAF7;
-  --paper-2:      #F3F0EA;
+  --ink:          #16202B;
+  --ink-soft:     #4A5563;
+  --line:         #DFE6EE;
+  --paper:        #F8FAFC;
+  --paper-2:      #EEF3F8;
   --white:        #FFFFFF;
 
   /* Type */
@@ -100,7 +105,7 @@ p  { margin: 0 0 1.1em; color: var(--ink-soft); }
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(251, 250, 247, .94);
+  background: rgba(248, 250, 252, .94);
   backdrop-filter: saturate(160%) blur(8px);
   border-bottom: 1px solid var(--line);
 }
@@ -112,11 +117,13 @@ p  { margin: 0 0 1.1em; color: var(--ink-soft); }
 }
 .logo {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: .8rem;
   line-height: 1;
   color: var(--ink);
 }
-.logo img { height: 48px; width: auto; }
+.logo img { height: 56px; width: auto; }
+.logo-text { display: flex; flex-direction: column; }
 .logo-name {
   font-family: var(--font-display);
   font-size: 1.6rem;
@@ -208,7 +215,8 @@ p  { margin: 0 0 1.1em; color: var(--ink-soft); }
 
 /* Page header (inner pages) --------------------------------------------- */
 .page-head {
-  background: var(--brand);
+  background: var(--brand-dark);
+  border-bottom: 4px solid var(--logo-green);
   color: var(--white);
   padding: 6rem 0 5rem;
 }
@@ -219,7 +227,7 @@ p  { margin: 0 0 1.1em; color: var(--ink-soft); }
 /* Sections --------------------------------------------------------------- */
 section { padding: 6.5rem 0; }
 .section-alt { background: var(--paper-2); }
-.section-dark { background: var(--brand); color: var(--white); }
+.section-dark { background: var(--brand-dark); color: var(--white); }
 .section-dark h2, .section-dark h3 { color: var(--white); }
 .section-dark p { color: rgba(255,255,255,.78); }
 .section-dark .eyebrow { color: var(--accent-soft); }
@@ -255,7 +263,8 @@ section { padding: 6.5rem 0; }
   flex-direction: column;
   transition: box-shadow .25s, transform .25s;
 }
-.card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+.card:hover { box-shadow: var(--shadow); transform: translateY(-2px); border-top-color: var(--logo-green); }
+.card { border-top: 3px solid var(--logo-blue); }
 .card-num {
   font-family: var(--font-display);
   font-size: 1rem;
@@ -304,7 +313,7 @@ section { padding: 6.5rem 0; }
   display: block;
   font-family: var(--font-display);
   font-size: 2.6rem;
-  color: var(--accent);
+  color: var(--logo-green);
   line-height: 1;
   margin-bottom: 1rem;
 }
@@ -356,7 +365,7 @@ section { padding: 6.5rem 0; }
 .contact-list a, .contact-list div { font-family: var(--font-display); font-size: 1.5rem; color: var(--ink); }
 
 /* CTA band --------------------------------------------------------------- */
-.cta-band { background: var(--brand-dark); color: var(--white); text-align: center; padding: 5.5rem 0; }
+.cta-band { background: var(--brand); color: var(--white); text-align: center; padding: 5.5rem 0; }
 .cta-band h2 { color: var(--white); }
 .cta-band p { color: rgba(255,255,255,.78); margin-inline: auto; max-width: 36rem; }
 .cta-band .btn-row { justify-content: center; }

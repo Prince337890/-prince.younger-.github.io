@@ -5,8 +5,8 @@ No intake form page. Visitors book by call, text or email.
 
 ## 1. Collect from the client before launch
 
-- [ ] **Brand hex codes** (primary, dark shade, accent, light accent). Paste them into the 4 `--brand…` / `--accent…` lines at the top of `styles.css`. Every color on the site comes from those lines.
-- [ ] **Logo** (SVG or transparent PNG): put it in `images/logo.svg` and swap it into the `<a class="logo">` block on each page (a comment marks the spot).
+- [x] **Brand colors**: taken from her logo (blue `#5B9BE6`, green `#66BD95`) and set at the top of `styles.css`. If she has official hex codes, paste them over `--logo-blue` / `--logo-green` there.
+- [ ] **Logo file**: ask for the original transparent PNG (not a screenshot) and save it as `images/logo.png`. It shows up in the header on every page automatically.
 - [ ] **Photos**: `images/hero.jpg` (landscape), `images/trainer.jpg` (portrait), `images/og-image.jpg` (1200×630, used for social shares). On each placeholder `div class="… ph"`, add `style="background-image:url(images/hero.jpg)"`.
 - [ ] Phone, email, hours, Facebook/Instagram URLs
 - [ ] Trainer name, bio, certifications

@@ -57,9 +57,12 @@
 <header class="site-header">
   <nav class="wrap nav" aria-label="Main">
     <a class="logo" href="index.html" aria-label="Heart of a Dog Training home">
-      <!-- Swap for the client's logo: <img src="images/logo.svg" alt="Heart of a Dog Training"> -->
-      <span class="logo-name">Heart of a Dog</span>
-      <span class="logo-sub">Dog Training · Atlanta</span>
+      <!-- Drop the client's transparent logo at images/logo.png; it hides itself until the file exists -->
+      <img src="images/logo.png" alt="" onerror="this.remove()">
+      <span class="logo-text">
+        <span class="logo-name">Heart of a Dog</span>
+        <span class="logo-sub">Dog Training · Atlanta</span>
+      </span>
     </a>
     <button class="nav-toggle" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <ul class="nav-links">
