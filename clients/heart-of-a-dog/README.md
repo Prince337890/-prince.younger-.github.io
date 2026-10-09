@@ -21,8 +21,8 @@ Google rankings carry over.
 
 ## Confirm with Jaila before launch
 
-- [ ] **Phone number.** Her old site lists two: **(770) 954-6084** (contact page and footer) and
-      **(470) 288-4848** (homepage). The new site uses (770) 954-6084 everywhere. Which one is right?
+- [x] **Phone number.** Confirmed by Jaila: **(470) 288-4848**, used everywhere on the site.
+      Update it on Google, Thumbtack and social profiles too, since her old site also listed (770) 954-6084.
 - [ ] **Prices.** Copied from her current site, which dates from 2022: board and train $1,550 / $2,200 / $2,800,
       private lessons $800, virtual lessons $600, boarding $60 a night. Still current?
 - [ ] **Location.** Her Thumbtack listing says Powder Springs, GA. The site's visible text says "Metro Atlanta",
