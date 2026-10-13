@@ -19,19 +19,22 @@ contact section on the homepage, which has call, text and email buttons. `/revie
 redirect to their sections on the homepage. `/about/` and `/services/` keep their old URLs, so
 Google rankings carry over.
 
-## Confirm with Jaila before launch
+## Client-confirmed details (Oct 2026 revision)
 
-- [x] **Phone number.** Confirmed by Jaila: **(470) 288-4848**, used everywhere on the site.
-      Update it on Google, Thumbtack and social profiles too, since her old site also listed (770) 954-6084.
-- [ ] **Prices.** Copied from her current site, which dates from 2022: board and train $1,550 / $2,200 / $2,800,
-      private lessons $800, virtual lessons $600, boarding $60 a night. Still current?
-- [ ] **Location.** Her Thumbtack listing says Powder Springs, GA. The site's visible text says "Metro Atlanta",
-      and the Google structured data says Powder Springs. Confirm her city and the areas she serves.
-- [ ] **"Balanced trainer".** Her old bio said "groomed-balanced trainer", which reads like a typo. The new text says
-      "balanced trainer". Does she hold a certification to list instead?
-- [ ] **Photos.** Picked from her old gallery. Swap any she doesn't like; files are in `images/`.
-- [ ] **Logo.** `images/logo.png` was cleaned up from a screenshot. If she has the original file, replace it.
-- [ ] **Old site bits.** Her WordPress has WooCommerce installed, but no shop pages are linked. Check that she isn't selling anything.
+- Business name: **Heart of a Dog Training**, based in **Dallas, GA**, serving Dallas, Hiram, Powder Springs, Douglasville, Marietta and nearby Metro Atlanta.
+- Phone **(470) 288-4848** · heartofadog.training@gmail.com · Instagram **@heartofadog_training**
+- About ~7 years of experience. The About page uses her own bio text.
+- Private lesson packages: $125 (1), $350 (3), $575 (5), $900 (8), $1,100 (10), each with a customized plan, homework, text support and owner education.
+- Board & train: 2 weeks $1,550 (2 lessons), 3 weeks $2,200 (3 lessons), 4 weeks $2,800 (4 lessons). Payment plans available.
+- Virtual training: $85 per lesson. Overnight boarding: $65 a night; pickup $50 and drop-off $50, arranged in advance.
+- Mileage fees beyond 15 miles; travel costs are discussed before scheduling.
+
+### Still open
+
+- [ ] **Instagram handle.** She wrote @heartofadog_training, but her old site linked @heartofadog_dogtraining. Open
+      instagram.com/heartofadog_training to confirm that it's her account before launch.
+- [ ] **Facebook and TikTok.** Links are kept in the page data (schema) from the old site but are not shown, since she only listed Instagram.
+- [ ] **Photo priorities.** Her notes say "prioritize photos showing:" but the list was cut off.
 
 ## Deploy on MochaHost (cPanel)
 
