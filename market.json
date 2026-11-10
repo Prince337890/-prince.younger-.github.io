@@ -1,11 +1,11 @@
 {
   "_comment": "Live market data for the Forward OS / Forward Motion Freight portal. Feeds the dashboard Market Pulse card and the Rate Calculator's suggested-rate button. SCHEMA MUST MATCH the portal reader's BUILTIN_MARKET shape in app/src/App.jsx (mergeMarketData): asOf, blurb, dieselPerGal, spotAllIn, trend(up|down|flat), modality[{type,rpm,yoy}], lanes[{lane,rpm}], commodityRates{}. Missing/malformed fields fall back to builtin per-field. Maintained by Dex (market desk agent) — see _sourcing for what's live vs carried-forward. Deploys to forwardmotionfreight.com/market.json via GitHub Pages.",
-  "asOf": "2026-10-26",
+  "asOf": "2026-11-02",
   "updatedBy": "dex",
-  "blurb": "Diesel's holding at $6.352 after two straight weekly gains, so keep your fuel surcharge tied to the index and your base linehaul firm until the next print says otherwise. Northwest apple reefer loads are still easing as trucks free up (Boston ~$11.9k, New York ~$11.8k), so quote off this week's board, not last month's.",
-  "dieselPerGal": 6.352,
+  "blurb": "Diesel slipped 6 cents to $6.292, its first dip after two weekly gains, so let your fuel surcharge float down with the index but don't give back base linehaul. Northwest apple reefer loads have stopped easing and are flattening out (Boston ~$12.2k, New York ~$11.5k), so quote off this week's board, not last month's.",
+  "dieselPerGal": 6.292,
   "spotAllIn": 3.53,
-  "trend": "up",
+  "trend": "down",
   "modality": [
     {
       "type": "Dry Van",
@@ -44,7 +44,7 @@
     },
     {
       "lane": "Yakima, WA → Northeast (reefer)",
-      "rpm": "$11.4k–$12.6k / load"
+      "rpm": "$11.1k–$12.6k / load"
     }
   ],
   "commodityRates": {
@@ -55,16 +55,16 @@
     "High-Value Electronics": 2.6
   },
   "_sourcing": {
-    "status": "NINETEENTH cycle with direct egress to named sources blocked. Re-tested 2026-11-03: curl eia.gov and dat.com = no connection (000); WebFetch weeklydiesel.com and ajot.com = getaddrinfo ENOTFOUND. s3.amazonaws.com USDA mirror STILL WORKS (20261028-fvwtrk.pdf = 200; 20261104 = 403, not yet published). WebSearch works but returned NO EIA diesel print for week ending 11/2 (EIA page snippet showed release 10/27, next release 11/3) and NO DAT week 43/44 all-in. asOf deliberately left at 2026-10-26: the headline numbers (diesel, DAT modality) were not refreshed; only the Yakima lane advanced to USDA 10/27.",
-    "dieselPerGal": "LIVE as of week ending 2026-10-26 ($6.352, EIA via IndexBox/Bluebook search summaries, medium confidence; unchanged from last cycle). EIA week ending 11/2 NOT found - EIA's page snippet lists last release 10/27 and next release 11/3, so the print may only just be out; searches surfaced nothing. Do not read this as flat: it is simply unrefreshed. Series: $6.529 (9/21 record) -> $6.179 (10/12 low) -> $6.276 (10/19) -> $6.352 (10/26). Rejected: AAA/GasBuddy retail, stale-year items.",
-    "trend": "UP carried from the last verified EIA move (+9.7c, +7.6c over the two weeks to 10/26). No 11/2 data, so the trend is unconfirmed this week; flip if the 11/2 print comes in down.",
-    "spotAllIn": "CARRIED FORWARD, NOT re-verified ($3.53/mi, FreightWaves NTI ~10/3, now ~4.5 weeks stale). SONAR is paywalled; no clean dated national all-in surfaced. Low-medium confidence.",
-    "modality": "Dry Van $3.09 / Reefer $3.66 / Flatbed $3.64 UNCHANGED, LIVE as of DAT week 42 (Oct 10-16), now 3 weeks stale. DAT week 43 all-in NOT found. Partial week-43 hints seen via search only (not used to reprice): DAT blog reefer LINEHAUL (ex-fuel) $2.73/mi week ending 10/24, -$0.02 w/w - mild reefer softening, consistent with the earlier 'not rolled over yet' note; an undated Trucker item showed van $2.96/reefer $3.59/flatbed $3.55 all-in, unconfirmed. LTL and Intermodal carried forward.",
+    "status": "TWENTIETH cycle with direct egress to named sources blocked. Re-tested 2026-11-10: curl eia.gov and dat.com = no connection (000). s3.amazonaws.com USDA mirror WORKS (20261104-fvwtrk.pdf = 200, parsed with pdftotext; 20261111 = 403, not yet published). WebSearch works. asOf advanced to 2026-11-02: diesel verified for that week (FRED/EIA series via search summary). EIA week ending 11/9 NOT found (FRED snapshots predate its release). DAT/spotAllIn not refreshed.",
+    "dieselPerGal": "LIVE as of week ending 2026-11-02 ($6.292, EIA weekly on-highway series as mirrored by FRED GASDESW, via WebSearch summary; -6.0c w/w from $6.352; medium-high confidence, no direct eia.gov page restating it). Week ending 11/9 NOT found. Series: $6.529 (9/21 record) -> $6.199 (10/5) -> $6.179 (10/12) -> $6.276 (10/19) -> $6.352 (10/26) -> $6.292 (11/2). Rejected: AAA/GasBuddy retail, stale-year items.",
+    "trend": "DOWN: latest verified EIA move is -6.0c (10/26 -> 11/2), first decline after two weekly gains. Single-week signal, based on diesel; DAT spot rates not refreshed. 11/9 print could reverse it.",
+    "spotAllIn": "CARRIED FORWARD, NOT re-verified ($3.53/mi, FreightWaves NTI ~10/3, now ~5.5 weeks stale). SONAR is paywalled; no clean dated national all-in surfaced again. Low-medium confidence.",
+    "modality": "Dry Van $3.09 / Reefer $3.66 / Flatbed $3.64 UNCHANGED, LIVE as of DAT week 42 (Oct 10-16), now ~4 weeks stale. DAT week 43/44 all-in NOT found (searches returned only week 42 2026 and prior-year weeks; an undated DAT post cited reefer linehaul $2.65 -2.6% and flatbed $2.83, not used to reprice). LTL and Intermodal carried forward.",
     "commodityRates": "In sync with modality (no reprice): General Dry Freight 3.09, Frozen Seafood/Poultry 3.66, Fresh Produce 3.66, Coiled Steel 3.64. High-Value Electronics 2.60 carried forward.",
-    "lanes": "Yakima, WA -> Northeast (reefer): LIVE, PRIMARY (USDA AMS FVWTRK dated Oct 28 2026, prices for Tuesday Oct 27, via S3 mirror, apples and pears, Slight Shortage). Boston range $10,600-14,000, mostly $11,100-12,600 (-3% w/w); New York range $11,200-14,000, mostly $11,400-12,200 (0% w/w). Lane string uses the combined mostly span $11.4k-$12.6k. Prior week (10/20): Boston mostly $11,800-12,600, NY $11,400-12,100. Other 10/27 mostly: Atlanta $10,100-10,900 (0), Baltimore $10,300-11,800 (-5), Philadelphia $10,300-11,100 (-4), Miami $12,400-13,500 (-8), Chicago $7,400-8,100 (-9), Dallas $8,700-9,300 (-6). Easing continues at the Southeast/Midwest ends; Northeast flattening. Atlanta -> Miami: CARRIED FORWARD, 19 cycles, no clean dated absolute $/mi (USDA Georgia origin covers tomatoes to other cities, not this lane); NOT promoted. Memphis -> Atlanta unchanged.",
-    "blurb": "Rewritten to hold diesel guidance (no new EIA print found) and to reflect USDA 10/27 Yakima easing (Boston ~$11.9k, NY ~$11.8k).",
-    "directionalCaveatUnverified": "(1) Diesel $6.352 is 10/26 and one print behind; 11/2 not found. (2) DAT modality is week 42, three weeks stale. (3) spotAllIn is ~10/3. (4) asOf 10/26 reflects diesel only; Yakima is 10/27. (5) Atlanta->Miami and Memphis->Atlanta are old carried ranges."
+    "lanes": "Yakima, WA -> Northeast (reefer): LIVE, PRIMARY (USDA AMS FVWTRK dated Nov 4 2026, prices for Tuesday Nov 3, via S3 mirror, apples and pears, Slight Shortage). Boston range $10,700-13,500, mostly $11,900-12,600 (+3% w/w); New York range $10,900-13,000, mostly $11,100-11,900 (-3% w/w). Lane string uses combined mostly span $11.1k-$12.6k. Prior week (10/27): Boston mostly $11,100-12,600, NY $11,400-12,200. Other 11/3 mostly: Atlanta $9,900-10,500 (-3), Baltimore $10,700-11,300 (0), Philadelphia $10,900-11,800 (+6), Miami $12,900-13,800 (+3), Chicago $7,500-8,100 (+1), Dallas $8,500-9,100 (-2). Easing has stopped; mixed and flattening, no new Pacific-NW hot lane (Seattle/LA are short hauls). Atlanta -> Miami: CARRIED FORWARD, 20 cycles, no clean dated absolute $/mi; NOT promoted. Memphis -> Atlanta unchanged.",
+    "blurb": "Rewritten for diesel $6.292 (-6c, first dip) and USDA 11/3 Yakima flattening (Boston ~$12.2k, NY ~$11.5k).",
+    "directionalCaveatUnverified": "(1) Diesel $6.292 is 11/2 and one print behind; 11/9 not found. (2) DAT modality is week 42, ~4 weeks stale. (3) spotAllIn is ~10/3. (4) asOf 11/2 reflects diesel only; Yakima is 11/3. (5) Atlanta->Miami and Memphis->Atlanta are old carried ranges. (6) Trend=down rests on one diesel print."
   },
-  "refreshAttempted": "2026-11-03",
-  "refreshBlockers": "Egress re-tested 2026-11-03: eia.gov and dat.com no connection; weeklydiesel.com and ajot.com ENOTFOUND (not in allowed domains). s3.amazonaws.com USDA mirror works (Yakima 10/27 pulled). Could NOT: find EIA diesel for week ending 11/2 (EIA next-release date 11/3), find DAT week 43/44 all-in, refresh NTI spotAllIn (SONAR paywalled), or source Atlanta->Miami. Allowing eia.gov, dat.com, ajot.com and weeklydiesel.com in the session network settings would make this file fully live from primary sources."
+  "refreshAttempted": "2026-11-10",
+  "refreshBlockers": "Egress re-tested 2026-11-10: eia.gov and dat.com no connection. s3.amazonaws.com USDA mirror works (Yakima 11/3 pulled). Could NOT: find EIA diesel for week ending 11/9 (11/2 confirmed only via FRED mirror in search summary), find DAT week 43/44 all-in, refresh NTI spotAllIn (SONAR paywalled), or source Atlanta->Miami. Allowing eia.gov, dat.com, ajot.com and weeklydiesel.com in the session network settings would make this file fully live from primary sources."
 }
